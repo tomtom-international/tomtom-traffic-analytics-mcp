@@ -1,0 +1,91 @@
+{
+  "manifest_version": "0.3",
+  "name": "tomtom-traffic-analytics-mcp",
+  "display_name": "TomTom Traffic Analytics MCP",
+  "version": "0.0.0",
+  "description": "MCP server for TomTom traffic analytics — junctions, routes, incidents, and area analysis.",
+  "long_description": "Enables AI assistants to access real-time and historical traffic data from TomTom APIs for area analysis, junction monitoring, route tracking, and live traffic insights. Uses in-memory SQL filtering of API responses.",
+  "author": {
+    "name": "TomTom",
+    "url": "https://www.tomtom.com/"
+  },
+  "homepage": "https://github.com/tomtom-international/tomtom-traffic-analytics-mcp",
+  "icon": "images/TomTom-logo.png",
+  "server": {
+    "type": "node",
+    "entry_point": "bin/tomtom-traffic-analytics-mcp.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/bin/tomtom-traffic-analytics-mcp.js"
+      ],
+      "env": {
+        "TOMTOM_MOVE_PORTAL_KEY": "${user_config.tomtom_move_portal_key}",
+        "TOMTOM_API_KEY": "${user_config.tomtom_api_key}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "tomtom-area-analytics-stats",
+      "description": "Retrieve area analytics statistics for GeoJSON polygon regions"
+    },
+    {
+      "name": "tomtom-junction-search",
+      "description": "Search and filter all junctions using SQL queries"
+    },
+    {
+      "name": "tomtom-junction-live-data",
+      "description": "Real-time traffic metrics for junctions"
+    },
+    {
+      "name": "tomtom-junction-archive",
+      "description": "Historical traffic data for junctions"
+    },
+    {
+      "name": "tomtom-route-search",
+      "description": "Search and filter all routes using SQL queries"
+    },
+    {
+      "name": "tomtom-route-monitoring-details",
+      "description": "Segment-level route traffic analysis"
+    },
+    {
+      "name": "tomtom-traffic-flow-segment",
+      "description": "Real-time traffic for road segments at coordinates"
+    },
+    {
+      "name": "tomtom-traffic-incidents",
+      "description": "Traffic incidents in an area with multi-area comparison"
+    }
+  ],
+  "tools_generated": false,
+  "user_config": {
+    "tomtom_move_portal_key": {
+      "type": "string",
+      "title": "TomTom MOVE Portal Key",
+      "description": "API key for TomTom MOVE Portal. Required for junction, route, and area analytics tools. Get yours at https://move.tomtom.com/register",
+      "sensitive": true,
+      "required": true
+    },
+    "tomtom_api_key": {
+      "type": "string",
+      "title": "TomTom Developer API Key",
+      "description": "API key for TomTom Developer Portal. Required for live traffic tools (flow, incidents). Get yours at https://developer.tomtom.com/",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tomtom-international/tomtom-traffic-analytics-mcp.git"
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ]
+  }
+}

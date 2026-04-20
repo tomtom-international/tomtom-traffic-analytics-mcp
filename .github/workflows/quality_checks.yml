@@ -1,0 +1,46 @@
+name: Quality Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    env:
+      TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+      TOMTOM_MOVE_PORTAL_KEY: ${{ secrets.TOMTOM_MOVE_PORTAL_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Linting
+        run: npm run lint
+
+      - name: Code formatting
+        run: npm run format:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run stdio integration tests
+        if: ${{ env.TOMTOM_MOVE_PORTAL_KEY != '' }}
+        run: npm run test:comprehensive
+
+      - name: Run HTTP integration tests
+        if: ${{ env.TOMTOM_MOVE_PORTAL_KEY != '' }}
+        run: npm run test:http

@@ -1,0 +1,66 @@
+# Test files
+tests/
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+vitest.config.ts
+coverage/
+
+# Development configuration
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.backup
+.env*.local
+.github/
+.vscode/
+.idea/
+
+# Build tools
+rollup.config.js
+tsconfig.json
+tsconfig.*.json
+eslint.config.js
+add-file-headers.mjs
+
+# Development scripts
+run-inspector.js
+
+# Documentation assets (keep README)
+images/
+
+# Docker (not needed in npm package)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Build artifacts not needed in package
+bdtools.yml
+manifest.json
+
+# Claude Code local files
+.claude/
+
+# Prettier config
+.prettierrc
+.prettierignore

@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+jobs:
+  pre-check:
+    runs-on: ubuntu-22.04
+    outputs:
+      skip-workflow: ${{ steps.check.outputs.skip-workflow }}
+    steps:
+      - name: Check if workflow should be skipped
+        id: check
+        env:
+          COMMIT_AUTHOR: ${{ github.event.head_commit.author.name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [[ "$COMMIT_AUTHOR" == "github-actions[bot]" ]] && [[ "$COMMIT_MESSAGE" == Release\ version* ]]; then
+            echo "skip-workflow=false" >> $GITHUB_OUTPUT
+            echo "Proceeding with this workflow..."
+          else
+            echo "skip-workflow=true" >> $GITHUB_OUTPUT
+            echo "Skipping this workflow..."
+          fi
+
+  get-version:
+    runs-on: ubuntu-22.04
+    needs: [pre-check]
+    if: ${{ needs.pre-check.outputs.skip-workflow == 'false' }}
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from package.json
+        id: extract
+        run: |
+          version=$(yq -r '.version' package.json)
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+  tag-release-image:
+    runs-on: ubuntu-22.04
+    needs: [get-version]
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest main SHA tag from package repository
+        id: get-sha
+        run: |
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="$(basename ${{ github.repository }})"
+
+          # Check if the repo belongs to an org or user
+          TYPE_CHECK=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/users/${REPO_OWNER}" | \
+            yq -r '.type')
+
+          if [[ "$TYPE_CHECK" == "Organization" ]]; then
+            OWNER_TYPE="orgs"
+          else
+            OWNER_TYPE="users"
+          fi
+
+          MAIN_SHA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/${OWNER_TYPE}/${REPO_OWNER}/packages/container/${REPO_NAME}/versions" | \
+            yq '.[] | select(.metadata.container.tags | contains(["main"])) | .metadata.container.tags[]' | grep '^sha-')
+          echo "main_sha=$MAIN_SHA" >> $GITHUB_OUTPUT
+          echo "Main SHA: $MAIN_SHA"
+
+      - name: Pull, retag and push release image
+        run: |
+          # Ensure image names are all lowercase
+          REPO_NAME_LOWER=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+
+          # Source image with SHA tag
+          SOURCE_IMAGE="${{ env.REGISTRY }}/${REPO_NAME_LOWER}:${{ steps.get-sha.outputs.main_sha }}"
+          # Target image with release tag
+          TARGET_IMAGE="${{ env.REGISTRY }}/${REPO_NAME_LOWER}:v${{ needs.get-version.outputs.version }}"
+          # Latest tag
+          LATEST_IMAGE="${{ env.REGISTRY }}/${REPO_NAME_LOWER}:latest"
+
+          echo "Pulling source image: $SOURCE_IMAGE"
+          docker pull $SOURCE_IMAGE
+
+          echo "Tagging as: $TARGET_IMAGE"
+          docker tag $SOURCE_IMAGE $TARGET_IMAGE
+
+          echo "Tagging as: $LATEST_IMAGE"
+          docker tag $SOURCE_IMAGE $LATEST_IMAGE
+
+          echo "Pushing release image: $TARGET_IMAGE"
+          docker push $TARGET_IMAGE
+
+          echo "Pushing latest image: $LATEST_IMAGE"
+          docker push $LATEST_IMAGE
+
+  add-release-artifacts:
+    runs-on: ubuntu-22.04
+    needs: [tag-release-image, get-version]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download MCPB artifact
+        uses: dawidd6/action-download-artifact@688efa90a08f3552e7c1420c8313e215164e8b14
+        with:
+          workflow: build-mcpb.yml
+          name: tomtom-traffic-analytics-mcp-mcpb
+          path: ./dist/mcpb
+          branch: main
+          search_artifacts: true
+
+      - name: List downloaded artifacts
+        run: ls -la ./dist/mcpb/
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.get-version.outputs.version }}
+          files: |
+            ./dist/mcpb/tomtom-traffic-analytics-mcp.mcpb
+
+  publish-npm:
+    runs-on: ubuntu-22.04
+    needs: [tag-release-image]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to NPM
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  cleanup:
+    runs-on: ubuntu-22.04
+    if: always() && needs.pre-check.outputs.skip-workflow == 'false'
+    needs: [pre-check]
+    steps:
+      - uses: dataaxiom/ghcr-cleanup-action@cd0cdb900b5dbf3a6f2cc869f0dbb0b8211f50c4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          exclude-tags: '^v[0-9]+\.[0-9]+\.[0-9]+$'
+          use-regex: true
+          keep-n-tagged: 30
+          log-level: info

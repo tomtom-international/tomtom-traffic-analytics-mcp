@@ -1,0 +1,79 @@
+name: Build MCPB Bundle
+
+on:
+  push:
+    branches:
+      - 'main'
+  release:
+    types: [published]
+
+jobs:
+  pre-check:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push'
+    outputs:
+      skip-workflow: ${{ steps.check.outputs.skip-workflow }}
+    steps:
+      - name: Check if workflow should be skipped
+        id: check
+        run: |
+          if [[ "${{ github.event.head_commit.author.name }}" == "github-actions[bot]" ]] && [[ "${{ github.event.head_commit.message }}" == Release\ version* ]]; then
+            echo "skip-workflow=true" >> $GITHUB_OUTPUT
+            echo "Skipping this workflow..."
+          else
+            echo "skip-workflow=false" >> $GITHUB_OUTPUT
+            echo "Proceeding with this workflow..."
+          fi
+
+  build-mcpb:
+    name: Build MCPB
+    needs: [pre-check]
+    if: |
+      always() &&
+      (github.event_name == 'release' || needs.pre-check.outputs.skip-workflow == 'false')
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update version from release tag
+        if: github.event_name == 'release'
+        run: |
+          version_number=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
+          echo "Updating version to ${version_number}"
+          sed -i "s/\"version\": \".*\"/\"version\": \"${version_number}\"/" manifest.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Build MCPB bundle
+        run: npm run build:mcpb
+
+      - name: Upload MCPB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tomtom-traffic-analytics-mcp-mcpb
+          path: dist/mcpb/tomtom-traffic-analytics-mcp.mcpb
+          retention-days: 90
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "dist/mcpb/tomtom-traffic-analytics-mcp.mcpb" --clobber
