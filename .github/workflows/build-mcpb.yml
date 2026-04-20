@@ -59,6 +59,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install cross-platform DuckDB native bindings for MCPB
+        # The MCPB bundle ships to Claude Desktop on macOS and Windows, but
+        # the CI runner is Linux — so npm only installs linux-x64 DuckDB
+        # bindings via optionalDependencies. Explicitly pull all platform
+        # variants so the bundled node_modules contains every binding a
+        # Claude Desktop user might need at install time.
+        run: |
+          DUCKDB_VERSION=$(node -p "require('./node_modules/@duckdb/node-api/package.json').dependencies['@duckdb/node-bindings']")
+          echo "Installing DuckDB bindings ${DUCKDB_VERSION} for all platforms"
+          npm install --no-save --force \
+            "@duckdb/node-bindings-darwin-arm64@${DUCKDB_VERSION}" \
+            "@duckdb/node-bindings-darwin-x64@${DUCKDB_VERSION}" \
+            "@duckdb/node-bindings-linux-x64@${DUCKDB_VERSION}" \
+            "@duckdb/node-bindings-linux-arm64@${DUCKDB_VERSION}" \
+            "@duckdb/node-bindings-win32-x64@${DUCKDB_VERSION}" \
+            "@duckdb/node-bindings-win32-arm64@${DUCKDB_VERSION}"
+
       - name: Build project
         run: npm run build
 
