@@ -5,7 +5,7 @@
 
 MCP server for TomTom Traffic Analytics APIs — enabling AI assistants to access real-time and historical traffic data for area analysis, junction monitoring, route tracking, and live traffic insights.
 
-> **Tip**: Pair with [TomTom MCP Server](https://www.npmjs.com/package/@tomtom-org/tomtom-mcp) for geocoding, routing, and mapping capabilities.
+> **Tip**: Pair with [TomTom Maps MCP Server](https://www.npmjs.com/package/@tomtom-org/tomtom-mcp) for geocoding, routing, and mapping capabilities.
 
 ---
 
