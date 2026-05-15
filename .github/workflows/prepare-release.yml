@@ -3,6 +3,12 @@ name: Prepare release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name (e.g. v1.2.3)'
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -11,9 +17,9 @@ env:
 jobs:
   update-package-version-and-push-commit:
     runs-on: ubuntu-22.04
-    if: ${{ startsWith(github.event.release.tag_name, 'v') }}
+    if: ${{ startsWith(github.event.release.tag_name || inputs.tag_name, 'v') }}
     env:
-      TAG_NAME: ${{ github.event.release.tag_name }}
+      TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,7 +43,27 @@ jobs:
           version_number=$(echo "$TAG_NAME" | sed 's/^v//')
           sed -i "s/export const VERSION = \".*\";/export const VERSION = \"${version_number}\";/" src/version.ts
 
+      - name: check-changes
+        id: check
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: check-version
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          old=$(git show HEAD:package.json | yq -r .version)
+          new=$(yq -r .version package.json)
+          if [[ "$(printf '%s\n%s\n' "$old" "$new" | sort -V | tail -n1)" != "$new" ]]; then
+            echo "Error: new version $new is not greater than previous $old"
+            exit 1
+          fi
+
       - name: Commit and push changes
+        if: steps.check.outputs.changed == 'true'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
