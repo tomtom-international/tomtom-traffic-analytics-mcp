@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "tomtom-traffic-analytics-mcp",
   "display_name": "TomTom Traffic Analytics MCP",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for TomTom traffic analytics — junctions, routes, incidents, and area analysis.",
   "long_description": "Enables AI assistants to access real-time and historical traffic data from TomTom APIs for area analysis, junction monitoring, route tracking, and live traffic insights. Uses in-memory SQL filtering of API responses.",
   "author": {
