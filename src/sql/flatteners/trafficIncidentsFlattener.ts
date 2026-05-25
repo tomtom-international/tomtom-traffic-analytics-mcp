@@ -37,6 +37,7 @@ interface IncidentRow {
   probabilityOfOccurrence: string | null;
   numberOfReports: number | null;
   lastReportTime: string | null;
+  events: string | null; // JSON-serialised array of {description, code, iconCategory}
   geometry_type: string;
   coordinates: string;
   geom_geojson: string | null; // Full GeoJSON geometry for ST_GeomFromGeoJSON
@@ -80,6 +81,7 @@ export function flattenTrafficIncidents(
     probabilityOfOccurrence: incident.properties.probabilityOfOccurrence ?? null,
     numberOfReports: incident.properties.numberOfReports ?? null,
     lastReportTime: incident.properties.lastReportTime ?? null,
+    events: incident.properties.events ? JSON.stringify(incident.properties.events) : null,
     geometry_type: incident.geometry.type,
     coordinates: JSON.stringify(incident.geometry.coordinates),
     geom_geojson: JSON.stringify(incident.geometry), // Full GeoJSON for spatial queries
