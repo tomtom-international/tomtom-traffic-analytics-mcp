@@ -34,7 +34,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
   server.registerTool(
     "tomtom-junction-search",
     {
-      description: `Search and filter all your junctions using SQL queries. Use this FIRST to discover junction IDs by name, status, country, or other properties, then pass the IDs to tomtom-junction-live-data or tomtom-junction-archive for traffic analysis. Returns junction catalog metadata only — no live traffic data.
+      description: `Search and filter all your junctions using SQL queries. Use this FIRST to discover junction IDs by name, status, country, or other properties, then pass the IDs to tomtom-junction-live-data or tomtom-junction-archive for traffic analysis. Returns junction catalog metadata only — no live traffic data. Junctions must be pre-created in Move Portal (no ad-hoc lat/lon queries).
 
     Fetches ALL junctions (auto-paginating) and loads them into a queryable database.
 
@@ -71,13 +71,16 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - Rounding: ROUND(value, 2)
     - No template variables — data is pre-loaded, just query it directly
 
+    **Important — includeGeometry side effect:**
+    The three *_metadata tables (junction_metadata, approach_metadata, exit_metadata) are only populated when includeGeometry=true. Without it, JOINs to those tables silently return empty rows.
+
     **Available Tables:**
     - approaches: junction_id, approach_id, travel_time_sec, free_flow_travel_time_sec, delay_sec, usual_delay_sec, stops, queue_length_meters, volume_per_hour, is_closed
     - turn_ratios: junction_id, approach_id, exit_id, exit_index, ratio_percent, probes_count
     - stops_histogram: junction_id, approach_id, number_of_stops, number_of_vehicles
-    - junction_metadata: junction_id, name, country_code (3-letter ISO: ESP/DEU/USA), drive_on_left, traffic_lights (requires includeGeometry=true)
-    - approach_metadata: junction_id, approach_id, name, road_name, direction, frc, length, one_way_road, excluded, drivable (requires includeGeometry=true)
-    - exit_metadata: junction_id, exit_id, name, road_name, direction, frc, one_way_road, drivable (requires includeGeometry=true)
+    - junction_metadata: junction_id, name, country_code (3-letter ISO: ESP/DEU/USA), drive_on_left, traffic_lights
+    - approach_metadata: junction_id, approach_id, name, road_name, direction, frc (numeric 0-7, see server FRC scale), length, one_way_road, excluded, drivable
+    - exit_metadata: junction_id, exit_id, name, road_name, direction, frc (numeric 0-7, see server FRC scale), one_way_road, drivable
 
     **Example queries:**
     - Most delayed: SELECT approach_id, delay_sec, queue_length_meters FROM approaches ORDER BY delay_sec DESC LIMIT 5

@@ -31,7 +31,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
   server.registerTool(
     "tomtom-route-search",
     {
-      description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis. Returns one row per monitored route with current aggregate delay and travel-time vs typical.
+      description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis. Returns one row per monitored route with current aggregate delay and travel-time vs typical. Routes must be pre-configured in Move Portal.
 
     Fetches all routes with current traffic data and loads them into a queryable database.
 
