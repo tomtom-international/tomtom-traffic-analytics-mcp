@@ -58,7 +58,7 @@ export const TRAFFIC_INCIDENTS_SCHEMA: TableDefinition[] = [INCIDENTS_TABLE];
  */
 export const TRAFFIC_INCIDENTS_SQL_EXAMPLES = `
 Available table: incidents
-Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array — use ->> for text, -> / json_extract for JSON), geometry_type, coordinates
+Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array — extract with json_extract_string for text values), geometry_type, coordinates
 
 Example queries:
 1. Default (accidents + roadworks):

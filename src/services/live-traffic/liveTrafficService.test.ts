@@ -90,7 +90,9 @@ describe("Live Traffic Service", () => {
           },
         }
       );
-      expect(result).toEqual(mockResponse.data);
+      // Service now unwraps response.data.flowSegmentData so the flattener
+      // can read fields off the top level (matches TrafficFlowSegmentResponse).
+      expect(result).toEqual(mockResponse.data.flowSegmentData);
     });
 
     it("should include optional parameters when provided", async () => {
