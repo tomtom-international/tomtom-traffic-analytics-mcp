@@ -62,12 +62,16 @@ describe("flattenTrafficFlowSegment", () => {
     expect(row.coordinates).toBe(JSON.stringify(mockResponse.coordinates));
   });
 
-  it("should build geom_geojson as LineString", () => {
+  it("should build geom_geojson as RFC 7946 LineString (lon, lat arrays)", () => {
     const result = flattenTrafficFlowSegment(mockResponse);
     const row = result.tables.get("flow_segment")![0];
     const parsed = JSON.parse(row.geom_geojson as string);
     expect(parsed.type).toBe("LineString");
-    expect(parsed.coordinates).toEqual(mockResponse.coordinates);
+    // Standard GeoJSON requires [longitude, latitude] numeric arrays — not
+    // { latitude, longitude } objects — so that ST_GeomFromGeoJSON can parse it.
+    expect(parsed.coordinates).toEqual(
+      mockResponse.coordinates.map((c) => [c.longitude, c.latitude])
+    );
   });
 
   it("should convert roadClosure boolean to 0/1", () => {
