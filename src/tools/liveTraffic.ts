@@ -31,14 +31,14 @@ export function createLiveTrafficTools(server: McpServer): void {
   server.registerTool(
     "tomtom-traffic-flow-segment",
     {
-      description: `Get real-time traffic flow information for the road segment closest to given coordinates.
+      description: `Get real-time traffic flow information for the road segment closest to given coordinates. Returns one segment per call: current and free-flow speed, current and free-flow travel time, confidence, and road-closure flag.
 
 REQUIRES sql_queries parameter - an object with named queries, e.g.: {"segment_info": "SELECT ..."}
 
 **SQL Dialect: DuckDB** (PostgreSQL-compatible).
 
 **Available Table: flow_segment**
-Columns: frc (FRC0-FRC6), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence, road_closure (0/1), coordinates, openlr
+Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence, road_closure (0/1), coordinates, openlr
 
 **Example queries:**
 - Get segment data: SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment
@@ -51,7 +51,7 @@ Columns: frc (FRC0-FRC6), current_speed, free_flow_speed, current_travel_time, f
   server.registerTool(
     "tomtom-traffic-incidents",
     {
-      description: `Query live traffic incidents (accidents, jams, closures, roadworks) for named bounding boxes.
+      description: `Query live traffic incidents (accidents, jams, closures, roadworks) within one or more named bounding boxes. Returns each active incident in the requested areas with category, delay, magnitude, geometry, and report metadata.
 
     REQUIRES sql_queries parameter - an object with named queries, e.g.: {"accidents": "SELECT ..."}
 

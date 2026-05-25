@@ -31,7 +31,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
   server.registerTool(
     "tomtom-route-search",
     {
-      description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis.
+      description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis. Returns one row per monitored route with current aggregate delay and travel-time vs typical.
 
     Fetches all routes with current traffic data and loads them into a queryable database.
 
@@ -56,7 +56,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
   server.registerTool(
     "tomtom-route-monitoring-details",
     {
-      description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs.
+      description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs. Returns a route-info summary plus one row per road segment with current vs typical speed, confidence, and OpenLR references.
 
     REQUIRES sql_queries parameter - an object with named queries, e.g.: {"slow_segments": "SELECT ..."}
 
