@@ -75,10 +75,10 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     The three *_metadata tables (junction_metadata, approach_metadata, exit_metadata) are only populated when includeGeometry=true. Without it, JOINs to those tables silently return empty rows.
 
     **Available Tables:**
-    - approaches: junction_id, approach_id, travel_time_sec, free_flow_travel_time_sec, delay_sec, usual_delay_sec, stops, queue_length_meters, volume_per_hour, is_closed
+    - approaches: junction_id, approach_id, travel_time_sec, free_flow_travel_time_sec, delay_sec, usual_delay_sec, stops, queue_length_meters, volume_per_hour, is_closed (0/1)
     - turn_ratios: junction_id, approach_id, exit_id, exit_index, ratio_percent, probes_count
     - stops_histogram: junction_id, approach_id, number_of_stops, number_of_vehicles
-    - junction_metadata: junction_id, name, country_code (3-letter ISO: ESP/DEU/USA), drive_on_left, traffic_lights
+    - junction_metadata: junction_id, name, country_code (3-letter ISO: ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1)
     - approach_metadata: junction_id, approach_id, name, road_name, direction, frc (numeric 0-7, see server FRC scale), length, one_way_road, excluded, drivable
     - exit_metadata: junction_id, exit_id, name, road_name, direction, frc (numeric 0-7, see server FRC scale), one_way_road, drivable
 
@@ -109,7 +109,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - No template variables — data is pre-loaded, just query it directly
 
     **Available Tables:**
-    - approaches: time, junction_id, approach_id, travel_time_sec, free_flow_travel_time_sec, delay_sec, usual_delay_sec, stops, queue_length_meters, volume_per_hour, is_closed
+    - approaches: time, junction_id, approach_id, travel_time_sec, free_flow_travel_time_sec, delay_sec, usual_delay_sec, stops, queue_length_meters, volume_per_hour, is_closed (0/1)
     - turn_ratios: time, junction_id, approach_id, exit_id, exit_index, ratio_percent, probes_count
 
     **Example queries:**

@@ -38,7 +38,7 @@ REQUIRES sql_queries parameter - an object with named queries, e.g.: {"segment_i
 **SQL Dialect: DuckDB** (PostgreSQL-compatible).
 
 **Available Table: flow_segment**
-Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence, road_closure (0/1), coordinates, openlr
+Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence (0-1, 1=highest quality), road_closure (0/1), coordinates, openlr
 
 **Example queries:**
 - Get segment data: SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment
