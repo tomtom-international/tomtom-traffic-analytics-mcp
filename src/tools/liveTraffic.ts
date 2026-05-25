@@ -60,6 +60,12 @@ Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, 
     **Available Table: incidents**
     Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, geometry_type, coordinates
 
+    **iconCategory enum (13 values):**
+    - Disruptions: Accident, JamLane, LaneClosure, RoadClosure
+    - Construction / routing: RoadWorks, Detour
+    - Weather: Fog, Rain, Ice, Wind, Flooding
+    - Other: Dangerous, Cluster
+
     **IMPORTANT - delay column availability:**
     - Accident, JamLane, LaneClosure have real-time delay measurements
     - RoadWorks are informational markers with NULL delay - they mark construction zones, not real-time congestion
