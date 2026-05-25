@@ -34,7 +34,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
   server.registerTool(
     "tomtom-junction-search",
     {
-      description: `Search and filter all your junctions using SQL queries. Use this FIRST to discover junction IDs by name, status, country, or other properties, then pass the IDs to tomtom-junction-live-data or tomtom-junction-archive for traffic analysis.
+      description: `Search and filter all your junctions using SQL queries. Use this FIRST to discover junction IDs by name, status, country, or other properties, then pass the IDs to tomtom-junction-live-data or tomtom-junction-archive for traffic analysis. Returns junction catalog metadata only — no live traffic data.
 
     Fetches ALL junctions (auto-paginating) and loads them into a queryable database.
 
@@ -46,7 +46,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     Columns: junction_id, name, status (ACTIVE/PENDING_UPDATE/ERROR), country_code (ISO 3166-1 alpha-3, e.g. ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1), num_approaches, num_exits, created_at, last_modified_at, time_zone
 
     **Full view (view="full") - adds tables: approaches, exits**
-    - approaches: junction_id, approach_id, name, road_name, direction (NORTH/SOUTH/EAST/WEST), frc (0-7), length, one_way_road (0/1), excluded (0/1), drivable (0/1)
+    - approaches: junction_id, approach_id, name, road_name, direction (NORTH/SOUTH/EAST/WEST), frc (numeric 0-7, see server FRC scale), length, one_way_road (0/1), excluded (0/1), drivable (0/1)
     - exits: junction_id, exit_id, name, road_name, direction, frc, one_way_road (0/1), drivable (0/1)
 
     **Example queries:**
@@ -63,7 +63,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
   server.registerTool(
     "tomtom-junction-live-data",
     {
-      description: `Access real-time traffic metrics for junctions. Use tomtom-junction-search first to find junction IDs.
+      description: `Real-time traffic snapshot for one or more junctions. Returns a single live reading per junction covering approach delays, queue lengths, turn ratios, and stops histogram. Use tomtom-junction-search first to discover junction IDs.
 
     REQUIRES sql_queries parameter - an object with named queries, e.g.: {"delays": "SELECT ..."}
 
@@ -96,7 +96,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
   server.registerTool(
     "tomtom-junction-archive",
     {
-      description: `Download minute-by-minute historical traffic data for junctions over a specified date range (maximum 2 days). Use tomtom-junction-search first to find junction IDs.
+      description: `Download minute-by-minute historical traffic data for junctions over a specified date range (maximum 2 days). Use tomtom-junction-search first to find junction IDs. Use for peak-hour analysis, before/after comparisons, and intra-day pattern detection.
 
     REQUIRES sql_queries parameter - an object with named queries, e.g.: {"hourly_avg": "SELECT ..."}
 

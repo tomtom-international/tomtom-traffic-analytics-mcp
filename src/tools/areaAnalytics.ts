@@ -25,7 +25,7 @@ export function createAreaAnalyticsTools(server: McpServer): void {
   server.registerTool(
     "tomtom-area-analytics-stats",
     {
-      description: `Retrieve Area Analytics statistics. Supports one region (GeoJSON Polygon) with one or more data types within a 31-day period. End date must be at least 2 days before today.
+      description: `Retrieve historical traffic patterns (speed, free-flow speed, congestion, travel time) for one GeoJSON polygon over up to a 31-day window. NOT real-time — end date must be ≥ 2 days before today. timed_data = time-series across the polygon (trends over hours/days/months); tiled_data = spatial grid cells within the polygon (hotspot locations). Use for trend analysis, peak vs off-peak comparison, and hotspot detection.
 
     REQUIRES sql_queries parameter - an object with named queries, e.g.: {"daily_avg": "SELECT ..."}
 

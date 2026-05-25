@@ -21,6 +21,29 @@ import { createJunctionAnalyticsTools } from "./tools/junctionAnalytics";
 import { createRouteMonitoringTools } from "./tools/routeMonitoring";
 import { createAreaAnalyticsTools } from "./tools/areaAnalytics";
 import { createLiveTrafficTools } from "./tools/liveTraffic";
+import { VERSION } from "./version";
+
+const SERVER_INSTRUCTIONS = `TomTom traffic analytics over TomTom Traffic and Move Portal APIs. Eight tools across four domains:
+
+- Live Traffic — point/area real-time data, no pre-config. Uses TOMTOM_API_KEY.
+  - tomtom-traffic-flow-segment: speed/travel-time for one coordinate.
+  - tomtom-traffic-incidents: incidents across 1–10 named bounding boxes.
+
+- Area Analytics — historical stats for any GeoJSON polygon. Uses TOMTOM_MOVE_PORTAL_KEY.
+  - tomtom-area-analytics-stats: aggregated speed/congestion, up to 31-day window, end date ≥ 2 days ago.
+
+- Junction Analytics — junctions must be pre-created in Move Portal (cannot query arbitrary lat/lon). Uses TOMTOM_MOVE_PORTAL_KEY.
+  - tomtom-junction-search → discover junction IDs first.
+  - tomtom-junction-live-data: real-time metrics, up to 20 junctions per call.
+  - tomtom-junction-archive: minute-by-minute history, max 2-day window, up to 20 junctions.
+
+- Route Monitoring — routes must be pre-created in Move Portal. Uses TOMTOM_MOVE_PORTAL_KEY.
+  - tomtom-route-search → discover route IDs first.
+  - tomtom-route-monitoring-details: segment-level analysis, up to 20 routes per call.
+
+Every tool requires a \`sql_queries\` parameter (named DuckDB SELECT queries). API responses are flattened into in-memory tables; only your SELECT results return — full responses never enter context. SELECT-only, 5-second timeout, 10,000-row result cap. Booleans stored as 0/1 integers. Per-tool table schemas, columns and example queries live in each tool description.
+
+FRC scale (Functional Road Class — road importance, lower number = more major road): 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor, 8=Other. Live-traffic flow-segment uses string codes "FRC0"–"FRC6"; junction tools use integer 0–7; area-analytics input filter accepts 0–8.`;
 
 /**
  * Factory function that creates and configures a TomTom Traffic Analytics MCP Server instance
@@ -30,10 +53,15 @@ export function createServer(): McpServer {
 
   validateServerApiKey();
 
-  const server = new McpServer({
-    name: "TomTom Traffic Analytics MCP Server",
-    version: "1.0.0",
-  });
+  const server = new McpServer(
+    {
+      name: "TomTom Traffic Analytics MCP Server",
+      version: VERSION,
+    },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+    }
+  );
 
   // Register all tools
   registerTools(server);
