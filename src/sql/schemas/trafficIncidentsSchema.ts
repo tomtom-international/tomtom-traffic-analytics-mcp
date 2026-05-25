@@ -60,6 +60,10 @@ export const TRAFFIC_INCIDENTS_SQL_EXAMPLES = `
 Available table: incidents
 Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array — extract with json_extract_string for text values), geometry_type, coordinates
 
+Spatial columns (avoid SELECT * — non-text types):
+- geom_geojson (TEXT): GeoJSON of the incident geometry, queryable directly
+- geom (GEOMETRY): native geometry, populated on demand by ST_ functions
+
 Example queries:
 1. Default (accidents + roadworks):
    SELECT id, iconCategory, delay, magnitudeOfDelay FROM incidents WHERE iconCategory IN ('Accident', 'RoadWorks')

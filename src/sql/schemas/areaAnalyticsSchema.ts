@@ -64,6 +64,11 @@ export const AREA_ANALYTICS_SCHEMA: TableDefinition[] = [TIMED_DATA_TABLE, TILED
 export const AREA_ANALYTICS_SQL_EXAMPLES = `
 Available tables: timed_data, tiled_data
 
+congestion_level is on a 0-100 scale (0=free flow, 100=standstill).
+
+Spatial column on tiled_data (avoid SELECT * — non-text type):
+- point_geom (GEOMETRY): ST_Point(lon, lat) of the tile centroid, populated on demand by ST_ functions
+
 Example queries:
 1. Daily congestion trend:
    SELECT time, AVG(congestion_level) as avg_congestion
@@ -71,7 +76,7 @@ Example queries:
 
 2. Congestion hotspots:
    SELECT lat, lon, congestion_level
-   FROM tiled_data WHERE congestion_level > 0.7 ORDER BY congestion_level DESC LIMIT 50
+   FROM tiled_data WHERE congestion_level > 70 ORDER BY congestion_level DESC LIMIT 50
 
 3. Speed comparison by aggregation level:
    SELECT aggregation_type, AVG(speed) as avg_speed, AVG(free_flow_speed) as avg_free_flow
