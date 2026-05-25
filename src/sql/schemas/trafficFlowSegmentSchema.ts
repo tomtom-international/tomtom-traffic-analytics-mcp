@@ -50,7 +50,11 @@ export const TRAFFIC_FLOW_SEGMENT_SCHEMA: TableDefinition[] = [FLOW_SEGMENT_TABL
  */
 export const TRAFFIC_FLOW_SEGMENT_SQL_EXAMPLES = `
 Available table: flow_segment
-Columns: frc (FRC0-FRC6), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence, road_closure (0/1), coordinates, openlr
+Columns: frc (FRC0-FRC6), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence (0-1, 1=highest quality), road_closure (0/1), coordinates, openlr
+
+Spatial columns (avoid SELECT * — non-text types):
+- geom_geojson (TEXT): GeoJSON LineString of the segment, queryable directly
+- geom (GEOMETRY): native geometry, populated on demand by ST_ functions
 
 FRC: FRC0=Motorway, FRC1=Major, FRC2=Other major, FRC3=Secondary, FRC4=Local connecting, FRC5=Local high, FRC6=Local
 
