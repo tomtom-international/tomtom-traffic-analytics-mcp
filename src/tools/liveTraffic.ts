@@ -58,7 +58,7 @@ Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, 
     **SQL Dialect: DuckDB** (PostgreSQL-compatible).
 
     **Available Table: incidents**
-    Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array of {description, code, iconCategory} — use ->> for unquoted text or -> / json_extract for raw JSON), geometry_type, coordinates
+    Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array of {description, code, iconCategory} — extract with json_extract_string for text values), geometry_type, coordinates
 
     **iconCategory enum (13 values):**
     - Disruptions: Accident, JamLane, LaneClosure, RoadClosure
@@ -77,7 +77,7 @@ Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, 
     - Default (accidents + roadworks): SELECT id, iconCategory, delay FROM incidents WHERE iconCategory IN ('Accident', 'RoadWorks')
     - Count by type: SELECT iconCategory, COUNT(*) as count FROM incidents GROUP BY iconCategory
     - Top delays: SELECT id, delay FROM incidents WHERE delay IS NOT NULL ORDER BY delay DESC LIMIT 10
-    - First event description per incident: SELECT id, events->>'$[0].description' AS first_event FROM incidents WHERE events IS NOT NULL
+    - First event description per incident: SELECT id, json_extract_string(events, '$[0].description') AS first_event FROM incidents WHERE events IS NOT NULL
 
     **MULTI-AREA COMPARISON queries:**
     - Incidents by area: SELECT area_name, COUNT(*) as total_incidents, SUM(CASE WHEN iconCategory = 'Accident' THEN 1 ELSE 0 END) as accidents FROM incidents GROUP BY area_name
