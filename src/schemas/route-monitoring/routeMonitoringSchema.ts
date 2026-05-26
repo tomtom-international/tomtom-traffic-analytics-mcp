@@ -23,9 +23,7 @@ const sqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"slow_segments": "SELECT ..."}',
   })
-  .describe(
-    `REQUIRED: SQL queries to filter/aggregate the route details. Keys are output names, values are SQL queries.`
-  );
+  .describe("SQL queries to run against the loaded tables (see server instructions).");
 
 // Schema for getting detailed route information - requires route IDs array
 export const getRouteDetailsSchema = {
@@ -33,7 +31,7 @@ export const getRouteDetailsSchema = {
     .array(z.coerce.string())
     .min(1)
     .max(20)
-    .describe("Route IDs to query. Max 20. Data is merged for cross-route SQL comparisons."),
+    .describe("Up to 20 IDs; data merged for cross-route SQL"),
   sql_queries: sqlQueriesSchema,
 };
 
@@ -44,9 +42,7 @@ const routeSearchSqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"delayed_routes": "SELECT ..."}',
   })
-  .describe(
-    `REQUIRED: SQL queries to filter/aggregate route list. Keys are output names, values are SQL queries.`
-  );
+  .describe("SQL queries to run against the loaded tables (see server instructions).");
 
 // Route search schema
 export const routeSearchSchema = {
