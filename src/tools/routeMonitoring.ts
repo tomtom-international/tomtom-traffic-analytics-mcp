@@ -35,10 +35,6 @@ export function createRouteMonitoringTools(server: McpServer): void {
 
     Fetches all routes with current traffic data and loads them into a queryable database.
 
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"delayed": "SELECT ..."}
-
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible).
-
     **Table: routes**
     Columns: route_id, route_name, route_status (NEW/ACTIVE/UPDATING/FAILED/ARCHIVED), travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage
 
@@ -64,12 +60,6 @@ export function createRouteMonitoringTools(server: McpServer): void {
     "tomtom-route-monitoring-details",
     {
       description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs. Returns a route-info summary plus one row per road segment with current vs typical speed, confidence, and OpenLR references.
-
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"slow_segments": "SELECT ..."}
-
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible). Use DuckDB functions:
-    - Rounding: ROUND(value, 2)
-    - No template variables — data is pre-loaded, just query it directly
 
     **Available Tables:**
     - route_info: route_id, route_name, route_status, travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage, route_confidence (0-100 percentage)

@@ -38,10 +38,6 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
 
     Fetches ALL junctions (auto-paginating) and loads them into a queryable database.
 
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"active": "SELECT ..."}
-
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible).
-
     **Compact view (default) - Table: junctions**
     Columns: junction_id, name, status (ACTIVE/PENDING_UPDATE/ERROR), country_code (ISO 3166-1 alpha-3, e.g. ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1), num_approaches, num_exits, created_at, last_modified_at, time_zone
 
@@ -64,12 +60,6 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     "tomtom-junction-live-data",
     {
       description: `Real-time traffic snapshot for one or more junctions. Returns a single live reading per junction covering approach delays, queue lengths, turn ratios, and stops histogram. Use tomtom-junction-search first to discover junction IDs.
-
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"delays": "SELECT ..."}
-
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible). Use DuckDB functions:
-    - Rounding: ROUND(value, 2)
-    - No template variables — data is pre-loaded, just query it directly
 
     **Important — includeGeometry side effect:**
     The three *_metadata tables (junction_metadata, approach_metadata, exit_metadata) are only populated when includeGeometry=true. Without it, JOINs to those tables silently return empty rows.
@@ -101,12 +91,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     {
       description: `Download minute-by-minute historical traffic data for junctions over a specified date range (maximum 2 days). Use tomtom-junction-search first to find junction IDs. Use for peak-hour analysis, before/after comparisons, and intra-day pattern detection.
 
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"hourly_avg": "SELECT ..."}
-
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible). Use DuckDB functions:
-    - Date formatting: time::DATE, date_part('hour', time::TIMESTAMP)
-    - Rounding: ROUND(value, 2)
-    - No template variables — data is pre-loaded, just query it directly
+    Date helpers for the \`time\` column: \`time::DATE\`, \`date_part('hour', time::TIMESTAMP)\`.
 
     **Available Tables:**
     - approaches: time, junction_id, approach_id, travel_time_sec, free_flow_travel_time_sec, delay_sec, usual_delay_sec, stops, queue_length_meters, volume_per_hour, is_closed (0/1)

@@ -41,7 +41,7 @@ const SERVER_INSTRUCTIONS = `TomTom traffic analytics over TomTom Traffic and Mo
   - tomtom-route-search → discover route IDs first.
   - tomtom-route-monitoring-details: segment-level analysis, up to 20 routes per call.
 
-Every tool requires a \`sql_queries\` parameter (named DuckDB SELECT queries). API responses are flattened into in-memory tables; only your SELECT results return — full responses never enter context. SELECT-only, 5-second timeout, 10,000-row result cap. Booleans stored as 0/1 integers (1 = true, e.g. is_closed=1 means road is closed; 0 = false). Per-tool table schemas, columns and example queries live in each tool description.
+Every tool requires a \`sql_queries\` parameter: an object mapping named keys to DuckDB SELECT queries — e.g. \`{"my_query": "SELECT ... FROM table_name"}\`. SQL dialect is DuckDB (PostgreSQL-compatible). API responses are flattened into in-memory tables; only your SELECT results return — full responses never enter context. SELECT-only, 5-second timeout, 10,000-row result cap. Booleans stored as 0/1 integers (1 = true, e.g. is_closed=1 means road is closed; 0 = false). DuckDB tips: \`ROUND(value, 2)\` for rounding; data is pre-loaded, so no template variables. Per-tool table schemas, columns and example queries live in each tool description.
 
 FRC scale (Functional Road Class — road importance, lower number = more major road): 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor, 8=Other. Live-traffic flow-segment uses string codes "FRC0"–"FRC6"; junction tools use integer 0–7; area-analytics input filter accepts 0–8.`;
 

@@ -27,12 +27,7 @@ export function createAreaAnalyticsTools(server: McpServer): void {
     {
       description: `Retrieve historical traffic patterns (speed, free-flow speed, congestion, travel time) for one GeoJSON polygon over up to a 31-day window. NOT real-time — end date must be ≥ 2 days before today. timed_data = time-series across the polygon (trends over hours/days/months); tiled_data = spatial grid cells within the polygon (hotspot locations). Use for trend analysis, peak vs off-peak comparison, and hotspot detection.
 
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"daily_avg": "SELECT ..."}
-
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible). Use DuckDB functions:
-    - Date formatting: time::DATE, date_part('hour', time::TIMESTAMP)
-    - Rounding: ROUND(value, 2)
-    - No template variables — data is pre-loaded, just query it directly
+    Date helpers for the \`time\` column: \`time::DATE\`, \`date_part('hour', time::TIMESTAMP)\`.
 
     **Available Tables:**
     - timed_data: region_name, timezone, level, aggregation_type ('all'|'yearly'|'monthly'|'daily'|'hourly'), time, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length

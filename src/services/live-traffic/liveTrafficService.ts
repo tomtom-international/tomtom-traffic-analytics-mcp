@@ -67,7 +67,12 @@ export async function getFlowSegmentData(request: TrafficFlowSegmentRequest): Pr
     // Normalise both wrappers here so the returned shape matches the
     // TrafficFlowSegmentResponse type and the flattener can read fields off the top level.
     const data = response.data?.flowSegmentData ?? response.data;
-    if (data && data.coordinates && !Array.isArray(data.coordinates) && data.coordinates.coordinate) {
+    if (
+      data &&
+      data.coordinates &&
+      !Array.isArray(data.coordinates) &&
+      data.coordinates.coordinate
+    ) {
       data.coordinates = data.coordinates.coordinate;
     }
     return data;
