@@ -43,7 +43,8 @@ describe("Area Analytics Tools", () => {
 
     const toolCalls = mockRegisterTool.mock.calls;
     expect(toolCalls[0][1].description).toContain("historical traffic patterns");
-    expect(toolCalls[0][1].description).toContain("sql_queries");
+    expect(toolCalls[0][1].description).toContain("timed_data");
+    expect(toolCalls[0][1].description).toContain("tiled_data");
   });
 
   it("should register stats tool with proper schema", () => {
