@@ -34,16 +34,12 @@ export function createLiveTrafficTools(server: McpServer): void {
       description: `Get real-time traffic flow information for the road segment closest to given coordinates. Returns one segment per call: current and free-flow speed, current and free-flow travel time, confidence, and road-closure flag.
 
 **Available Table: flow_segment**
-Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence (0-1, 1=highest quality), road_closure (0/1), coordinates, openlr
-
-**Spatial columns** (avoid SELECT * — non-text types):
-- geom_geojson (TEXT): GeoJSON LineString of the segment, queryable directly
-- geom (GEOMETRY): native geometry, populated on demand by ST_ functions
-- Example: SELECT current_speed FROM flow_segment WHERE ST_Intersects(ST_GeomFromGeoJSON(geom_geojson), ST_GeomFromGeoJSON('{...polygon...}'))
+Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence (0-1, 1=highest quality), road_closure (0/1), coordinates, openlr, geom_geojson (TEXT GeoJSON LineString), geom (GEOMETRY, lazy)
 
 **Example queries:**
 - Get segment data: SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment
-- Calculate delay: SELECT current_travel_time - free_flow_travel_time as delay_seconds, confidence FROM flow_segment`,
+- Calculate delay: SELECT current_travel_time - free_flow_travel_time as delay_seconds, confidence FROM flow_segment  
+- Spatial filter: SELECT current_speed FROM flow_segment WHERE ST_Intersects(ST_GeomFromGeoJSON(geom_geojson), ST_GeomFromGeoJSON('{...polygon...}'))`,
       inputSchema: trafficFlowDataSchema,
     },
     getFlowSegmentDataHandler()
@@ -55,12 +51,7 @@ Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, 
       description: `Query live traffic incidents (accidents, jams, closures, roadworks) within one or more named bounding boxes. Returns each active incident in the requested areas with category, delay, magnitude, geometry, and report metadata.
 
     **Available Table: incidents**
-    Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array of {description, code, iconCategory} — extract with json_extract_string for text values), geometry_type, coordinates
-
-    **Spatial columns** (avoid SELECT * — non-text types):
-    - geom_geojson (TEXT): GeoJSON of the incident geometry (point or line), queryable directly
-    - geom (GEOMETRY): native geometry, populated on demand by ST_ functions
-    - Example: SELECT id, iconCategory FROM incidents WHERE ST_Contains(ST_GeomFromGeoJSON('{...polygon...}'), ST_GeomFromGeoJSON(geom_geojson))
+    Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array of {description, code, iconCategory} — extract with json_extract_string for text values), geometry_type, coordinates, geom_geojson (TEXT GeoJSON), geom (GEOMETRY, lazy)
 
     **iconCategory enum (13 values):**
     - Disruptions: Accident, JamLane, LaneClosure, RoadClosure
@@ -80,6 +71,7 @@ Columns: frc (FRC0-FRC6, see server FRC scale), current_speed, free_flow_speed, 
     - Count by type: SELECT iconCategory, COUNT(*) as count FROM incidents GROUP BY iconCategory
     - Top delays: SELECT id, delay FROM incidents WHERE delay IS NOT NULL ORDER BY delay DESC LIMIT 10
     - First event description per incident: SELECT id, json_extract_string(events, '$[0].description') AS first_event FROM incidents WHERE events IS NOT NULL
+    - Spatial filter: SELECT id, iconCategory FROM incidents WHERE ST_Contains(ST_GeomFromGeoJSON('{...polygon...}'), ST_GeomFromGeoJSON(geom_geojson))
 
     **MULTI-AREA COMPARISON queries:**
     - Incidents by area: SELECT area_name, COUNT(*) as total_incidents, SUM(CASE WHEN iconCategory = 'Accident' THEN 1 ELSE 0 END) as accidents FROM incidents GROUP BY area_name

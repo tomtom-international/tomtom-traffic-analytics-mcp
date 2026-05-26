@@ -31,17 +31,14 @@ export function createAreaAnalyticsTools(server: McpServer): void {
 
     **Available Tables:**
     - timed_data: region_name, timezone, level, aggregation_type ('all'|'yearly'|'monthly'|'daily'|'hourly'), time, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length
-    - tiled_data: region_name, lat, lon, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length
+    - tiled_data: region_name, lat, lon, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length, point_geom (GEOMETRY, lazy ST_Point(lon, lat))
 
     Note: Column data depends on dataTypes you request. Valid values: NETWORK_LENGTH, CONGESTION_LEVEL, FREE_FLOW_SPEED, TRAVEL_TIME, SPEED. E.g., free_flow_speed column requires FREE_FLOW_SPEED in dataTypes.
 
-    **Spatial column on tiled_data** (avoid SELECT * — non-text type):
-    - point_geom (GEOMETRY): ST_Point(lon, lat) of the tile centroid, populated on demand by ST_ functions
-    - Example: SELECT lat, lon, congestion_level FROM tiled_data WHERE ST_DWithin(point_geom, ST_Point(4.9, 52.37), 1000)
-
     **Example queries:**
     - Daily trend: SELECT time::DATE as day, ROUND(AVG(congestion_level), 2) as avg FROM timed_data WHERE aggregation_type = 'daily' GROUP BY day ORDER BY day
-    - Hotspots (congestion > 70%): SELECT lat, lon, congestion_level FROM tiled_data WHERE congestion_level > 70 ORDER BY congestion_level DESC LIMIT 20`,
+    - Hotspots (congestion > 70%): SELECT lat, lon, congestion_level FROM tiled_data WHERE congestion_level > 70 ORDER BY congestion_level DESC LIMIT 20
+    - Spatial filter: SELECT lat, lon, congestion_level FROM tiled_data WHERE ST_DWithin(point_geom, ST_Point(4.9, 52.37), 1000)`,
       inputSchema: areaAnalyticsStatsSchema,
     },
     getAreaAnalyticsStatsHandler()
