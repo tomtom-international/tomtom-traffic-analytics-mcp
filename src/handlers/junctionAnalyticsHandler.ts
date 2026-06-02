@@ -61,8 +61,12 @@ export function getJunctionSearchHandler() {
     const sqlEngine = new SqlFilterEngine();
 
     try {
-      // 1. Fetch ALL junctions (auto-paginating)
-      const allJunctions = await getAllJunctionDefinitions();
+      // 1. Fetch ALL junctions (auto-paginating). `includeGeometry: true` is
+      //    required for the Move Portal list endpoint to return each
+      //    junction's `junctionModel` field — without it, countryCode,
+      //    trafficLights, approaches and exits are all undefined and the
+      //    flattener falls back to null/0 for every junction.
+      const allJunctions = await getAllJunctionDefinitions({ includeGeometry: true });
 
       // 2. Flatten into SQL tables based on view
       const flattenedData = flattenJunctionDefinitions(allJunctions, view);

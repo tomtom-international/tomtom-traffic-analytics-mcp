@@ -38,12 +38,16 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
 
     Fetches ALL junctions (auto-paginating) and loads them into a queryable database.
 
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"active": "SELECT junction_id, name FROM junctions WHERE status = 'ACTIVE'"}.
+
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Booleans stored as 0/1 integers (1 = true, 0 = false). FRC scale (Functional Road Class — lower number = more major road): 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor.
+
     **Compact view (default) - Table: junctions**
     Columns: junction_id, name, status (ACTIVE/PENDING_UPDATE/ERROR), country_code (ISO 3166-1 alpha-3, e.g. ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1), num_approaches, num_exits, created_at, last_modified_at, time_zone
 
     **Full view (view="full") - adds tables: approaches, exits**
-    - approaches: junction_id, approach_id, name, road_name, direction (NORTH/SOUTH/EAST/WEST), frc (numeric 0-7, see server FRC scale), length, one_way_road (0/1), excluded (0/1), drivable (0/1)
-    - exits: junction_id, exit_id, name, road_name, direction, frc, one_way_road (0/1), drivable (0/1)
+    - approaches: junction_id, approach_id, name, road_name, direction (NORTH/SOUTH/EAST/WEST), frc (numeric 0-7), length, one_way_road (0/1), excluded (0/1), drivable (0/1)
+    - exits: junction_id, exit_id, name, road_name, direction, frc (numeric 0-7), one_way_road (0/1), drivable (0/1)
 
     **Example queries:**
     - Find by name: SELECT junction_id, name FROM junctions WHERE name ILIKE '%highway%'
@@ -61,6 +65,10 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     {
       description: `Real-time traffic snapshot for one or more junctions. Returns a single live reading per junction covering approach delays, queue lengths, turn ratios, and stops histogram. Use tomtom-junction-search first to discover junction IDs.
 
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"delays": "SELECT approach_id, delay_sec FROM approaches ORDER BY delay_sec DESC"}.
+
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding. Booleans stored as 0/1 integers (1 = true, e.g. is_closed=1 means the approach is closed). FRC scale: 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor.
+
     **Important — includeGeometry side effect:**
     The three *_metadata tables (junction_metadata, approach_metadata, exit_metadata) are only populated when includeGeometry=true. Without it, JOINs to those tables silently return empty rows.
 
@@ -69,8 +77,8 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - turn_ratios: junction_id, approach_id, exit_id, exit_index, ratio_percent, probes_count
     - stops_histogram: junction_id, approach_id, number_of_stops, number_of_vehicles
     - junction_metadata: junction_id, name, country_code (3-letter ISO: ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1)
-    - approach_metadata: junction_id, approach_id, name, road_name, direction, frc (numeric 0-7, see server FRC scale), length, one_way_road, excluded, drivable
-    - exit_metadata: junction_id, exit_id, name, road_name, direction, frc (numeric 0-7, see server FRC scale), one_way_road, drivable
+    - approach_metadata: junction_id, approach_id, name, road_name, direction, frc (numeric 0-7), length, one_way_road, excluded, drivable
+    - exit_metadata: junction_id, exit_id, name, road_name, direction, frc (numeric 0-7), one_way_road, drivable
 
     **Example queries:**
     - Most delayed: SELECT approach_id, delay_sec, queue_length_meters FROM approaches ORDER BY delay_sec DESC LIMIT 5
@@ -91,7 +99,9 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     {
       description: `Download minute-by-minute historical traffic data for junctions over a specified date range (maximum 2 days). Use tomtom-junction-search first to find junction IDs. Use for peak-hour analysis, before/after comparisons, and intra-day pattern detection.
 
-    Date helpers for the \`time\` column: \`time::DATE\`, \`date_part('hour', time::TIMESTAMP)\`.
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"hourly_avg": "SELECT date_part('hour', time::TIMESTAMP) AS hour, AVG(delay_sec) FROM approaches GROUP BY hour"}.
+
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding; date helpers for the \`time\` column: time::DATE, date_part('hour', time::TIMESTAMP). Booleans stored as 0/1 integers (1 = true, e.g. is_closed=1 means the approach is closed).
 
     **Available Tables:**
     - approaches: time, junction_id, approach_id, travel_time_sec, free_flow_travel_time_sec, delay_sec, usual_delay_sec, stops, queue_length_meters, volume_per_hour, is_closed (0/1)

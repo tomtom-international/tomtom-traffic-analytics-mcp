@@ -29,7 +29,9 @@ const liveDataSqlQueriesSchema = z
   .refine((obj) => Object.keys(obj).length > 0, {
     message: 'At least one SQL query is required. Provide queries like: {"delays": "SELECT ..."}',
   })
-  .describe("SQL queries to run against the loaded tables (see server instructions).");
+  .describe(
+    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+  );
 
 // Junction live data details schema - requires junction IDs array
 export const junctionLiveDataDetailsSchema = {
@@ -52,7 +54,9 @@ const sqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"hourly_avg": "SELECT ..."}',
   })
-  .describe("SQL queries to run against the loaded tables (see server instructions).");
+  .describe(
+    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+  );
 
 // Junction archive schema - requires junction IDs array
 export const junctionArchiveSchema = {
@@ -77,7 +81,9 @@ const junctionSearchSqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"active_junctions": "SELECT ..."}',
   })
-  .describe("SQL queries to run against the loaded tables (see server instructions).");
+  .describe(
+    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+  );
 
 // Junction search schema
 export const junctionSearchSchema = {
