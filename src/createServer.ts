@@ -26,26 +26,17 @@ import { VERSION } from "./version";
 const SERVER_INSTRUCTIONS = `TomTom traffic analytics over TomTom Traffic and Move Portal APIs. Eight tools across four domains:
 
 - Live Traffic — point/area real-time data, no pre-config. Uses TOMTOM_API_KEY.
-  - tomtom-traffic-flow-segment: speed/travel-time for one coordinate.
-  - tomtom-traffic-incidents: incidents across 1–10 named bounding boxes.
-
+  - tomtom-traffic-flow-segment, tomtom-traffic-incidents
 - Area Analytics — historical stats for any GeoJSON polygon. Uses TOMTOM_MOVE_PORTAL_KEY.
-  - tomtom-area-analytics-stats: aggregated speed/congestion, up to 31-day window, end date ≥ 2 days ago.
-
-- Junction Analytics — junctions must be pre-created in Move Portal (cannot query arbitrary lat/lon). Uses TOMTOM_MOVE_PORTAL_KEY.
-  - tomtom-junction-search → discover junction IDs first.
-  - tomtom-junction-live-data: real-time metrics, up to 20 junctions per call.
-  - tomtom-junction-archive: minute-by-minute history, max 2-day window, up to 20 junctions.
-
+  - tomtom-area-analytics-stats
+- Junction Analytics — junctions must be pre-created in Move Portal. Uses TOMTOM_MOVE_PORTAL_KEY.
+  - tomtom-junction-search → tomtom-junction-live-data | tomtom-junction-archive
 - Route Monitoring — routes must be pre-created in Move Portal. Uses TOMTOM_MOVE_PORTAL_KEY.
-  - tomtom-route-search → discover route IDs first.
-  - tomtom-route-monitoring-details: segment-level analysis, up to 20 routes per call.
+  - tomtom-route-search → tomtom-route-monitoring-details
 
-Every tool requires a \`sql_queries\` parameter: an object mapping named keys to DuckDB SELECT queries — e.g. \`{"my_query": "SELECT ... FROM table_name"}\`. SQL dialect is DuckDB (PostgreSQL-compatible). API responses are flattened into in-memory tables; only your SELECT results return — full responses never enter context. SELECT-only, 5-second timeout, 10,000-row result cap. Booleans stored as 0/1 integers (1 = true, e.g. is_closed=1 means road is closed; 0 = false). DuckDB tips: \`ROUND(value, 2)\` for rounding; data is pre-loaded, so no template variables. Per-tool table schemas, columns and example queries live in each tool description.
+Junction and route workflows are 2-phase: always call the search tool first to obtain IDs, then pass those IDs to the analysis tool.
 
-FRC scale (Functional Road Class — road importance, lower number = more major road): 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor, 8=Other. Live-traffic flow-segment uses string codes "FRC0"–"FRC6"; junction tools use integer 0–7; area-analytics input filter accepts 0–8.
-
-Spatial columns (\`geom_geojson\` TEXT, \`geom\`/\`point_geom\` GEOMETRY) are populated on demand by ST_ functions — avoid SELECT * since GEOMETRY does not serialise cleanly. Wrap \`geom_geojson\` with \`ST_GeomFromGeoJSON()\` to use it in ST_Intersects/ST_Contains/ST_DWithin etc.`;
+Each tool's description carries its own column list, SQL examples, DuckDB dialect notes and conventions (FRC scale, boolean 0/1 semantics, spatial column usage, etc.) — read the relevant tool's description before constructing queries.`;
 
 /**
  * Factory function that creates and configures a TomTom Traffic Analytics MCP Server instance

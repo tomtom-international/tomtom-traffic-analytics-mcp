@@ -23,7 +23,9 @@ const sqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"slow_segments": "SELECT ..."}',
   })
-  .describe("SQL queries to run against the loaded tables (see server instructions).");
+  .describe(
+    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+  );
 
 // Schema for getting detailed route information - requires route IDs array
 export const getRouteDetailsSchema = {
@@ -42,7 +44,9 @@ const routeSearchSqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"delayed_routes": "SELECT ..."}',
   })
-  .describe("SQL queries to run against the loaded tables (see server instructions).");
+  .describe(
+    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+  );
 
 // Route search schema
 export const routeSearchSchema = {

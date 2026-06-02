@@ -35,6 +35,10 @@ export function createRouteMonitoringTools(server: McpServer): void {
 
     Fetches all routes with current traffic data and loads them into a queryable database.
 
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"delayed": "SELECT route_id, route_name, delay_time FROM routes WHERE delay_time > 60"}.
+
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding. Booleans stored as 0/1 integers (1 = true, e.g. passable=1 means the route is passable).
+
     **Table: routes**
     Columns: route_id, route_name, route_status (NEW/ACTIVE/UPDATING/FAILED/ARCHIVED), travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage
 
@@ -60,6 +64,10 @@ export function createRouteMonitoringTools(server: McpServer): void {
     "tomtom-route-monitoring-details",
     {
       description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs. Returns a route-info summary plus one row per road segment with current vs typical speed, confidence, and OpenLR references.
+
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"slow_segments": "SELECT segment_id, current_speed, typical_speed FROM segments WHERE relative_speed < 80"}.
+
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding. Booleans stored as 0/1 integers.
 
     **Available Tables:**
     - route_info: route_id, route_name, route_status, travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage, route_confidence (0-100 percentage)

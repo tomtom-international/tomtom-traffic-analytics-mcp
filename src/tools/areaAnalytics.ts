@@ -27,13 +27,17 @@ export function createAreaAnalyticsTools(server: McpServer): void {
     {
       description: `Retrieve historical traffic patterns (speed, free-flow speed, congestion, travel time) for one GeoJSON polygon over up to a 31-day window. NOT real-time — end date must be ≥ 2 days before today. timed_data = time-series across the polygon (trends over hours/days/months); tiled_data = spatial grid cells within the polygon (hotspot locations). Use for trend analysis, peak vs off-peak comparison, and hotspot detection.
 
-    Date helpers for the \`time\` column: \`time::DATE\`, \`date_part('hour', time::TIMESTAMP)\`.
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"daily_avg": "SELECT time::DATE AS day, AVG(congestion_level) FROM timed_data GROUP BY day"}.
+
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding; date helpers for the \`time\` column: time::DATE, date_part('hour', time::TIMESTAMP).
 
     **Available Tables:**
     - timed_data: region_name, timezone, level, aggregation_type ('all'|'yearly'|'monthly'|'daily'|'hourly'), time, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length
     - tiled_data: region_name, lat, lon, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length, point_geom (GEOMETRY, lazy ST_Point(lon, lat))
 
     Note: Column data depends on dataTypes you request. Valid values: NETWORK_LENGTH, CONGESTION_LEVEL, FREE_FLOW_SPEED, TRAVEL_TIME, SPEED. E.g., free_flow_speed column requires FREE_FLOW_SPEED in dataTypes.
+
+    **Spatial column on tiled_data** — point_geom is native GEOMETRY populated on demand by ST_ functions. Avoid SELECT * (GEOMETRY does not serialise cleanly). Example: WHERE ST_DWithin(point_geom, ST_Point(4.9, 52.37), 1000).
 
     **Example queries:**
     - Daily trend: SELECT time::DATE as day, ROUND(AVG(congestion_level), 2) as avg FROM timed_data WHERE aggregation_type = 'daily' GROUP BY day ORDER BY day
