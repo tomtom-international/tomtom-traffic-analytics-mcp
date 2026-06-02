@@ -33,7 +33,9 @@ const flowSegmentSqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"segment_info": "SELECT ..."}',
   })
-  .describe("SQL queries to run against the loaded tables (see server instructions).");
+  .describe(
+    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+  );
 
 // Named bbox schema for multi-area comparison
 const namedBboxSchema = z.object({
@@ -54,7 +56,9 @@ const incidentsSqlQueriesSchema = z
     message:
       'At least one SQL query is required. Provide queries like: {"accidents": "SELECT ..."}',
   })
-  .describe("SQL queries to run against the loaded tables (see server instructions).");
+  .describe(
+    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+  );
 
 // ============================================================================
 // Traffic Flow Segment Data Schema
