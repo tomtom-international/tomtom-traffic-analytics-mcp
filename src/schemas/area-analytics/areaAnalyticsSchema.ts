@@ -59,7 +59,12 @@ const geoJSONFeatureSchema = z.object({
   properties: z
     .object({
       name: z.string().optional(),
-      timezone: z.string().optional().describe("e.g., 'Europe/Amsterdam'"),
+      timezone: z
+        .string()
+        .optional()
+        .describe(
+          "Optional IANA timezone for the region (e.g., 'Europe/Amsterdam'). If set, the API applies a stricter endDate constraint — endDate must be at least ONE FULL DAY older than the latest available day (i.e., effectively ≥ 3 days before today). For the widest date coverage leave this unset so the API uses UTC."
+        ),
     })
     .optional(),
 });
@@ -80,7 +85,7 @@ export const areaAnalyticsStatsSchema = {
   name: z.string().min(1).max(250),
   startDate: dateSchema,
   endDate: dateSchema.describe(
-    "End date (must be within 31 days of startDate and ≥ 2 days before today)"
+    "End date (must be within 31 days of startDate). Data has a 24–48h processing delay, so endDate must be ≥ 2 days before today in UTC. If `properties.timezone` is set on the feature, the API requires an EXTRA day of margin — endDate must be ≥ 3 days before today. To avoid 400 errors, leave the feature timezone unset (UTC default) for the broadest coverage."
   ),
   hours: z.array(hourSchema).min(1).max(24),
   frcs: z.array(frcSchema).min(1).max(9),
