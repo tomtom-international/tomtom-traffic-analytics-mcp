@@ -61,14 +61,21 @@ export async function getJunctionDefinitionList(
 /**
  * Fetch ALL junction definitions by auto-paginating.
  * Fetches page 0 with max size, reads totalPages, fetches remaining pages in parallel.
+ *
+ * Forwards `options` (currently `includeGeometry`) to every page. The Move Portal
+ * list endpoint omits the `junctionModel` field — and therefore countryCode,
+ * trafficLights, approaches, exits — unless `includeGeometry=true` is set.
+ * Callers that need any of those metadata fields populated must pass it.
  */
-export async function getAllJunctionDefinitions(): Promise<JunctionDefinition[]> {
+export async function getAllJunctionDefinitions(
+  options: BaseJunctionOptions = {}
+): Promise<JunctionDefinition[]> {
   try {
     validateMovePortalApiKey();
     logger.info("Fetching all junction definitions (auto-paginating)");
 
     // Fetch first page with max page size
-    const firstPage = await getJunctionDefinitionList({ page: 0, size: 1000 });
+    const firstPage = await getJunctionDefinitionList({ page: 0, size: 1000, ...options });
     const allJunctions: JunctionDefinition[] = [...firstPage.content];
     const totalPages = firstPage.totalPages;
 
@@ -82,7 +89,9 @@ export async function getAllJunctionDefinitions(): Promise<JunctionDefinition[]>
       const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 1);
 
       const pageResults = await Promise.all(
-        remainingPages.map((page) => getJunctionDefinitionList({ page, size: 1000 }))
+        remainingPages.map((page) =>
+          getJunctionDefinitionList({ page, size: 1000, ...options })
+        )
       );
 
       for (const pageResult of pageResults) {
