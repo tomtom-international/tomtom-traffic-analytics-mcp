@@ -77,7 +77,7 @@ const sqlQueriesSchema = z
       'At least one SQL query is required. Provide queries like: {"daily_avg": "SELECT ..."}',
   })
   .describe(
-    "SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {\"my_query\": \"SELECT ... FROM table_name\"}."
+    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
   );
 
 // Stats schema (lite version with restrictions)
