@@ -89,9 +89,7 @@ export async function getAllJunctionDefinitions(
       const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 1);
 
       const pageResults = await Promise.all(
-        remainingPages.map((page) =>
-          getJunctionDefinitionList({ page, size: 1000, ...options })
-        )
+        remainingPages.map((page) => getJunctionDefinitionList({ page, size: 1000, ...options }))
       );
 
       for (const pageResult of pageResults) {
