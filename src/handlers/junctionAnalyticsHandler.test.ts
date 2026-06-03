@@ -15,7 +15,7 @@ const mockSqlEngine = {
 };
 
 vi.mock("../sql", () => ({
-  SqlFilterEngine: vi.fn(() => mockSqlEngine),
+  SqlFilterEngine: vi.fn(function () { return mockSqlEngine; }),
   flattenJunctionDefinitions: vi
     .fn()
     .mockReturnValue({ tables: new Map([["junctions", [{ junction_id: "j1" }]]]) }),
