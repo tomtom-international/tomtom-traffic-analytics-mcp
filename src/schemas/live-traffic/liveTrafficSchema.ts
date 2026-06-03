@@ -34,7 +34,7 @@ const flowSegmentSqlQueriesSchema = z
       'At least one SQL query is required. Provide queries like: {"segment_info": "SELECT ..."}',
   })
   .describe(
-    `REQUIRED: SQL queries to filter/aggregate the flow segment data. Keys are output names, values are SQL queries.`
+    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
   );
 
 // Named bbox schema for multi-area comparison
@@ -57,7 +57,7 @@ const incidentsSqlQueriesSchema = z
       'At least one SQL query is required. Provide queries like: {"accidents": "SELECT ..."}',
   })
   .describe(
-    `REQUIRED: SQL queries to filter/aggregate the traffic incidents. Keys are output names, values are SQL queries.`
+    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
   );
 
 // ============================================================================
@@ -65,12 +65,12 @@ const incidentsSqlQueriesSchema = z
 // ============================================================================
 
 const pointSchema = z.object({
-  latitude: z.number().min(-90).max(90).describe("Latitude in WGS84 projection (-90 to +90)"),
-  longitude: z.number().min(-180).max(180).describe("Longitude in WGS84 projection (-180 to +180)"),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
 });
 
 export const trafficFlowDataSchema = {
-  point: pointSchema.describe("Coordinates of a point close to the road segment"),
+  point: pointSchema,
   style: z
     .enum([
       "absolute",
@@ -80,38 +80,12 @@ export const trafficFlowDataSchema = {
       "relative-delay",
       "reduced-sensitivity",
     ])
-    .describe(
-      "The style to be used for rendering traffic flow tiles. 'absolute' shows actual speeds, 'relative' shows speed relative to free-flow"
-    ),
-  zoom: z
-    .number()
-    .int()
-    .min(0)
-    .max(22)
-    .describe("Zoom level (0-22). Affects road visibility and coordinate precision"),
-  format: z
-    .enum(["xml", "json", "jsonp"])
-    .optional()
-    .default("json")
-    .describe("Response format (default: json)"),
-  unit: z
-    .enum(["kmph", "mph"])
-    .optional()
-    .default("kmph")
-    .describe("Unit of speed (default: kmph for kilometers per hour)"),
-  thickness: z
-    .number()
-    .int()
-    .min(1)
-    .max(20)
-    .optional()
-    .default(10)
-    .describe("Segment width multiplier (1-20, default: 10)"),
-  openLr: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Include OpenLR code in response (default: false)"),
+    .describe("'absolute' = actual speeds; 'relative' = speed relative to free-flow"),
+  zoom: z.number().int().min(0).max(22).describe("Zoom 0-22; affects coordinate precision"),
+  format: z.enum(["xml", "json", "jsonp"]).optional().default("json"),
+  unit: z.enum(["kmph", "mph"]).optional().default("kmph"),
+  thickness: z.number().int().min(1).max(20).optional().default(10),
+  openLr: z.boolean().optional().default(false).describe("Include OpenLR code in response"),
   sql_queries: flowSegmentSqlQueriesSchema,
 };
 

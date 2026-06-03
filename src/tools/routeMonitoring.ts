@@ -31,16 +31,23 @@ export function createRouteMonitoringTools(server: McpServer): void {
   server.registerTool(
     "tomtom-route-search",
     {
-      description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis.
+      description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis. Returns one row per monitored route with current aggregate delay and travel-time vs typical. Routes must be pre-configured in Move Portal.
 
     Fetches all routes with current traffic data and loads them into a queryable database.
 
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"delayed": "SELECT ..."}
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"delayed": "SELECT route_id, route_name, delay_time FROM routes WHERE delay_time > 60"}.
 
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible).
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding. Booleans stored as 0/1 integers (1 = true, e.g. passable=1 means the route is passable).
 
     **Table: routes**
     Columns: route_id, route_name, route_status (NEW/ACTIVE/UPDATING/FAILED/ARCHIVED), travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage
+
+    **route_status states:**
+    - ACTIVE: live monitoring, data flowing
+    - NEW: created, not yet processed
+    - UPDATING: definition being modified
+    - FAILED: setup or processing error
+    - ARCHIVED: no longer monitored, historical data retained
 
     **Example queries:**
     - Find by name: SELECT route_id, route_name FROM routes WHERE route_name ILIKE '%A10%'
@@ -56,22 +63,22 @@ export function createRouteMonitoringTools(server: McpServer): void {
   server.registerTool(
     "tomtom-route-monitoring-details",
     {
-      description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs.
+      description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs. Returns a route-info summary plus one row per road segment with current vs typical speed, confidence, and OpenLR references.
 
-    REQUIRES sql_queries parameter - an object with named queries, e.g.: {"slow_segments": "SELECT ..."}
+    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"slow_segments": "SELECT segment_id, current_speed, typical_speed FROM segments WHERE relative_speed < 80"}.
 
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible). Use DuckDB functions:
-    - Rounding: ROUND(value, 2)
-    - No template variables — data is pre-loaded, just query it directly
+    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding. Booleans stored as 0/1 integers.
 
     **Available Tables:**
-    - route_info: route_id, route_name, route_status, travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage, route_confidence
-    - segments: route_id, segment_id, segment_id_str, average_speed, typical_speed, segment_length, open_lr_id, current_speed, relative_speed, confidence, open_lr_length
+    - route_info: route_id, route_name, route_status, travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage, route_confidence (0-100 percentage)
+    - segments: route_id, segment_id, segment_id_str, average_speed, typical_speed, segment_length, open_lr_id (OpenLR encoded segment reference), current_speed, relative_speed (% of typical; 100=at typical, <100=slower, >100=faster), confidence (0-100 percentage), open_lr_length (meters)
+
+    **OpenLR:** open standard for map-agnostic encoding of road segments — same segment can be referenced across different map databases.
 
     **Example queries:**
     - Slow segments: SELECT segment_id, current_speed, typical_speed, (typical_speed - current_speed) as speed_diff FROM segments WHERE current_speed < typical_speed * 0.5 ORDER BY speed_diff DESC
     - Route summary: SELECT route_name, travel_time, delay_time, ROUND(route_confidence, 2) as confidence FROM route_info
-    - Low confidence: SELECT segment_id, current_speed, confidence FROM segments WHERE confidence < 0.5 ORDER BY confidence
+    - Low confidence: SELECT segment_id, current_speed, confidence FROM segments WHERE confidence < 90 ORDER BY confidence
 
     **MULTI-ROUTE COMPARISON queries:**
     - Compare routes by delay: SELECT route_id, route_name, delay_time, travel_time, ROUND(delay_time * 100.0 / NULLIF(travel_time, 0), 1) as delay_percent FROM route_info ORDER BY delay_percent DESC

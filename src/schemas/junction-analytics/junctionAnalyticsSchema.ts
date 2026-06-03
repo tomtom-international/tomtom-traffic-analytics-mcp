@@ -18,12 +18,9 @@ import { z } from "zod";
 
 // Junction definition list schema
 export const junctionDefinitionListSchema = {
-  page: z.number().min(0).optional().default(0).describe("Page number for pagination (0-based)"),
-  size: z.number().min(1).max(1000).optional().describe("Number of results per page (max 1000)"),
-  includeGeometry: z
-    .boolean()
-    .optional()
-    .describe("Whether to include junction geometry in the response"),
+  page: z.number().min(0).optional().default(0),
+  size: z.number().min(1).max(1000).optional(),
+  includeGeometry: z.boolean().optional(),
 };
 
 // SQL queries schema for filtering live data responses
@@ -33,7 +30,7 @@ const liveDataSqlQueriesSchema = z
     message: 'At least one SQL query is required. Provide queries like: {"delays": "SELECT ..."}',
   })
   .describe(
-    `REQUIRED: SQL queries to filter/aggregate the live data. Keys are output names, values are SQL queries.`
+    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
   );
 
 // Junction live data details schema - requires junction IDs array
@@ -42,13 +39,11 @@ export const junctionLiveDataDetailsSchema = {
     .array(z.string())
     .min(1)
     .max(20)
-    .describe("Junction IDs to query. Max 20. Data is merged for cross-junction SQL comparisons."),
+    .describe("Up to 20 IDs; data merged for cross-junction SQL"),
   includeGeometry: z
     .boolean()
     .optional()
-    .describe(
-      "Whether to include junction geometry in the response. Set to true to populate junction_metadata, approach_metadata, and exit_metadata tables."
-    ),
+    .describe("Set true to populate junction_metadata, approach_metadata, exit_metadata tables"),
   sql_queries: liveDataSqlQueriesSchema,
 };
 
@@ -60,7 +55,7 @@ const sqlQueriesSchema = z
       'At least one SQL query is required. Provide queries like: {"hourly_avg": "SELECT ..."}',
   })
   .describe(
-    `REQUIRED: SQL queries to filter/aggregate the archive data. Keys are output names, values are SQL queries.`
+    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
   );
 
 // Junction archive schema - requires junction IDs array
@@ -69,18 +64,13 @@ export const junctionArchiveSchema = {
     .array(z.string())
     .min(1)
     .max(20)
-    .describe("Junction IDs to query. Max 20. Data is merged for cross-junction SQL comparisons."),
-  from: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .describe("Start date in YYYY-MM-DD format"),
+    .describe("Up to 20 IDs; data merged for cross-junction SQL"),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   to: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
-    .describe(
-      "End date in YYYY-MM-DD format (optional). Note: API is limited to a maximum range of 2 days"
-    ),
+    .describe("Optional end date; API limited to a 2-day range"),
   sql_queries: sqlQueriesSchema,
 };
 
@@ -92,7 +82,7 @@ const junctionSearchSqlQueriesSchema = z
       'At least one SQL query is required. Provide queries like: {"active_junctions": "SELECT ..."}',
   })
   .describe(
-    `REQUIRED: SQL queries to filter/aggregate junction definitions. Keys are output names, values are SQL queries.`
+    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
   );
 
 // Junction search schema

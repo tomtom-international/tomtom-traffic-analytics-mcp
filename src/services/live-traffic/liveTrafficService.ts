@@ -61,8 +61,21 @@ export async function getFlowSegmentData(request: TrafficFlowSegmentRequest): Pr
 
     logger.info(`Flow segment data retrieved successfully`);
 
-    // Return raw API response without modifications
-    return response.data;
+    // TomTom Flow Segment API wraps the payload in a `flowSegmentData` key
+    // (see https://developer.tomtom.com/traffic-api/documentation/traffic-flow/flow-segment-data),
+    // and the inner `coordinates` field is itself wrapped as `{ coordinate: [...] }`.
+    // Normalise both wrappers here so the returned shape matches the
+    // TrafficFlowSegmentResponse type and the flattener can read fields off the top level.
+    const data = response.data?.flowSegmentData ?? response.data;
+    if (
+      data &&
+      data.coordinates &&
+      !Array.isArray(data.coordinates) &&
+      data.coordinates.coordinate
+    ) {
+      data.coordinates = data.coordinates.coordinate;
+    }
+    return data;
   } catch (error) {
     throw handleApiError(error, "getFlowSegmentData");
   }

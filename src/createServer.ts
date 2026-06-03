@@ -21,6 +21,22 @@ import { createJunctionAnalyticsTools } from "./tools/junctionAnalytics";
 import { createRouteMonitoringTools } from "./tools/routeMonitoring";
 import { createAreaAnalyticsTools } from "./tools/areaAnalytics";
 import { createLiveTrafficTools } from "./tools/liveTraffic";
+import { VERSION } from "./version";
+
+const SERVER_INSTRUCTIONS = `TomTom traffic analytics over TomTom Traffic and Move Portal APIs. Eight tools across four domains:
+
+- Live Traffic — point/area real-time data, no pre-config. Uses TOMTOM_API_KEY.
+  - tomtom-traffic-flow-segment, tomtom-traffic-incidents
+- Area Analytics — historical stats for any GeoJSON polygon. Uses TOMTOM_MOVE_PORTAL_KEY.
+  - tomtom-area-analytics-stats
+- Junction Analytics — junctions must be pre-created in Move Portal. Uses TOMTOM_MOVE_PORTAL_KEY.
+  - tomtom-junction-search → tomtom-junction-live-data | tomtom-junction-archive
+- Route Monitoring — routes must be pre-created in Move Portal. Uses TOMTOM_MOVE_PORTAL_KEY.
+  - tomtom-route-search → tomtom-route-monitoring-details
+
+Junction and route workflows are 2-phase: always call the search tool first to obtain IDs, then pass those IDs to the analysis tool.
+
+Each tool's description carries its own column list, SQL examples, DuckDB dialect notes and conventions (FRC scale, boolean 0/1 semantics, spatial column usage, etc.) — read the relevant tool's description before constructing queries.`;
 
 /**
  * Factory function that creates and configures a TomTom Traffic Analytics MCP Server instance
@@ -30,10 +46,15 @@ export function createServer(): McpServer {
 
   validateServerApiKey();
 
-  const server = new McpServer({
-    name: "TomTom Traffic Analytics MCP Server",
-    version: "1.0.0",
-  });
+  const server = new McpServer(
+    {
+      name: "TomTom Traffic Analytics MCP Server",
+      version: VERSION,
+    },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+    }
+  );
 
   // Register all tools
   registerTools(server);

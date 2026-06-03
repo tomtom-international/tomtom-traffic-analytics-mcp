@@ -76,7 +76,7 @@ const METRICS_ONLY = process.argv.includes('--metrics-only');
 // TOKEN METRICS — Measures the actual MCP listTools() response
 // ============================================================================
 
-function printToolMetrics(toolsResponse) {
+function printToolMetrics(toolsResponse, instructions) {
   const tools = toolsResponse.tools;
   const fullResponseJson = JSON.stringify(toolsResponse);
 
@@ -119,6 +119,29 @@ function printToolMetrics(toolsResponse) {
   );
   console.log(
     ` ${'Full listTools() response'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(fullResponseJson.length).padStart(7)} | ${fmt(fullTokens).padStart(7)} |`
+  );
+  console.log('='.repeat(85));
+
+  // Bootstrap accounting: tool catalog + server-level `instructions` field.
+  // Both load at session start, so they together determine the per-conversation baseline cost in the LLM client's system prompt.
+  const instrChars = (instructions || '').length;
+  const instrTokens = Math.ceil(instrChars / 4);
+  const bootstrapWire = fullResponseJson.length + instrChars;
+  const bootstrapTokens = Math.ceil(bootstrapWire / 4);
+
+  console.log('\nBOOTSTRAP TOKEN METRICS (server instructions + tools loaded at session start)');
+  console.log('='.repeat(85));
+  console.log(` ${'Component'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${'Wire'.padStart(7)} | ${'~Tokens'.padStart(7)} |`);
+  console.log(`${'─'.repeat(39)}+${('─'.repeat(8))}+${('─'.repeat(8))}+${('─'.repeat(9))}+${('─'.repeat(9))}+${'─'.repeat(5)}`);
+  console.log(
+    ` ${'Server instructions'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(instrChars).padStart(7)} | ${fmt(instrTokens).padStart(7)} |`
+  );
+  console.log(
+    ` ${'tools/list response'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(fullResponseJson.length).padStart(7)} | ${fmt(fullTokens).padStart(7)} |`
+  );
+  console.log(`${'─'.repeat(39)}+${('─'.repeat(8))}+${('─'.repeat(8))}+${('─'.repeat(9))}+${('─'.repeat(9))}+${'─'.repeat(5)}`);
+  console.log(
+    ` ${'BOOTSTRAP TOTAL'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(bootstrapWire).padStart(7)} | ${fmt(bootstrapTokens).padStart(7)} |`
   );
   console.log('='.repeat(85));
   console.log(`\nApproximation: 1 token ~ 4 chars. Wire = JSON.stringify(tool) per tool.\n`);
@@ -584,8 +607,10 @@ async function main() {
   const availableTools = toolsResponse.tools.map(t => t.name);
   console.log(`Available tools (${availableTools.length}): ${availableTools.join(', ')}\n`);
 
-  // Always print token metrics
-  printToolMetrics(toolsResponse);
+  // Always print token metrics — include the server `instructions` field so
+  // the bootstrap-total line reflects the real per-conversation cost.
+  const instructions = client.getInstructions();
+  printToolMetrics(toolsResponse, instructions);
 
   // If --metrics-only, exit here
   if (METRICS_ONLY) {

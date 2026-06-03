@@ -32,7 +32,7 @@ const frcSchema = z
   );
 
 // Hours (0-23)
-const hourSchema = z.number().int().min(0).max(23).describe("Hour of day (0-23)");
+const hourSchema = z.number().int().min(0).max(23);
 
 // Date string validation (YYYY-MM-DD)
 const dateSchema = z
@@ -43,38 +43,31 @@ const dateSchema = z
 // GeoJSON Polygon geometry
 const polygonGeometrySchema = z.object({
   type: z.literal("Polygon"),
-  coordinates: z
-    .array(z.array(z.array(z.number()).length(2)))
-    .describe("Polygon coordinates array"),
+  coordinates: z.array(z.array(z.array(z.number()).length(2))),
 });
 
 // GeoJSON MultiPolygon geometry
 const multiPolygonGeometrySchema = z.object({
   type: z.literal("MultiPolygon"),
-  coordinates: z
-    .array(z.array(z.array(z.array(z.number()).length(2))))
-    .describe("MultiPolygon coordinates array"),
+  coordinates: z.array(z.array(z.array(z.array(z.number()).length(2)))),
 });
 
 // GeoJSON Feature
-const geoJSONFeatureSchema = z
-  .object({
-    type: z.literal("Feature"),
-    geometry: z
-      .union([polygonGeometrySchema, multiPolygonGeometrySchema])
-      .describe("GeoJSON geometry - Polygon or MultiPolygon"),
-    properties: z
-      .object({
-        name: z.string().optional().describe("Optional name for the region"),
-        timezone: z
-          .string()
-          .optional()
-          .describe("Optional timezone for the region (e.g., 'Europe/Amsterdam')"),
-      })
-      .optional()
-      .describe("Feature properties"),
-  })
-  .describe("GeoJSON Feature defining the analysis region");
+const geoJSONFeatureSchema = z.object({
+  type: z.literal("Feature"),
+  geometry: z.union([polygonGeometrySchema, multiPolygonGeometrySchema]),
+  properties: z
+    .object({
+      name: z.string().optional(),
+      timezone: z
+        .string()
+        .optional()
+        .describe(
+          "Optional IANA timezone for the region (e.g., 'Europe/Amsterdam'). If set, the API applies a stricter endDate constraint — endDate must be at least ONE FULL DAY older than the latest available day (i.e., effectively ≥ 3 days before today). For the widest date coverage leave this unset so the API uses UTC."
+        ),
+    })
+    .optional(),
+});
 
 // SQL queries schema for filtering large responses
 const sqlQueriesSchema = z
@@ -84,30 +77,22 @@ const sqlQueriesSchema = z
       'At least one SQL query is required. Provide queries like: {"daily_avg": "SELECT ..."}',
   })
   .describe(
-    `REQUIRED: SQL queries to filter/aggregate the report results. Keys are output names, values are SQL queries.`
+    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
   );
 
 // Stats schema (lite version with restrictions)
 export const areaAnalyticsStatsSchema = {
-  name: z.string().min(1).max(250).describe("Name for the analysis report"),
-  startDate: dateSchema.describe("Analysis start date in YYYY-MM-DD format"),
+  name: z.string().min(1).max(250),
+  startDate: dateSchema,
   endDate: dateSchema.describe(
-    "Analysis end date in YYYY-MM-DD format (must be within 31 days from startDate and at least 2 days before today)"
+    "End date (must be within 31 days of startDate). Data has a 24–48h processing delay, so endDate must be ≥ 2 days before today in UTC. If `properties.timezone` is set on the feature, the API requires an EXTRA day of margin — endDate must be ≥ 3 days before today. To avoid 400 errors, leave the feature timezone unset (UTC default) for the broadest coverage."
   ),
-  hours: z.array(hourSchema).min(1).max(24).describe("Array of hours to analyze (0-23)"),
-  frcs: z
-    .array(frcSchema)
-    .min(1)
-    .max(9)
-    .describe("Array of functional road classes to include (0-8)"),
-  dataTypes: z
-    .array(dataTypeSchema)
-    .min(1)
-    .max(5)
-    .describe("Array of traffic data types to analyze (one or more)"),
+  hours: z.array(hourSchema).min(1).max(24),
+  frcs: z.array(frcSchema).min(1).max(9),
+  dataTypes: z.array(dataTypeSchema).min(1).max(5),
   features: z
     .array(geoJSONFeatureSchema)
     .length(1)
-    .describe("Array containing exactly one GeoJSON feature defining analysis region"),
+    .describe("Array of exactly one GeoJSON feature defining the analysis region"),
   sql_queries: sqlQueriesSchema,
 };

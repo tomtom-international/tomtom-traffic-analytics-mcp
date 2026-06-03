@@ -67,7 +67,7 @@ describe("Junction Analytics Tools", () => {
     expect(searchToolCall[1].description).toContain("Search and filter");
 
     const liveDataToolCall = toolCalls.find((call: any) => call[0] === "tomtom-junction-live-data");
-    expect(liveDataToolCall[1].description).toContain("real-time traffic");
+    expect(liveDataToolCall[1].description.toLowerCase()).toContain("real-time traffic");
 
     const archiveToolCall = toolCalls.find((call: any) => call[0] === "tomtom-junction-archive");
     expect(archiveToolCall[1].description).toContain("historical");

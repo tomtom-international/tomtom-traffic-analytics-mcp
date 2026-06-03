@@ -12,13 +12,11 @@
   "homepage": "https://github.com/tomtom-international/tomtom-traffic-analytics-mcp",
   "icon": "images/TomTom-logo.png",
   "server": {
-    "type": "node",
-    "entry_point": "bin/tomtom-traffic-analytics-mcp.js",
+    "type": "binary",
+    "entry_point": "bin/tomtom-traffic-analytics-mcp.sh",
     "mcp_config": {
-      "command": "node",
-      "args": [
-        "${__dirname}/bin/tomtom-traffic-analytics-mcp.js"
-      ],
+      "command": "${__dirname}/bin/tomtom-traffic-analytics-mcp.sh",
+      "args": [],
       "env": {
         "TOMTOM_MOVE_PORTAL_KEY": "${user_config.tomtom_move_portal_key}",
         "TOMTOM_API_KEY": "${user_config.tomtom_api_key}"
@@ -86,6 +84,9 @@
       "darwin",
       "win32",
       "linux"
-    ]
+    ],
+    "runtimes": {
+      "node": ">=22.9"
+    }
   }
 }

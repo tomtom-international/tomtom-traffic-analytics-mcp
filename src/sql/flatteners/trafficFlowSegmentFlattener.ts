@@ -46,9 +46,15 @@ interface FlowSegmentRow {
 export function flattenTrafficFlowSegment(response: TrafficFlowSegmentResponse): FlattenResult {
   const tables = new Map<string, Record<string, unknown>[]>();
 
-  // Build GeoJSON LineString from coordinates (if available)
+  // Build a valid RFC 7946 GeoJSON LineString. The TomTom Flow Segment API
+  // returns each point as a { latitude, longitude } object, but GeoJSON
+  // requires coordinates as flat [longitude, latitude] arrays — without this
+  // mapping, ST_GeomFromGeoJSON(geom_geojson) cannot parse the value.
   const geojsonGeometry = response.coordinates
-    ? { type: "LineString", coordinates: response.coordinates }
+    ? {
+        type: "LineString",
+        coordinates: response.coordinates.map((c) => [c.longitude, c.latitude]),
+      }
     : null;
 
   const flowRow: FlowSegmentRow = {

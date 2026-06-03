@@ -37,6 +37,7 @@ export const INCIDENTS_TABLE: TableDefinition = {
     { name: "probabilityOfOccurrence", type: "TEXT", nullable: true },
     { name: "numberOfReports", type: "INTEGER", nullable: true },
     { name: "lastReportTime", type: "TEXT", nullable: true },
+    { name: "events", type: "TEXT", nullable: true }, // JSON-serialised array of {description, code, iconCategory}
     { name: "geometry_type", type: "TEXT", nullable: false },
     { name: "coordinates", type: "TEXT", nullable: false },
     { name: "geom_geojson", type: "TEXT", nullable: true }, // Full GeoJSON for ST_GeomFromGeoJSON
@@ -57,7 +58,11 @@ export const TRAFFIC_INCIDENTS_SCHEMA: TableDefinition[] = [INCIDENTS_TABLE];
  */
 export const TRAFFIC_INCIDENTS_SQL_EXAMPLES = `
 Available table: incidents
-Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, geometry_type, coordinates
+Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array — extract with json_extract_string for text values), geometry_type, coordinates
+
+Spatial columns (avoid SELECT * — non-text types):
+- geom_geojson (TEXT): GeoJSON of the incident geometry, queryable directly
+- geom (GEOMETRY): native geometry, populated on demand by ST_ functions
 
 Example queries:
 1. Default (accidents + roadworks):
