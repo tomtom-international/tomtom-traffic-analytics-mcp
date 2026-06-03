@@ -15,7 +15,9 @@ const mockSqlEngine = {
 };
 
 vi.mock("../sql", () => ({
-  SqlFilterEngine: vi.fn(function () { return mockSqlEngine; }),
+  SqlFilterEngine: vi.fn(function () {
+    return mockSqlEngine;
+  }),
   flattenAreaAnalyticsResults: vi
     .fn()
     .mockReturnValue({ tables: new Map([["timed_data", [{ time: "2024-01-01" }]]]) }),
