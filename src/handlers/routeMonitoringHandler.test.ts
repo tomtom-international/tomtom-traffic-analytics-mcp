@@ -15,7 +15,9 @@ const mockSqlEngine = {
 };
 
 vi.mock("../sql", () => ({
-  SqlFilterEngine: vi.fn(() => mockSqlEngine),
+  SqlFilterEngine: vi.fn(function () {
+    return mockSqlEngine;
+  }),
   flattenRouteList: vi
     .fn()
     .mockReturnValue({ tables: new Map([["routes", [{ route_id: "r1" }]]]) }),

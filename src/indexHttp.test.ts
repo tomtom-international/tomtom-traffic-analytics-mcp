@@ -24,10 +24,12 @@ vi.mock("./createServer", () => ({
 const mockHandleRequest = vi.fn();
 const mockTransportClose = vi.fn();
 vi.mock("@modelcontextprotocol/sdk/server/streamableHttp.js", () => ({
-  StreamableHTTPServerTransport: vi.fn(() => ({
-    handleRequest: mockHandleRequest,
-    close: mockTransportClose,
-  })),
+  StreamableHTTPServerTransport: vi.fn(function () {
+    return {
+      handleRequest: mockHandleRequest,
+      close: mockTransportClose,
+    };
+  }),
 }));
 
 vi.mock("./utils/logger", () => ({
