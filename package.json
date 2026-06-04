@@ -1,6 +1,6 @@
 {
   "name": "@tomtom-org/tomtom-traffic-analytics-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server for TomTom traffic analytics — junctions, routes, incidents, and area analysis",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
