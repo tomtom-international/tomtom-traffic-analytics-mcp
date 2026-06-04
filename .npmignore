@@ -56,7 +56,7 @@ Thumbs.db
 
 # Build artifacts not needed in package
 bdtools.yml
-manifest.json
+manifest-binary.json
 
 # Claude Code local files
 .claude/

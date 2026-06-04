@@ -115,7 +115,7 @@
     "README.md",
     "LICENSE.md",
     "CHANGELOG.md",
-    "manifest.json"
+    "manifest-binary.json"
   ],
   "overrides": {
     "inflight": "npm:lru-cache@^11.1.0",
