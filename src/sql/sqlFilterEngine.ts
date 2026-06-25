@@ -383,7 +383,7 @@ export class SqlFilterEngine {
 
     // Only allow SELECT statements (read-only) or CTEs (WITH)
     if (!upperTrimmed.startsWith("SELECT") && !upperTrimmed.startsWith("WITH")) {
-      throw new Error("Only SELECT queries are allowed. Queries must start with SELECT.");
+      throw new Error("Only SELECT queries are allowed. Queries must start with SELECT or WITH.");
     }
 
     // Ban semicolons — legitimate queries are single SELECT statements
@@ -440,6 +440,14 @@ export class SqlFilterEngine {
       {
         pattern: /\bread_csv\b|\bread_json\b|\bread_parquet\b|\bread_text\b|\bread_blob\b/i,
         description: "File read functions",
+      },
+      {
+        pattern: /\bwrite_csv\b|\bwrite_json\b|\bwrite_parquet\b/i,
+        description: "File write functions",
+      },
+      {
+        pattern: /\bglob\b/i,
+        description: "Filesystem enumeration",
       },
       {
         pattern: /\bhttp_get\b|\bhttp_post\b/i,

