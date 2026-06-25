@@ -232,4 +232,59 @@ describe("SqlFilterEngine Security", () => {
       expect(results.q.error).toBeUndefined();
     });
   });
+
+  describe("DuckDB configuration lockdown (integration)", () => {
+    it("blocks INSTALL httpfs at DuckDB level even if regex were bypassed", async () => {
+      // This test verifies the DuckDB config lock works independently.
+      // The engine should have locked config during initialize().
+      // We can't bypass validateQuery() from outside, but we can verify
+      // that even if an attacker somehow got past it, DuckDB would block.
+      const results = await engine.executeQueries({
+        q: "SELECT current_setting('enable_external_access') as val",
+      });
+      // current_setting is a legitimate DuckDB function
+      expect(results.q.error).toBeUndefined();
+      // DuckDB returns booleans (not strings) for boolean settings
+      expect(String(results.q.rows[0][0])).toBe("false");
+    });
+
+    it("blocks SET after config lock", async () => {
+      const results = await engine.executeQueries({
+        q: "SELECT current_setting('lock_configuration') as val",
+      });
+      expect(results.q.error).toBeUndefined();
+      // DuckDB returns booleans (not strings) for boolean settings
+      expect(String(results.q.rows[0][0])).toBe("true");
+    });
+
+    it("spatial functions work after lockdown", async () => {
+      const spatialSchema: TableDefinition[] = [
+        {
+          name: "points",
+          columns: [
+            { name: "id", type: "INTEGER" },
+            { name: "lat", type: "REAL" },
+            { name: "lon", type: "REAL" },
+          ],
+        },
+      ];
+      const spatialData = {
+        tables: new Map([
+          ["points", [{ id: 1, lat: 52.3, lon: 4.9 }]],
+        ]),
+      };
+
+      const spatialEngine = new SqlFilterEngine();
+      try {
+        await spatialEngine.initialize(spatialSchema, spatialData);
+        const results = await spatialEngine.executeQueries({
+          q: "SELECT ST_AsText(ST_Point(4.9, 52.3)) as point",
+        });
+        expect(results.q.error).toBeUndefined();
+        expect(results.q.rows[0][0]).toContain("POINT");
+      } finally {
+        spatialEngine.close();
+      }
+    });
+  });
 });

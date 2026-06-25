@@ -99,13 +99,11 @@ export class SqlFilterEngine {
 
     logger.debug(`DuckDB instance created in ${Date.now() - startTime}ms`);
 
-    // Check if any schema has GEOMETRY columns - if so, load spatial extension first
-    const hasGeometryColumns = schemas.some((schema) =>
-      schema.columns.some((col) => col.type === "GEOMETRY")
-    );
-    if (hasGeometryColumns) {
-      await this.ensureSpatialExtension();
-    }
+    // Always load spatial extension before lockdown (must happen while external access is enabled)
+    await this.ensureSpatialExtension();
+
+    // Lock down DuckDB configuration to prevent extension loading, filesystem/network access
+    await this.lockdownConfiguration();
 
     // Create tables
     for (const schema of schemas) {
@@ -205,11 +203,6 @@ export class SqlFilterEngine {
 
     for (const [name, sql] of Object.entries(queries)) {
       try {
-        // Check if spatial extension needed
-        if (this.queryNeedsSpatial(sql)) {
-          await this.ensureSpatialExtension();
-        }
-
         results[name] = await this.executeQuery(sql);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -227,13 +220,6 @@ export class SqlFilterEngine {
   }
 
   /**
-   * Check if query uses spatial functions
-   */
-  private queryNeedsSpatial(sql: string): boolean {
-    return /\bST_\w+\s*\(/i.test(sql);
-  }
-
-  /**
    * Load spatial extension on demand
    */
   private async ensureSpatialExtension(): Promise<void> {
@@ -247,6 +233,19 @@ export class SqlFilterEngine {
     } catch (error) {
       logger.warn(`Failed to load spatial extension: ${error}`);
     }
+  }
+
+  /**
+   * Lock down DuckDB configuration to prevent SSRF via extension loading or filesystem/network access
+   */
+  private async lockdownConfiguration(): Promise<void> {
+    if (!this.connection) return;
+
+    await this.connection.run("SET enable_external_access = false");
+    await this.connection.run("SET autoinstall_known_extensions = false");
+    await this.connection.run("SET autoload_known_extensions = false");
+    await this.connection.run("SET lock_configuration = true");
+    logger.debug("DuckDB configuration locked down");
   }
 
   /**
