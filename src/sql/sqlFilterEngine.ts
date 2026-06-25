@@ -264,7 +264,6 @@ export class SqlFilterEngine {
     // Case 1: Table has geom column and geom_geojson source -> use ST_GeomFromGeoJSON
     if (hasGeomColumn && hasGeomGeoJson) {
       try {
-        await this.ensureSpatialExtension();
         const updateSql = `UPDATE ${tableName} SET geom = ST_GeomFromGeoJSON(geom_geojson) WHERE geom_geojson IS NOT NULL`;
         await this.connection.run(updateSql);
         logger.debug(`Populated geom column in ${tableName} using ST_GeomFromGeoJSON`);
@@ -276,7 +275,6 @@ export class SqlFilterEngine {
     // Case 2: Table has point_geom column and lat/lon -> use ST_Point
     if (hasPointGeom && hasLatLon) {
       try {
-        await this.ensureSpatialExtension();
         const updateSql = `UPDATE ${tableName} SET point_geom = ST_Point(lon, lat) WHERE lat IS NOT NULL AND lon IS NOT NULL`;
         await this.connection.run(updateSql);
         logger.debug(`Populated point_geom column in ${tableName} using ST_Point`);
