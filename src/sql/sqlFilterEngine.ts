@@ -384,48 +384,73 @@ export class SqlFilterEngine {
     const trimmed = sql.trim();
     const upperTrimmed = trimmed.toUpperCase();
 
-    // Only allow SELECT statements (read-only)
-    if (!upperTrimmed.startsWith("SELECT")) {
+    // Only allow SELECT statements (read-only) or CTEs (WITH)
+    if (!upperTrimmed.startsWith("SELECT") && !upperTrimmed.startsWith("WITH")) {
       throw new Error("Only SELECT queries are allowed. Queries must start with SELECT.");
+    }
+
+    // Ban semicolons — legitimate queries are single SELECT statements
+    if (sql.includes(";")) {
+      throw new Error("Query contains disallowed pattern: Multiple statements are not allowed");
     }
 
     // Block dangerous patterns (including DuckDB-specific ones)
     const dangerousPatterns: Array<{ pattern: RegExp; description: string }> = [
       {
-        pattern: /;\s*(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE|TRUNCATE)/i,
-        description: "Multiple statements with DDL/DML",
+        pattern: /\bINSTALL\b/i,
+        description: "Extension installation",
       },
       {
-        pattern: /COPY\s+.*\s+TO/i,
+        pattern: /\bLOAD\b/i,
+        description: "Extension loading",
+      },
+      {
+        pattern: /\bSET\b/i,
+        description: "Configuration changes",
+      },
+      {
+        pattern: /\bRESET\b/i,
+        description: "Configuration reset",
+      },
+      {
+        pattern: /\bCOPY\b\s+.*\s+\bTO\b/i,
         description: "COPY TO file operations",
       },
       {
-        pattern: /COPY\s+.*\s+FROM/i,
+        pattern: /\bCOPY\b\s+.*\s+\bFROM\b/i,
         description: "COPY FROM file operations",
       },
       {
-        pattern: /ATTACH\s+/i,
+        pattern: /\bATTACH\b/i,
         description: "Database attachment",
       },
       {
-        pattern: /EXPORT\s+DATABASE/i,
+        pattern: /\bEXPORT\s+DATABASE\b/i,
         description: "Database export",
       },
       {
-        pattern: /IMPORT\s+DATABASE/i,
+        pattern: /\bIMPORT\s+DATABASE\b/i,
         description: "Database import",
       },
       {
-        pattern: /CALL\s+/i,
+        pattern: /\bCALL\b/i,
         description: "Procedure calls",
       },
       {
-        pattern: /PRAGMA\s+/i,
+        pattern: /\bPRAGMA\b/i,
         description: "PRAGMA statements",
       },
       {
-        pattern: /read_csv|read_json|read_parquet/i,
+        pattern: /\bread_csv\b|\bread_json\b|\bread_parquet\b|\bread_text\b|\bread_blob\b/i,
         description: "File read functions",
+      },
+      {
+        pattern: /\bhttp_get\b|\bhttp_post\b/i,
+        description: "HTTP functions",
+      },
+      {
+        pattern: /\bduckdb_settings\b|\bduckdb_extensions\b/i,
+        description: "DuckDB introspection functions",
       },
     ];
 
