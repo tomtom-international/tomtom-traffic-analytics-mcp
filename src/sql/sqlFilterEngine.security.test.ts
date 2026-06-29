@@ -30,9 +30,7 @@ const TEST_SCHEMA: TableDefinition[] = [
 ];
 
 const TEST_DATA = {
-  tables: new Map([
-    ["traffic", [{ id: 1, speed: 60.5, road: "A10" }]],
-  ]),
+  tables: new Map([["traffic", [{ id: 1, speed: 60.5, road: "A10" }]]]),
 };
 
 async function initEngine(): Promise<SqlFilterEngine> {
@@ -289,9 +287,7 @@ describe("SqlFilterEngine Security", () => {
         },
       ];
       const spatialData = {
-        tables: new Map([
-          ["points", [{ id: 1, lat: 52.3, lon: 4.9 }]],
-        ]),
+        tables: new Map([["points", [{ id: 1, lat: 52.3, lon: 4.9 }]]]),
       };
 
       const spatialEngine = new SqlFilterEngine();
