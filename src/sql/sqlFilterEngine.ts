@@ -21,8 +21,6 @@ import {
   FlattenResult,
   SqlQueryResult,
   SqlQueryExecutionResult,
-  SqlFilterEngineOptions,
-  ResourceLimits,
   SQL_FILTER_DEFAULTS,
   SqlColumnType,
 } from "./types";
@@ -62,29 +60,8 @@ function mapColumnType(type: SqlColumnType): string {
 export class SqlFilterEngine {
   private instance: DuckDBInstance | null = null;
   private connection: DuckDBConnection | null = null;
-  private options: {
-    queryTimeoutMs: number;
-    maxRows: number;
-    maxResultRows: number;
-    resourceLimits: Required<ResourceLimits>;
-  };
   private tableSizes: Map<string, number> = new Map();
   private spatialExtensionLoaded = false;
-
-  constructor(options: SqlFilterEngineOptions = {}) {
-    this.options = {
-      queryTimeoutMs: options.queryTimeoutMs ?? SQL_FILTER_DEFAULTS.QUERY_TIMEOUT_MS,
-      maxRows: options.maxRows ?? SQL_FILTER_DEFAULTS.MAX_ROWS_SOFT_LIMIT,
-      maxResultRows: options.maxResultRows ?? SQL_FILTER_DEFAULTS.MAX_RESULT_ROWS,
-      resourceLimits: {
-        memoryLimit: options.resourceLimits?.memoryLimit ?? SQL_FILTER_DEFAULTS.MEMORY_LIMIT,
-        threads: options.resourceLimits?.threads ?? SQL_FILTER_DEFAULTS.THREADS,
-        maxTempDirectorySize:
-          options.resourceLimits?.maxTempDirectorySize ??
-          SQL_FILTER_DEFAULTS.MAX_TEMP_DIRECTORY_SIZE,
-      },
-    };
-  }
 
   /**
    * Initialize the database with table schemas and data
@@ -95,11 +72,10 @@ export class SqlFilterEngine {
 
     // Create in-memory DuckDB instance with resource limits and security config
     try {
-      const { resourceLimits } = this.options;
       this.instance = await DuckDBInstance.create(":memory:", {
-        threads: String(resourceLimits.threads),
-        memory_limit: resourceLimits.memoryLimit,
-        max_temp_directory_size: resourceLimits.maxTempDirectorySize,
+        threads: String(SQL_FILTER_DEFAULTS.THREADS),
+        memory_limit: SQL_FILTER_DEFAULTS.MEMORY_LIMIT,
+        max_temp_directory_size: SQL_FILTER_DEFAULTS.MAX_TEMP_DIRECTORY_SIZE,
         allow_community_extensions: "false",
       });
       try {
@@ -149,8 +125,8 @@ export class SqlFilterEngine {
     }
 
     // Check soft limit and add warning
-    if (totalRows > this.options.maxRows) {
-      const warning = `Large dataset warning: ${totalRows} total rows exceeds soft limit of ${this.options.maxRows}. Query performance may be affected.`;
+    if (totalRows > SQL_FILTER_DEFAULTS.MAX_ROWS_SOFT_LIMIT) {
+      const warning = `Large dataset warning: ${totalRows} total rows exceeds soft limit of ${SQL_FILTER_DEFAULTS.MAX_ROWS_SOFT_LIMIT}. Query performance may be affected.`;
       warnings.push(warning);
       logger.warn(warning);
     }
@@ -353,10 +329,10 @@ export class SqlFilterEngine {
         this.connection?.interrupt();
         reject(
           new Error(
-            `Query timed out after ${this.options.queryTimeoutMs}ms. Simplify your query or use more restrictive filters.`
+            `Query timed out after ${SQL_FILTER_DEFAULTS.QUERY_TIMEOUT_MS}ms. Simplify your query or use more restrictive filters.`
           )
         );
-      }, this.options.queryTimeoutMs);
+      }, SQL_FILTER_DEFAULTS.QUERY_TIMEOUT_MS);
     });
 
     let reader;
@@ -375,7 +351,7 @@ export class SqlFilterEngine {
     const rows = this.convertDuckDBValues(rawRows);
 
     // Enforce row limit to prevent oversized responses
-    const maxResultRows = this.options.maxResultRows;
+    const maxResultRows = SQL_FILTER_DEFAULTS.MAX_RESULT_ROWS;
     if (rows.length > maxResultRows) {
       return {
         columns,

@@ -311,22 +311,6 @@ describe("SqlFilterEngine Security", () => {
       expect(String(results.q.rows[0][0])).toBe("2");
       expect(String(results.q.rows[0][1])).toContain("MiB");
     });
-
-    it("applies custom resource limits", async () => {
-      const customEngine = new SqlFilterEngine({
-        resourceLimits: { threads: 4, memoryLimit: "512MB" },
-      });
-      try {
-        await customEngine.initialize(TEST_SCHEMA, TEST_DATA);
-        const results = await customEngine.executeQueries({
-          q: "SELECT current_setting('threads') as t",
-        });
-        expect(results.q.error).toBeUndefined();
-        expect(String(results.q.rows[0][0])).toBe("4");
-      } finally {
-        customEngine.close();
-      }
-    });
   });
 
   describe("GLOB operator vs glob() function", () => {

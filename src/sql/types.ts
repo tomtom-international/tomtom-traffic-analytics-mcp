@@ -92,22 +92,6 @@ export interface SqlFilteredResponse {
   aggregated_data: Record<string, SqlQueryExecutionResult>;
 }
 
-export interface ResourceLimits {
-  memoryLimit?: string;
-  threads?: number;
-  maxTempDirectorySize?: string;
-}
-
-/**
- * Configuration options for the SQL filter engine
- */
-export interface SqlFilterEngineOptions {
-  queryTimeoutMs?: number;
-  maxRows?: number;
-  maxResultRows?: number;
-  resourceLimits?: ResourceLimits;
-}
-
 /**
  * Default configuration values
  */
