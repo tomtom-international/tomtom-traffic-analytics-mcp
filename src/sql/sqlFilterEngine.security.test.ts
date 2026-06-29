@@ -261,6 +261,22 @@ describe("SqlFilterEngine Security", () => {
       expect(String(results.q.rows[0][0])).toBe("true");
     });
 
+    it("blocks autoinstall of extensions at DuckDB level", async () => {
+      const results = await engine.executeQueries({
+        q: "SELECT current_setting('autoinstall_known_extensions') as val",
+      });
+      expect(results.q.error).toBeUndefined();
+      expect(String(results.q.rows[0][0])).toBe("false");
+    });
+
+    it("community extensions are blocked", async () => {
+      const results = await engine.executeQueries({
+        q: "SELECT current_setting('allow_community_extensions') as val",
+      });
+      expect(results.q.error).toBeUndefined();
+      expect(String(results.q.rows[0][0])).toBe("false");
+    });
+
     it("spatial functions work after lockdown", async () => {
       const spatialSchema: TableDefinition[] = [
         {
@@ -289,6 +305,47 @@ describe("SqlFilterEngine Security", () => {
       } finally {
         spatialEngine.close();
       }
+    });
+
+    it("applies default resource limits", async () => {
+      const results = await engine.executeQueries({
+        q: "SELECT current_setting('threads') as t, current_setting('memory_limit') as m",
+      });
+      expect(results.q.error).toBeUndefined();
+      expect(String(results.q.rows[0][0])).toBe("2");
+      expect(String(results.q.rows[0][1])).toContain("MiB");
+    });
+
+    it("applies custom resource limits", async () => {
+      const customEngine = new SqlFilterEngine({
+        resourceLimits: { threads: 4, memoryLimit: "512MB" },
+      });
+      try {
+        await customEngine.initialize(TEST_SCHEMA, TEST_DATA);
+        const results = await customEngine.executeQueries({
+          q: "SELECT current_setting('threads') as t",
+        });
+        expect(results.q.error).toBeUndefined();
+        expect(String(results.q.rows[0][0])).toBe("4");
+      } finally {
+        customEngine.close();
+      }
+    });
+  });
+
+  describe("GLOB operator vs glob() function", () => {
+    it("allows GLOB operator for string matching", async () => {
+      const results = await engine.executeQueries({
+        q: "SELECT * FROM traffic WHERE road GLOB 'A*'",
+      });
+      expect(results.q.error).toBeUndefined();
+    });
+
+    it("rejects glob() function call", async () => {
+      const results = await engine.executeQueries({
+        q: "SELECT * FROM glob('/etc/*')",
+      });
+      expect(results.q.error).toBeDefined();
     });
   });
 });

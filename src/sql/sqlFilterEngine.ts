@@ -22,6 +22,7 @@ import {
   SqlQueryResult,
   SqlQueryExecutionResult,
   SqlFilterEngineOptions,
+  ResourceLimits,
   SQL_FILTER_DEFAULTS,
   SqlColumnType,
 } from "./types";
@@ -61,7 +62,12 @@ function mapColumnType(type: SqlColumnType): string {
 export class SqlFilterEngine {
   private instance: DuckDBInstance | null = null;
   private connection: DuckDBConnection | null = null;
-  private options: Required<SqlFilterEngineOptions>;
+  private options: {
+    queryTimeoutMs: number;
+    maxRows: number;
+    maxResultRows: number;
+    resourceLimits: Required<ResourceLimits>;
+  };
   private tableSizes: Map<string, number> = new Map();
   private spatialExtensionLoaded = false;
 
@@ -70,6 +76,13 @@ export class SqlFilterEngine {
       queryTimeoutMs: options.queryTimeoutMs ?? SQL_FILTER_DEFAULTS.QUERY_TIMEOUT_MS,
       maxRows: options.maxRows ?? SQL_FILTER_DEFAULTS.MAX_ROWS_SOFT_LIMIT,
       maxResultRows: options.maxResultRows ?? SQL_FILTER_DEFAULTS.MAX_RESULT_ROWS,
+      resourceLimits: {
+        memoryLimit: options.resourceLimits?.memoryLimit ?? SQL_FILTER_DEFAULTS.MEMORY_LIMIT,
+        threads: options.resourceLimits?.threads ?? SQL_FILTER_DEFAULTS.THREADS,
+        maxTempDirectorySize:
+          options.resourceLimits?.maxTempDirectorySize ??
+          SQL_FILTER_DEFAULTS.MAX_TEMP_DIRECTORY_SIZE,
+      },
     };
   }
 
@@ -80,9 +93,15 @@ export class SqlFilterEngine {
     const warnings: string[] = [];
     const startTime = Date.now();
 
-    // Create in-memory DuckDB instance with safe cleanup on failure
+    // Create in-memory DuckDB instance with resource limits and security config
     try {
-      this.instance = await DuckDBInstance.create(":memory:");
+      const { resourceLimits } = this.options;
+      this.instance = await DuckDBInstance.create(":memory:", {
+        threads: String(resourceLimits.threads),
+        memory_limit: resourceLimits.memoryLimit,
+        max_temp_directory_size: resourceLimits.maxTempDirectorySize,
+        allow_community_extensions: "false",
+      });
       try {
         this.connection = await this.instance.connect();
       } catch (connectError) {
@@ -244,6 +263,7 @@ export class SqlFilterEngine {
     await this.connection.run("SET enable_external_access = false");
     await this.connection.run("SET autoinstall_known_extensions = false");
     await this.connection.run("SET autoload_known_extensions = false");
+    await this.connection.run("SET disabled_filesystems = 'LocalFileSystem'");
     await this.connection.run("SET lock_configuration = true");
     logger.debug("DuckDB configuration locked down");
   }
@@ -391,52 +411,18 @@ export class SqlFilterEngine {
       throw new Error("Query contains disallowed pattern: Multiple statements are not allowed");
     }
 
-    // Block dangerous patterns (including DuckDB-specific ones)
+    // Defense-in-depth blocklist: these patterns are also blocked by DuckDB native settings
+    // (enable_external_access=false, lock_configuration=true, disabled_filesystems), but the
+    // regex layer provides clearer error messages and fail-fast before query execution.
     const dangerousPatterns: Array<{ pattern: RegExp; description: string }> = [
-      {
-        pattern: /\bINSTALL\b/i,
-        description: "Extension installation",
-      },
-      {
-        pattern: /\bLOAD\b/i,
-        description: "Extension loading",
-      },
-      {
-        pattern: /\bSET\b/i,
-        description: "Configuration changes",
-      },
-      {
-        pattern: /\bRESET\b/i,
-        description: "Configuration reset",
-      },
-      {
-        pattern: /\bCOPY\b\s+.*\s+\bTO\b/i,
-        description: "COPY TO file operations",
-      },
-      {
-        pattern: /\bCOPY\b\s+.*\s+\bFROM\b/i,
-        description: "COPY FROM file operations",
-      },
-      {
-        pattern: /\bATTACH\b/i,
-        description: "Database attachment",
-      },
-      {
-        pattern: /\bEXPORT\s+DATABASE\b/i,
-        description: "Database export",
-      },
-      {
-        pattern: /\bIMPORT\s+DATABASE\b/i,
-        description: "Database import",
-      },
-      {
-        pattern: /\bCALL\b/i,
-        description: "Procedure calls",
-      },
-      {
-        pattern: /\bPRAGMA\b/i,
-        description: "PRAGMA statements",
-      },
+      // Config tampering (backed by lock_configuration=true)
+      { pattern: /\bINSTALL\b/i, description: "Extension installation" },
+      { pattern: /\bLOAD\b/i, description: "Extension loading" },
+      { pattern: /\bSET\b/i, description: "Configuration changes" },
+      { pattern: /\bRESET\b/i, description: "Configuration reset" },
+      // Filesystem access (backed by enable_external_access=false + disabled_filesystems)
+      { pattern: /\bCOPY\b\s+.*\s+\bTO\b/i, description: "COPY TO file operations" },
+      { pattern: /\bCOPY\b\s+.*\s+\bFROM\b/i, description: "COPY FROM file operations" },
       {
         pattern: /\bread_csv\b|\bread_json\b|\bread_parquet\b|\bread_text\b|\bread_blob\b/i,
         description: "File read functions",
@@ -445,14 +431,17 @@ export class SqlFilterEngine {
         pattern: /\bwrite_csv\b|\bwrite_json\b|\bwrite_parquet\b/i,
         description: "File write functions",
       },
-      {
-        pattern: /\bglob\b/i,
-        description: "Filesystem enumeration",
-      },
-      {
-        pattern: /\bhttp_get\b|\bhttp_post\b/i,
-        description: "HTTP functions",
-      },
+      { pattern: /\bglob\s*\(/i, description: "Filesystem enumeration function" },
+      // Network access (backed by enable_external_access=false)
+      { pattern: /\bhttp_get\b|\bhttp_post\b/i, description: "HTTP functions" },
+      // Database operations (backed by enable_external_access=false)
+      { pattern: /\bATTACH\b/i, description: "Database attachment" },
+      { pattern: /\bEXPORT\s+DATABASE\b/i, description: "Database export" },
+      { pattern: /\bIMPORT\s+DATABASE\b/i, description: "Database import" },
+      // Procedure/pragma (partially backed by lock_configuration)
+      { pattern: /\bCALL\b/i, description: "Procedure calls" },
+      { pattern: /\bPRAGMA\b/i, description: "PRAGMA statements" },
+      // Information disclosure prevention
       {
         pattern: /\bduckdb_settings\b|\bduckdb_extensions\b/i,
         description: "DuckDB introspection functions",
