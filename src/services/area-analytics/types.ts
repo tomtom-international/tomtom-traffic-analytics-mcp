@@ -36,11 +36,7 @@ export interface GeoJSONFeature {
 
 // Data types for Area Analytics
 export type AreaAnalyticsDataType =
-  | "NETWORK_LENGTH"
-  | "CONGESTION_LEVEL"
-  | "FREE_FLOW_SPEED"
-  | "TRAVEL_TIME"
-  | "SPEED";
+  "NETWORK_LENGTH" | "CONGESTION_LEVEL" | "FREE_FLOW_SPEED" | "TRAVEL_TIME" | "SPEED";
 
 // Functional Road Classes (0-8)
 export type FunctionalRoadClass = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
