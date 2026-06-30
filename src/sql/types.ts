@@ -93,21 +93,15 @@ export interface SqlFilteredResponse {
 }
 
 /**
- * Configuration options for the SQL filter engine
- */
-export interface SqlFilterEngineOptions {
-  queryTimeoutMs?: number;
-  maxRows?: number;
-  maxResultRows?: number;
-}
-
-/**
  * Default configuration values
  */
 export const SQL_FILTER_DEFAULTS = {
   QUERY_TIMEOUT_MS: 5000,
   MAX_ROWS_SOFT_LIMIT: 100000,
   MAX_RESULT_ROWS: 10000,
+  MEMORY_LIMIT: "256MB",
+  THREADS: 2,
+  MAX_TEMP_DIRECTORY_SIZE: "100MB",
 } as const;
 
 /**

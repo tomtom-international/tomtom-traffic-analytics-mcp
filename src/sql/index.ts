@@ -28,7 +28,6 @@ export type {
   SqlQueryExecutionResult,
   SqlFilterMetadata,
   SqlFilteredResponse,
-  SqlFilterEngineOptions,
 } from "./types";
 
 // Values and utilities from types

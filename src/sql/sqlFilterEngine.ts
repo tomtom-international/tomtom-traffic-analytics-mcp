@@ -21,7 +21,6 @@ import {
   FlattenResult,
   SqlQueryResult,
   SqlQueryExecutionResult,
-  SqlFilterEngineOptions,
   SQL_FILTER_DEFAULTS,
   SqlColumnType,
 } from "./types";
@@ -61,17 +60,8 @@ function mapColumnType(type: SqlColumnType): string {
 export class SqlFilterEngine {
   private instance: DuckDBInstance | null = null;
   private connection: DuckDBConnection | null = null;
-  private options: Required<SqlFilterEngineOptions>;
   private tableSizes: Map<string, number> = new Map();
   private spatialExtensionLoaded = false;
-
-  constructor(options: SqlFilterEngineOptions = {}) {
-    this.options = {
-      queryTimeoutMs: options.queryTimeoutMs ?? SQL_FILTER_DEFAULTS.QUERY_TIMEOUT_MS,
-      maxRows: options.maxRows ?? SQL_FILTER_DEFAULTS.MAX_ROWS_SOFT_LIMIT,
-      maxResultRows: options.maxResultRows ?? SQL_FILTER_DEFAULTS.MAX_RESULT_ROWS,
-    };
-  }
 
   /**
    * Initialize the database with table schemas and data
@@ -80,9 +70,14 @@ export class SqlFilterEngine {
     const warnings: string[] = [];
     const startTime = Date.now();
 
-    // Create in-memory DuckDB instance with safe cleanup on failure
+    // Create in-memory DuckDB instance with resource limits and security config
     try {
-      this.instance = await DuckDBInstance.create(":memory:");
+      this.instance = await DuckDBInstance.create(":memory:", {
+        threads: String(SQL_FILTER_DEFAULTS.THREADS),
+        memory_limit: SQL_FILTER_DEFAULTS.MEMORY_LIMIT,
+        max_temp_directory_size: SQL_FILTER_DEFAULTS.MAX_TEMP_DIRECTORY_SIZE,
+        allow_community_extensions: "false",
+      });
       try {
         this.connection = await this.instance.connect();
       } catch (connectError) {
@@ -99,13 +94,11 @@ export class SqlFilterEngine {
 
     logger.debug(`DuckDB instance created in ${Date.now() - startTime}ms`);
 
-    // Check if any schema has GEOMETRY columns - if so, load spatial extension first
-    const hasGeometryColumns = schemas.some((schema) =>
-      schema.columns.some((col) => col.type === "GEOMETRY")
-    );
-    if (hasGeometryColumns) {
-      await this.ensureSpatialExtension();
-    }
+    // Always load spatial extension before lockdown (must happen while external access is enabled)
+    await this.ensureSpatialExtension();
+
+    // Lock down DuckDB configuration to prevent extension loading, filesystem/network access
+    await this.lockdownConfiguration();
 
     // Create tables
     for (const schema of schemas) {
@@ -132,8 +125,8 @@ export class SqlFilterEngine {
     }
 
     // Check soft limit and add warning
-    if (totalRows > this.options.maxRows) {
-      const warning = `Large dataset warning: ${totalRows} total rows exceeds soft limit of ${this.options.maxRows}. Query performance may be affected.`;
+    if (totalRows > SQL_FILTER_DEFAULTS.MAX_ROWS_SOFT_LIMIT) {
+      const warning = `Large dataset warning: ${totalRows} total rows exceeds soft limit of ${SQL_FILTER_DEFAULTS.MAX_ROWS_SOFT_LIMIT}. Query performance may be affected.`;
       warnings.push(warning);
       logger.warn(warning);
     }
@@ -205,11 +198,6 @@ export class SqlFilterEngine {
 
     for (const [name, sql] of Object.entries(queries)) {
       try {
-        // Check if spatial extension needed
-        if (this.queryNeedsSpatial(sql)) {
-          await this.ensureSpatialExtension();
-        }
-
         results[name] = await this.executeQuery(sql);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -224,13 +212,6 @@ export class SqlFilterEngine {
     }
 
     return results;
-  }
-
-  /**
-   * Check if query uses spatial functions
-   */
-  private queryNeedsSpatial(sql: string): boolean {
-    return /\bST_\w+\s*\(/i.test(sql);
   }
 
   /**
@@ -250,6 +231,20 @@ export class SqlFilterEngine {
   }
 
   /**
+   * Lock down DuckDB configuration to prevent SSRF via extension loading or filesystem/network access
+   */
+  private async lockdownConfiguration(): Promise<void> {
+    if (!this.connection) return;
+
+    await this.connection.run("SET enable_external_access = false");
+    await this.connection.run("SET autoinstall_known_extensions = false");
+    await this.connection.run("SET autoload_known_extensions = false");
+    await this.connection.run("SET disabled_filesystems = 'LocalFileSystem'");
+    await this.connection.run("SET lock_configuration = true");
+    logger.debug("DuckDB configuration locked down");
+  }
+
+  /**
    * Populate geometry columns from GeoJSON or lat/lon data
    * This enables spatial queries like ST_Distance, ST_Within, etc.
    */
@@ -265,7 +260,6 @@ export class SqlFilterEngine {
     // Case 1: Table has geom column and geom_geojson source -> use ST_GeomFromGeoJSON
     if (hasGeomColumn && hasGeomGeoJson) {
       try {
-        await this.ensureSpatialExtension();
         const updateSql = `UPDATE ${tableName} SET geom = ST_GeomFromGeoJSON(geom_geojson) WHERE geom_geojson IS NOT NULL`;
         await this.connection.run(updateSql);
         logger.debug(`Populated geom column in ${tableName} using ST_GeomFromGeoJSON`);
@@ -277,7 +271,6 @@ export class SqlFilterEngine {
     // Case 2: Table has point_geom column and lat/lon -> use ST_Point
     if (hasPointGeom && hasLatLon) {
       try {
-        await this.ensureSpatialExtension();
         const updateSql = `UPDATE ${tableName} SET point_geom = ST_Point(lon, lat) WHERE lat IS NOT NULL AND lon IS NOT NULL`;
         await this.connection.run(updateSql);
         logger.debug(`Populated point_geom column in ${tableName} using ST_Point`);
@@ -336,10 +329,10 @@ export class SqlFilterEngine {
         this.connection?.interrupt();
         reject(
           new Error(
-            `Query timed out after ${this.options.queryTimeoutMs}ms. Simplify your query or use more restrictive filters.`
+            `Query timed out after ${SQL_FILTER_DEFAULTS.QUERY_TIMEOUT_MS}ms. Simplify your query or use more restrictive filters.`
           )
         );
-      }, this.options.queryTimeoutMs);
+      }, SQL_FILTER_DEFAULTS.QUERY_TIMEOUT_MS);
     });
 
     let reader;
@@ -358,7 +351,7 @@ export class SqlFilterEngine {
     const rows = this.convertDuckDBValues(rawRows);
 
     // Enforce row limit to prevent oversized responses
-    const maxResultRows = this.options.maxResultRows;
+    const maxResultRows = SQL_FILTER_DEFAULTS.MAX_RESULT_ROWS;
     if (rows.length > maxResultRows) {
       return {
         columns,
@@ -384,48 +377,50 @@ export class SqlFilterEngine {
     const trimmed = sql.trim();
     const upperTrimmed = trimmed.toUpperCase();
 
-    // Only allow SELECT statements (read-only)
-    if (!upperTrimmed.startsWith("SELECT")) {
-      throw new Error("Only SELECT queries are allowed. Queries must start with SELECT.");
+    // Only allow SELECT statements (read-only) or CTEs (WITH)
+    if (!upperTrimmed.startsWith("SELECT") && !upperTrimmed.startsWith("WITH")) {
+      throw new Error("Only SELECT queries are allowed. Queries must start with SELECT or WITH.");
     }
 
-    // Block dangerous patterns (including DuckDB-specific ones)
+    // Ban semicolons — legitimate queries are single SELECT statements
+    if (sql.includes(";")) {
+      throw new Error("Query contains disallowed pattern: Multiple statements are not allowed");
+    }
+
+    // Defense-in-depth blocklist: these patterns are also blocked by DuckDB native settings
+    // (enable_external_access=false, lock_configuration=true, disabled_filesystems), but the
+    // regex layer provides clearer error messages and fail-fast before query execution.
     const dangerousPatterns: Array<{ pattern: RegExp; description: string }> = [
+      // Config tampering (backed by lock_configuration=true)
+      { pattern: /\bINSTALL\b/i, description: "Extension installation" },
+      { pattern: /\bLOAD\b/i, description: "Extension loading" },
+      { pattern: /\bSET\b/i, description: "Configuration changes" },
+      { pattern: /\bRESET\b/i, description: "Configuration reset" },
+      // Filesystem access (backed by enable_external_access=false + disabled_filesystems)
+      { pattern: /\bCOPY\b\s+.*\s+\bTO\b/i, description: "COPY TO file operations" },
+      { pattern: /\bCOPY\b\s+.*\s+\bFROM\b/i, description: "COPY FROM file operations" },
       {
-        pattern: /;\s*(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE|TRUNCATE)/i,
-        description: "Multiple statements with DDL/DML",
-      },
-      {
-        pattern: /COPY\s+.*\s+TO/i,
-        description: "COPY TO file operations",
-      },
-      {
-        pattern: /COPY\s+.*\s+FROM/i,
-        description: "COPY FROM file operations",
-      },
-      {
-        pattern: /ATTACH\s+/i,
-        description: "Database attachment",
-      },
-      {
-        pattern: /EXPORT\s+DATABASE/i,
-        description: "Database export",
-      },
-      {
-        pattern: /IMPORT\s+DATABASE/i,
-        description: "Database import",
-      },
-      {
-        pattern: /CALL\s+/i,
-        description: "Procedure calls",
-      },
-      {
-        pattern: /PRAGMA\s+/i,
-        description: "PRAGMA statements",
-      },
-      {
-        pattern: /read_csv|read_json|read_parquet/i,
+        pattern: /\bread_csv\b|\bread_json\b|\bread_parquet\b|\bread_text\b|\bread_blob\b/i,
         description: "File read functions",
+      },
+      {
+        pattern: /\bwrite_csv\b|\bwrite_json\b|\bwrite_parquet\b/i,
+        description: "File write functions",
+      },
+      { pattern: /\bglob\s*\(/i, description: "Filesystem enumeration function" },
+      // Network access (backed by enable_external_access=false)
+      { pattern: /\bhttp_get\b|\bhttp_post\b/i, description: "HTTP functions" },
+      // Database operations (backed by enable_external_access=false)
+      { pattern: /\bATTACH\b/i, description: "Database attachment" },
+      { pattern: /\bEXPORT\s+DATABASE\b/i, description: "Database export" },
+      { pattern: /\bIMPORT\s+DATABASE\b/i, description: "Database import" },
+      // Procedure/pragma (partially backed by lock_configuration)
+      { pattern: /\bCALL\b/i, description: "Procedure calls" },
+      { pattern: /\bPRAGMA\b/i, description: "PRAGMA statements" },
+      // Information disclosure prevention
+      {
+        pattern: /\bduckdb_settings\b|\bduckdb_extensions\b/i,
+        description: "DuckDB introspection functions",
       },
     ];
 
