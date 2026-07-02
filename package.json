@@ -17,7 +17,8 @@
   "scripts": {
     "build:ts": "tsc --emitDeclarationOnly --declaration --declarationMap",
     "build:rollup": "rollup -c",
-    "build": "npm run build:ts && npm run build:rollup",
+    "build:apps": "tsx scripts/build-apps.ts",
+    "build": "npm run build:ts && npm run build:rollup && npm run build:apps",
     "build:bin": "shx chmod +x bin/tomtom-traffic-analytics-mcp.js bin/tomtom-traffic-analytics-mcp-http.js",
     "start": "node dist/index.js",
     "start:http": "node dist/indexHttp.esm.js",
