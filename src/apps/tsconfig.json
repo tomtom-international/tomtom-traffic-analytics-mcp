@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "noEmit": true,
     "rootDir": ".",
+    "types": ["vitest/globals"],
     "paths": { "@shared/*": ["./shared/*"] }
   },
   "include": ["./**/*.ts"],

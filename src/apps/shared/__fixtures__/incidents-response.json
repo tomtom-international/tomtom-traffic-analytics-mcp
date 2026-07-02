@@ -1,0 +1,519 @@
+{
+  "incidents": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36266894136004000",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-06-29T05:14:30Z",
+        "endTime": "2026-07-03T14:00:00Z",
+        "from": "s106",
+        "to": "Cornelis Lelylaan (s106)",
+        "length": 21.7871,
+        "delay": null,
+        "roadNumbers": ["s107"],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          },
+          {
+            "code": 701,
+            "description": "Roadworks",
+            "iconCategory": 9
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8501754889, 52.3581455979],
+          [4.8501835356, 52.3580436779],
+          [4.8501862178, 52.3579497947]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36266894064004000",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-06-29T05:17:30Z",
+        "endTime": "2026-07-03T14:00:00Z",
+        "from": "A10: Amsterdam-Slotervaart - A10 (Henk Sneevlietweg/s107)",
+        "to": "Surinameplein - Cornelis Lelylaan/Surinameplein (Haarlemmermeerstraat/s107)",
+        "length": 21.6262908313,
+        "delay": null,
+        "roadNumbers": ["s107"],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          },
+          {
+            "code": 701,
+            "description": "Roadworks",
+            "iconCategory": 9
+          }
+        ],
+        "tmc": {
+          "countryCode": "8",
+          "tableNumber": "17",
+          "tableVersion": "10.3",
+          "direction": "positive",
+          "points": [
+            {
+              "location": 55255,
+              "offset": 0
+            },
+            {
+              "location": 55254,
+              "offset": 1718
+            }
+          ]
+        }
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8503592203, 52.3579511256],
+          [4.850356538, 52.3580450089],
+          [4.8503551969, 52.3581455979]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36246696076014000",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-01-21T14:15:00Z",
+        "endTime": null,
+        "from": "Bos en Lommerweg (s104) / Bos en Lommerplein",
+        "to": "Bos en Lommerweg (s104) / Egidiusstraat",
+        "length": 59.3531273188,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "probable",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8502130399, 52.3783117546],
+          [4.8505711148, 52.3783842069],
+          [4.8510431836, 52.3784794283]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36269779636022000",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-07-02T17:24:30Z",
+        "endTime": null,
+        "from": "Amstelveenseweg",
+        "to": "Zeilstraat",
+        "length": 248.6349267799,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "probable",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.856258739, 52.3520462653],
+          [4.8560750077, 52.352004693],
+          [4.8537937889, 52.3513461873],
+          [4.8537642846, 52.3513341046],
+          [4.8537213693, 52.3512992386],
+          [4.853538979, 52.3508016916]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36258237948007001",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-04-15T11:59:30Z",
+        "endTime": null,
+        "from": "De Clercqstraat",
+        "to": "Bilderdijkstraat / Hugo de Grootkade",
+        "length": 27.7286280881,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8718477378, 52.37133132],
+          [4.8720180581, 52.3715579734]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36258238020007001",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-06-20T08:08:30Z",
+        "endTime": null,
+        "from": "Bilderdijkstraat / Hugo de Grootkade",
+        "to": "De Clercqstraat",
+        "length": 27.7286280881,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8720180581, 52.3715579734],
+          [4.8718477378, 52.37133132]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36258237940014000",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-01-06T14:52:00Z",
+        "endTime": null,
+        "from": "Allard Piersonstraat",
+        "to": "De Clercqstraat",
+        "length": 120.8428532333,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "probable",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8721924016, 52.3702946558],
+          [4.8721749673, 52.3704314496],
+          [4.8721950839, 52.3706030937],
+          [4.872235317, 52.3707841535],
+          [4.8722809145, 52.3709263192],
+          [4.8723412642, 52.371112751],
+          [4.8724445293, 52.3713648396]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36258237964023001",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-04-27T16:01:00Z",
+        "endTime": "2027-03-01T03:00:00Z",
+        "from": "Bilderdijkstraat - Bilderdijkstraat (De Clercqstraat/v100-102)",
+        "to": "Nassaukade - s100 (De Clercqstraat/v100-102)",
+        "length": 196.1050884805,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": {
+          "countryCode": "8",
+          "tableNumber": "17",
+          "tableVersion": "10.3",
+          "direction": "negative",
+          "points": [
+            {
+              "location": 55464,
+              "offset": 67
+            },
+            {
+              "location": 55465,
+              "offset": 0
+            }
+          ]
+        }
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8705334554, 52.3709276497],
+          [4.8712817917, 52.3711006736],
+          [4.871786047, 52.3712146408],
+          [4.8719255218, 52.37124683],
+          [4.8723573575, 52.3713420667],
+          [4.8724445293, 52.3713648396],
+          [4.8725544999, 52.371393037],
+          [4.8727207968, 52.3714319299],
+          [4.8728937993, 52.3714748144],
+          [4.8729702423, 52.3714935956],
+          [4.8732317576, 52.3715566429]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36258238036006001",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-06-30T19:44:30Z",
+        "endTime": "2027-03-01T03:00:00Z",
+        "from": "Nassaukade - s100 (De Clercqstraat/v100-102)",
+        "to": "Bilderdijkstraat - Bilderdijkstraat (De Clercqstraat/v100-102)",
+        "length": 251.0498259509,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": {
+          "countryCode": "8",
+          "tableNumber": "17",
+          "tableVersion": "10.3",
+          "direction": "positive",
+          "points": [
+            {
+              "location": 55465,
+              "offset": 12
+            },
+            {
+              "location": 55464,
+              "offset": 0
+            }
+          ]
+        }
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8740136216, 52.3718302222],
+          [4.8736327479, 52.3717390293],
+          [4.8732263932, 52.3716504973],
+          [4.8728844116, 52.3715740935],
+          [4.8726805637, 52.371524454],
+          [4.8724874446, 52.3714775267],
+          [4.8724270949, 52.3714614066],
+          [4.872133393, 52.371393037],
+          [4.8718477378, 52.37133132],
+          [4.8716224322, 52.3712803496],
+          [4.8705522308, 52.3710362951]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36264008832014000",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-06-25T12:17:30Z",
+        "endTime": null,
+        "from": "Eerste Constantijn Huygensstraat",
+        "to": "Overtoom (s106) / Tweede Constantijn Huygensstraat",
+        "length": 110.2184670838,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "probable",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8743985186, 52.3638466493],
+          [4.8742040584, 52.363783591],
+          [4.8739130387, 52.3637017993],
+          [4.8734221945, 52.3635623231],
+          [4.8731968889, 52.363495272],
+          [4.8729367146, 52.3634161414]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36258237944022001",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2025-09-07T13:13:00Z",
+        "endTime": null,
+        "from": "De Clercqstraat / Nassaukade (s100)",
+        "to": "Nassaukade (s100)",
+        "length": 228.4388144464,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8726805637, 52.371524454],
+          [4.8726604471, 52.3715633468],
+          [4.872645695, 52.3716049007],
+          [4.872645695, 52.3716290551],
+          [4.8727275023, 52.3717591409],
+          [4.8731486092, 52.3724256838],
+          [4.8732572386, 52.3725879554],
+          [4.8733698914, 52.3727368189],
+          [4.8734342644, 52.3727917791],
+          [4.8735026607, 52.3728306708],
+          [4.8735804448, 52.3728615283],
+          [4.8736756632, 52.3728829698],
+          [4.8738835344, 52.3729326078],
+          [4.87410884, 52.3729688384],
+          [4.8741785774, 52.3729728299],
+          [4.874237586, 52.3729621347],
+          [4.8742872069, 52.3729500579],
+          [4.8743354866, 52.3729245736],
+          [4.8744387517, 52.3728749357]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "TTI-54b3e1b4-2723-4a61-828f-7cfe48b8203a-TTR36272665036014001",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "startTime": "2026-06-30T17:15:30Z",
+        "endTime": null,
+        "from": "Banstraat",
+        "to": "Willemsparkweg / Jacob Obrechtstraat",
+        "length": 129.0572302278,
+        "delay": null,
+        "roadNumbers": [],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "probable",
+        "numberOfReports": null,
+        "lastReportTime": null,
+        "events": [
+          {
+            "code": 401,
+            "description": "Closed",
+            "iconCategory": 8
+          }
+        ],
+        "tmc": null
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8733229527, 52.3560280103],
+          [4.8734476755, 52.3560668655],
+          [4.8750489542, 52.3565134682]
+        ]
+      }
+    }
+  ]
+}
