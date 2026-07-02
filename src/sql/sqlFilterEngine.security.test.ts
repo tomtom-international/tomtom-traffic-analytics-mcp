@@ -135,8 +135,16 @@ describe("SqlFilterEngine Security", () => {
       { fn: "read_text", sql: "SELECT * FROM read_text('/etc/passwd')" },
       { fn: "read_blob", sql: "SELECT * FROM read_blob('/etc/passwd')" },
       { fn: "read_csv", sql: "SELECT * FROM read_csv('/tmp/data.csv')" },
+      { fn: "read_csv_auto", sql: "SELECT * FROM read_csv_auto('/tmp/data.csv')" },
       { fn: "read_json", sql: "SELECT * FROM read_json('/tmp/data.json')" },
+      { fn: "read_json_auto", sql: "SELECT * FROM read_json_auto('/tmp/data.json')" },
+      { fn: "read_ndjson", sql: "SELECT * FROM read_ndjson('/tmp/data.ndjson')" },
       { fn: "read_parquet", sql: "SELECT * FROM read_parquet('/tmp/data.parquet')" },
+      { fn: "read_xlsx", sql: "SELECT * FROM read_xlsx('/tmp/data.xlsx')" },
+      { fn: "read_xml", sql: "SELECT * FROM read_xml('/tmp/data.xml')" },
+      { fn: "sniff_csv", sql: "SELECT * FROM sniff_csv('/tmp/data.csv')" },
+      { fn: "parquet_metadata", sql: "SELECT * FROM parquet_metadata('/tmp/data.parquet')" },
+      { fn: "parquet_schema", sql: "SELECT * FROM parquet_schema('/tmp/data.parquet')" },
       { fn: "http_get", sql: "SELECT * FROM http_get('http://evil.com')" },
       { fn: "http_post", sql: "SELECT * FROM http_post('http://evil.com', '')" },
       { fn: "write_csv", sql: "SELECT * FROM write_csv((SELECT 1), '/tmp/out.csv')" },
@@ -310,6 +318,14 @@ describe("SqlFilterEngine Security", () => {
       expect(results.q.error).toBeUndefined();
       expect(String(results.q.rows[0][0])).toBe("2");
       expect(String(results.q.rows[0][1])).toContain("MiB");
+    });
+
+    it("bounds max_expression_depth", async () => {
+      const results = await engine.executeQueries({
+        q: "SELECT current_setting('max_expression_depth') as d",
+      });
+      expect(results.q.error).toBeUndefined();
+      expect(String(results.q.rows[0][0])).toBe("1000");
     });
   });
 

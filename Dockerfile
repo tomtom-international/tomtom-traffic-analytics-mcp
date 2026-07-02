@@ -17,6 +17,12 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
+# Drop root privileges: run as the unprivileged "node" user (uid 1000) that
+# ships with the official node image. Ownership is handed over after the build
+# steps (which need write access to /app) complete.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
 
 CMD ["node", "./bin/tomtom-traffic-analytics-mcp-http.js"]

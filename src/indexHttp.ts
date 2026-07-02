@@ -72,7 +72,10 @@ export async function createHttpServer(options: HttpServerOptions = {}): Promise
   app.use(express.json());
   app.use(
     cors({
-      origin: allowedOrigins?.split(",") || "*",
+      // CORS is opt-in: only the origins listed in ALLOWED_ORIGINS are permitted.
+      // When unset, cross-origin browser requests are denied rather than defaulting
+      // to a permissive wildcard. (Non-browser MCP clients are unaffected by CORS.)
+      origin: allowedOrigins ? allowedOrigins.split(",") : false,
       methods: ["POST", "GET", "OPTIONS"],
       allowedHeaders: [
         "Content-Type",
