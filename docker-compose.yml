@@ -10,7 +10,9 @@ services:
       - TOMTOM_API_KEY=${TOMTOM_API_KEY}
       - TOMTOM_MOVE_PORTAL_KEY=${TOMTOM_MOVE_PORTAL_KEY}
       - PORT=3000
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      # CORS is opt-in: set ALLOWED_ORIGINS to a comma-separated list of origins
+      # for browser clients. Left empty, cross-origin browser requests are denied.
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
     ports:
       - "3000:3000"
     healthcheck:
@@ -22,3 +24,13 @@ services:
     restart: unless-stopped
     mem_limit: 4G
     init: true
+    # Container hardening (defense-in-depth; the MCP still requires auth in front)
+    user: "node"
+    read_only: true
+    tmpfs:
+      # Writable scratch for DuckDB temp spill files; everything else is read-only.
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

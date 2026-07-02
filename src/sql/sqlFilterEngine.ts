@@ -240,6 +240,9 @@ export class SqlFilterEngine {
     await this.connection.run("SET autoinstall_known_extensions = false");
     await this.connection.run("SET autoload_known_extensions = false");
     await this.connection.run("SET disabled_filesystems = 'LocalFileSystem'");
+    // Bound parser recursion to prevent stack-exhaustion via deeply nested expressions.
+    // Must be set before lock_configuration=true, which blocks all further SET.
+    await this.connection.run("SET max_expression_depth = 1000");
     await this.connection.run("SET lock_configuration = true");
     logger.debug("DuckDB configuration locked down");
   }
@@ -399,14 +402,14 @@ export class SqlFilterEngine {
       // Filesystem access (backed by enable_external_access=false + disabled_filesystems)
       { pattern: /\bCOPY\b\s+.*\s+\bTO\b/i, description: "COPY TO file operations" },
       { pattern: /\bCOPY\b\s+.*\s+\bFROM\b/i, description: "COPY FROM file operations" },
-      {
-        pattern: /\bread_csv\b|\bread_json\b|\bread_parquet\b|\bread_text\b|\bread_blob\b/i,
-        description: "File read functions",
-      },
-      {
-        pattern: /\bwrite_csv\b|\bwrite_json\b|\bwrite_parquet\b/i,
-        description: "File write functions",
-      },
+      // Matches every DuckDB read_* table function in call position, e.g.
+      // read_text(, read_blob(, read_csv(, read_csv_auto(, read_json(, read_json_auto(,
+      // read_ndjson(, read_parquet(, read_xlsx(, read_xml(. Requiring "(" avoids
+      // false positives on column names that merely start with "read_".
+      { pattern: /\bread_[a-z0-9_]*\s*\(/i, description: "File read functions" },
+      { pattern: /\bwrite_[a-z0-9_]*\s*\(/i, description: "File write functions" },
+      { pattern: /\bsniff_csv\s*\(/i, description: "CSV sniffing function" },
+      { pattern: /\bparquet_[a-z0-9_]*\s*\(/i, description: "Parquet metadata functions" },
       { pattern: /\bglob\s*\(/i, description: "Filesystem enumeration function" },
       // Network access (backed by enable_external_access=false)
       { pattern: /\bhttp_get\b|\bhttp_post\b/i, description: "HTTP functions" },
