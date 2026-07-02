@@ -9,6 +9,7 @@ vi.mock("./tools/areaAnalytics", () => ({ createAreaAnalyticsTools: vi.fn() }));
 vi.mock("./tools/junctionAnalytics", () => ({ createJunctionAnalyticsTools: vi.fn() }));
 vi.mock("./tools/routeMonitoring", () => ({ createRouteMonitoringTools: vi.fn() }));
 vi.mock("./tools/liveTraffic", () => ({ createLiveTrafficTools: vi.fn() }));
+vi.mock("./tools/appTools", () => ({ createAppTools: vi.fn() }));
 vi.mock("./services/base/tomtomClient", () => ({ validateMovePortalApiKey: vi.fn() }));
 vi.mock("./utils/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
@@ -19,6 +20,7 @@ import { createAreaAnalyticsTools } from "./tools/areaAnalytics";
 import { createJunctionAnalyticsTools } from "./tools/junctionAnalytics";
 import { createRouteMonitoringTools } from "./tools/routeMonitoring";
 import { createLiveTrafficTools } from "./tools/liveTraffic";
+import { createAppTools } from "./tools/appTools";
 
 describe("createServer", () => {
   beforeEach(() => {
@@ -32,6 +34,7 @@ describe("createServer", () => {
     expect(createJunctionAnalyticsTools).toHaveBeenCalledTimes(1);
     expect(createRouteMonitoringTools).toHaveBeenCalledTimes(1);
     expect(createLiveTrafficTools).toHaveBeenCalledTimes(1);
+    expect(createAppTools).toHaveBeenCalledTimes(1);
   });
 
   it("does not fail when called", () => {
