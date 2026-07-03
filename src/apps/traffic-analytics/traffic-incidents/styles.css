@@ -33,6 +33,12 @@ body {
   min-height: 600px;
 }
 
+/* Collapse app-root in ui-hidden state (show_ui:false, missing API key, etc.) */
+html.ui-hidden #app-root {
+  min-height: 0 !important;
+  display: none;
+}
+
 /* ---------------------------------------------------------------------------
    Waiting / empty state panels
    --------------------------------------------------------------------------- */
