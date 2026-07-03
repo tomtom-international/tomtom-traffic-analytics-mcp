@@ -36,9 +36,27 @@ vi.mock("../sql", () => ({
   JUNCTION_ARCHIVE_SCHEMA: [{ name: "approaches", columns: [] }],
 }));
 
+// getJunctionLiveData is options-sensitive: only returns junctionModel when
+// called with includeGeometry: true, so tests can assert the real fetch/strip
+// behavior of the handler rather than a fixed fixture.
+const junctionModelFixture = {
+  name: "Test Junction",
+  countryCode: "USA",
+  driveOnLeft: false,
+  trafficLights: true,
+  approaches: [],
+  exits: [],
+};
+
 vi.mock("../services/junction-analytics/junctionAnalyticsService", () => ({
   getAllJunctionDefinitions: vi.fn().mockResolvedValue([{ id: "j1" }, { id: "j2" }]),
-  getJunctionLiveData: vi.fn().mockResolvedValue({ approachesLiveData: [{ approach_id: 1 }] }),
+  getJunctionLiveData: vi.fn().mockImplementation((id: string, options: any) => {
+    const base = { id, approachesLiveData: [{ approach_id: 1 }] };
+    if (options?.includeGeometry === true) {
+      return Promise.resolve({ ...base, junctionModel: junctionModelFixture });
+    }
+    return Promise.resolve(base);
+  }),
   getJunctionArchive: vi
     .fn()
     .mockResolvedValue({ approaches: [{ time: "2024-01-01" }], turnRatios: [] }),
@@ -65,7 +83,7 @@ import {
   getJunctionLiveData,
   getJunctionArchive,
 } from "../services/junction-analytics/junctionAnalyticsService";
-import { flattenJunctionDefinitions } from "../sql";
+import { flattenJunctionDefinitions, flattenJunctionLiveData } from "../sql";
 import { logger } from "../utils/logger";
 
 describe("junctionAnalyticsHandler", () => {
@@ -204,6 +222,86 @@ describe("junctionAnalyticsHandler", () => {
       vi.mocked(getJunctionLiveData).mockRejectedValueOnce(new Error("fail"));
       await handler(validParams);
       expect(mockSqlEngine.close).toHaveBeenCalled();
+    });
+
+    describe("geometry fetch/strip + viz cache (show_ui)", () => {
+      it("default (show_ui and includeGeometry undefined): forces includeGeometry on fetch, strips junctionModel before flatten, stores full viz payload, echoes undefined", async () => {
+        const result = await handler(validParams);
+
+        // Fetch is forced to includeGeometry: true so the map app gets geometry.
+        expect(getJunctionLiveData).toHaveBeenCalledWith("j1", { includeGeometry: true });
+
+        // SQL must see exactly what the user asked for: no junctionModel.
+        expect(flattenJunctionLiveData).toHaveBeenCalledTimes(1);
+        const flattenArg = vi.mocked(flattenJunctionLiveData).mock.calls[0][0] as any;
+        expect(flattenArg).not.toHaveProperty("junctionModel");
+
+        // The viz payload retains the full (unstripped) result with junctionModel.
+        expect(mockStoreVizData).toHaveBeenCalledWith({
+          tool: "tomtom-junction-live-data",
+          junctions: [{ id: "j1", approachesLiveData: [{ approach_id: 1 }], junctionModel: junctionModelFixture }],
+        });
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.metadata.parameters.includeGeometry).toBeUndefined();
+        expect(parsed._meta).toEqual({ show_ui: true, viz_id: "test-viz-id" });
+      });
+
+      it("includeGeometry: true, show_ui undefined: fetches with geometry, keeps junctionModel for flatten, stores viz, echoes true", async () => {
+        const result = await handler({ ...validParams, includeGeometry: true });
+
+        expect(getJunctionLiveData).toHaveBeenCalledWith("j1", { includeGeometry: true });
+
+        expect(flattenJunctionLiveData).toHaveBeenCalledTimes(1);
+        const flattenArg = vi.mocked(flattenJunctionLiveData).mock.calls[0][0] as any;
+        expect(flattenArg).toHaveProperty("junctionModel", junctionModelFixture);
+
+        expect(mockStoreVizData).toHaveBeenCalledTimes(1);
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.metadata.parameters.includeGeometry).toBe(true);
+      });
+
+      it("show_ui: false, includeGeometry undefined: fetch options untouched (no forced geometry), no viz stored", async () => {
+        const result = await handler({ ...validParams, show_ui: false });
+
+        expect(getJunctionLiveData).toHaveBeenCalledWith(
+          "j1",
+          expect.not.objectContaining({ includeGeometry: true })
+        );
+
+        expect(mockStoreVizData).not.toHaveBeenCalled();
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: false });
+      });
+
+      it("show_ui: false, includeGeometry: true: fetch keeps geometry, flatten keeps junctionModel, no viz stored", async () => {
+        const result = await handler({ ...validParams, show_ui: false, includeGeometry: true });
+
+        expect(getJunctionLiveData).toHaveBeenCalledWith("j1", { includeGeometry: true });
+
+        const flattenArg = vi.mocked(flattenJunctionLiveData).mock.calls[0][0] as any;
+        expect(flattenArg).toHaveProperty("junctionModel", junctionModelFixture);
+
+        expect(mockStoreVizData).not.toHaveBeenCalled();
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: false });
+      });
+
+      it("degrades gracefully to show_ui:false when storeVizData throws", async () => {
+        mockStoreVizData.mockImplementationOnce(() => {
+          throw new Error("cache full");
+        });
+
+        const result = await handler(validParams);
+
+        expect(result.isError).toBeUndefined();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: false });
+        expect(logger.error).toHaveBeenCalled();
+      });
     });
   });
 

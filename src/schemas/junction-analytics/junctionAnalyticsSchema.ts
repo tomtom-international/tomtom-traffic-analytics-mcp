@@ -44,6 +44,12 @@ export const junctionLiveDataDetailsSchema = {
     .boolean()
     .optional()
     .describe("Set true to populate junction_metadata, approach_metadata, exit_metadata tables"),
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive junction map app (default true). Set false for text-only analysis."
+    ),
   sql_queries: liveDataSqlQueriesSchema,
 };
 

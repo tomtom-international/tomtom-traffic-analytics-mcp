@@ -73,7 +73,8 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
   );
 
   // Get junction live data details with SQL filtering
-  server.registerTool(
+  registerAppTool(
+    server,
     "tomtom-junction-live-data",
     {
       description: `Real-time traffic snapshot for one or more junctions. Returns a single live reading per junction covering approach delays, queue lengths, turn ratios, and stops histogram. Use tomtom-junction-search first to discover junction IDs.
@@ -102,6 +103,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - Rank by congestion: SELECT junction_id, ROUND(AVG(delay_sec), 2) as avg_delay FROM approaches GROUP BY junction_id ORDER BY avg_delay DESC
     - Compare queues: SELECT junction_id, MAX(queue_length_meters) as max_queue, COUNT(DISTINCT approach_id) as num_approaches FROM approaches GROUP BY junction_id`,
       inputSchema: junctionLiveDataDetailsSchema,
+      _meta: { [RESOURCE_URI_META_KEY]: JUNCTION_LIVE_RESOURCE_URI },
     },
     getJunctionLiveDataDetailsHandler()
   );

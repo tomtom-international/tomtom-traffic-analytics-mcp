@@ -52,9 +52,9 @@ describe("Junction Analytics Tools", () => {
   it("should register 3 Junction Analytics tools", () => {
     createJunctionAnalyticsTools(mockServer);
 
-    // Search is bound to an MCP app via registerAppTool; live-data and archive stay plain
-    expect(mockRegisterTool).toHaveBeenCalledTimes(2);
-    expect(mockRegisterAppTool).toHaveBeenCalledTimes(1);
+    // Search and live-data are bound to the MCP app via registerAppTool; archive stays plain
+    expect(mockRegisterTool).toHaveBeenCalledTimes(1);
+    expect(mockRegisterAppTool).toHaveBeenCalledTimes(2);
 
     const toolNames = [
       ...mockRegisterTool.mock.calls.map((call) => call[0]),
@@ -87,6 +87,32 @@ describe("Junction Analytics Tools", () => {
     expect(mockRegisterTool.mock.calls.some((c) => c[0] === "tomtom-junction-search")).toBe(false);
   });
 
+  it("should register junction-live-data tool via registerAppTool bound to the SAME app resource", () => {
+    createJunctionAnalyticsTools(mockServer);
+
+    const call = mockRegisterAppTool.mock.calls.find(
+      (c) => c[1] === "tomtom-junction-live-data"
+    );
+    expect(call).toBeDefined();
+    if (!call) return;
+
+    const [server, name, config, handler] = call;
+    expect(server).toBe(mockServer);
+    expect(name).toBe("tomtom-junction-live-data");
+    expect(config.inputSchema).toBeDefined();
+    expect(typeof handler).toBe("function");
+
+    // Same resource URI as junction-search — no second app resource
+    expect(config._meta["ui/resourceUri"]).toBe(
+      "ui://tomtom-traffic-analytics/junction-live/app.html"
+    );
+
+    // Should never be registered via the plain server.registerTool
+    expect(
+      mockRegisterTool.mock.calls.some((c) => c[0] === "tomtom-junction-live-data")
+    ).toBe(false);
+  });
+
   it("should register the junction-live app resource exactly once", () => {
     createJunctionAnalyticsTools(mockServer);
 
@@ -109,13 +135,11 @@ describe("Junction Analytics Tools", () => {
       expect(typeof call[2]).toBe("function"); // handler
     });
 
-    const appToolCall = mockRegisterAppTool.mock.calls.find(
-      (c: any) => c[1] === "tomtom-junction-search"
-    );
-    expect(appToolCall).toBeDefined();
-    expect(typeof appToolCall[2].description).toBe("string");
-    expect(typeof appToolCall[2].inputSchema).toBe("object");
-    expect(typeof appToolCall[3]).toBe("function");
+    mockRegisterAppTool.mock.calls.forEach((call: any) => {
+      expect(typeof call[2].description).toBe("string");
+      expect(typeof call[2].inputSchema).toBe("object");
+      expect(typeof call[3]).toBe("function");
+    });
   });
 
   it("should register tools with proper descriptions", () => {
@@ -132,10 +156,10 @@ describe("Junction Analytics Tools", () => {
     );
     expect(searchToolCall[2].description).toContain("Search and filter");
 
-    const liveDataToolCall = plainToolCalls.find(
-      (call: any) => call[0] === "tomtom-junction-live-data"
+    const liveDataToolCall = mockRegisterAppTool.mock.calls.find(
+      (c: any) => c[1] === "tomtom-junction-live-data"
     );
-    expect(liveDataToolCall[1].description.toLowerCase()).toContain("real-time traffic");
+    expect(liveDataToolCall[2].description.toLowerCase()).toContain("real-time traffic");
 
     const archiveToolCall = plainToolCalls.find(
       (call: any) => call[0] === "tomtom-junction-archive"
@@ -150,16 +174,6 @@ describe("Junction Analytics Tools", () => {
     expect(toolNames).toContain("tomtom-junction-archive");
     expect(
       mockRegisterAppTool.mock.calls.some((c: any) => c[1] === "tomtom-junction-archive")
-    ).toBe(false);
-  });
-
-  it("should keep tomtom-junction-live-data on the plain server.registerTool", () => {
-    createJunctionAnalyticsTools(mockServer);
-
-    const toolNames = mockRegisterTool.mock.calls.map((call: any) => call[0]);
-    expect(toolNames).toContain("tomtom-junction-live-data");
-    expect(
-      mockRegisterAppTool.mock.calls.some((c: any) => c[1] === "tomtom-junction-live-data")
     ).toBe(false);
   });
 

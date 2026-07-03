@@ -145,7 +145,7 @@ export function getJunctionSearchHandler() {
  */
 export function getJunctionLiveDataDetailsHandler() {
   return async (params: any) => {
-    const { junctionIds, sql_queries, ...options } = params;
+    const { junctionIds, sql_queries, show_ui, ...options } = params;
 
     const ids: string[] = junctionIds;
 
@@ -175,12 +175,22 @@ export function getJunctionLiveDataDetailsHandler() {
     const sqlEngine = new SqlFilterEngine();
 
     try {
-      // 1. Fetch all junctions in PARALLEL
-      const rawResults = await Promise.all(ids.map((id) => getJunctionLiveData(id, options)));
+      // 1. Fetch all junctions in PARALLEL.
+      // The map app needs junctionModel geometry, so when the UI is enabled we
+      // force includeGeometry on the FETCH — but SQL must see exactly what the
+      // user asked for, so we strip junctionModel again before flattening.
+      const wantGeometry = options.includeGeometry === true;
+      const fetchOptions =
+        !wantGeometry && show_ui !== false ? { ...options, includeGeometry: true } : options;
+      const rawResults = await Promise.all(ids.map((id) => getJunctionLiveData(id, fetchOptions)));
+
+      const sqlResults = wantGeometry
+        ? rawResults
+        : rawResults.map(({ junctionModel: _junctionModel, ...rest }) => rest);
 
       // Log raw data stats
       let totalApproaches = 0;
-      for (const result of rawResults) {
+      for (const result of sqlResults) {
         totalApproaches += result.approachesLiveData?.length ?? 0;
       }
       logger.info(
@@ -190,7 +200,7 @@ export function getJunctionLiveDataDetailsHandler() {
       // 2. Merge flattened results from all junctions
       const mergedTables = new Map<string, Record<string, unknown>[]>();
 
-      for (const rawResult of rawResults) {
+      for (const rawResult of sqlResults) {
         const flattened = flattenJunctionLiveData(rawResult);
         for (const [tableName, rows] of flattened.tables) {
           const existing = mergedTables.get(tableName) ?? [];
@@ -209,7 +219,24 @@ export function getJunctionLiveDataDetailsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw (unstripped) junctions for the MCP App to render, unless disabled
+      let vizMeta: { show_ui: boolean; viz_id?: string };
+      if (show_ui !== false) {
+        try {
+          const vizId = storeVizData({
+            tool: "tomtom-junction-live-data",
+            junctions: rawResults,
+          });
+          vizMeta = { show_ui: true, viz_id: vizId };
+        } catch (error: any) {
+          logger.error(`Failed to cache junction live data viz payload: ${error.message}`);
+          vizMeta = { show_ui: false };
+        }
+      } else {
+        vizMeta = { show_ui: false };
+      }
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-live-data",
@@ -223,6 +250,7 @@ export function getJunctionLiveDataDetailsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
