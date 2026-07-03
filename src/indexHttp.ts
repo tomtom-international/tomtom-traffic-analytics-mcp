@@ -75,7 +75,12 @@ export async function createHttpServer(options: HttpServerOptions = {}): Promise
       // CORS is opt-in: only the origins listed in ALLOWED_ORIGINS are permitted.
       // When unset, cross-origin browser requests are denied rather than defaulting
       // to a permissive wildcard. (Non-browser MCP clients are unaffected by CORS.)
-      origin: allowedOrigins ? allowedOrigins.split(",") : false,
+      origin: allowedOrigins
+        ? allowedOrigins
+            .split(",")
+            .map((o) => o.trim())
+            .filter(Boolean)
+        : false,
       methods: ["POST", "GET", "OPTIONS"],
       allowedHeaders: [
         "Content-Type",

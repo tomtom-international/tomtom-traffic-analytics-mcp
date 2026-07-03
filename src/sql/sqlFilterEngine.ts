@@ -72,12 +72,20 @@ export class SqlFilterEngine {
 
     // Create in-memory DuckDB instance with resource limits and security config
     try {
-      this.instance = await DuckDBInstance.create(":memory:", {
+      const instanceConfig: Record<string, string> = {
         threads: String(SQL_FILTER_DEFAULTS.THREADS),
         memory_limit: SQL_FILTER_DEFAULTS.MEMORY_LIMIT,
         max_temp_directory_size: SQL_FILTER_DEFAULTS.MAX_TEMP_DIRECTORY_SIZE,
         allow_community_extensions: "false",
-      });
+      };
+      // Opt-in temp spill location. A :memory: DuckDB does not spill to /tmp by
+      // default, so the hardened (read-only root) container sets this to its writable
+      // /tmp tmpfs. Left unset elsewhere, DuckDB keeps its default (avoids coupling
+      // local/Windows dev to a POSIX /tmp path that may not exist).
+      if (process.env.DUCKDB_TEMP_DIRECTORY) {
+        instanceConfig.temp_directory = process.env.DUCKDB_TEMP_DIRECTORY;
+      }
+      this.instance = await DuckDBInstance.create(":memory:", instanceConfig);
       try {
         this.connection = await this.instance.connect();
       } catch (connectError) {
@@ -241,8 +249,10 @@ export class SqlFilterEngine {
     await this.connection.run("SET autoload_known_extensions = false");
     await this.connection.run("SET disabled_filesystems = 'LocalFileSystem'");
     // Bound parser recursion to prevent stack-exhaustion via deeply nested expressions.
-    // Must be set before lock_configuration=true, which blocks all further SET.
-    await this.connection.run("SET max_expression_depth = 1000");
+    // 250 is well below DuckDB's default of 1000 (so it actually tightens the limit)
+    // yet far deeper than any legitimate filter query. Must be set before
+    // lock_configuration=true, which blocks all further SET.
+    await this.connection.run("SET max_expression_depth = 250");
     await this.connection.run("SET lock_configuration = true");
     logger.debug("DuckDB configuration locked down");
   }
@@ -410,6 +420,10 @@ export class SqlFilterEngine {
       { pattern: /\bwrite_[a-z0-9_]*\s*\(/i, description: "File write functions" },
       { pattern: /\bsniff_csv\s*\(/i, description: "CSV sniffing function" },
       { pattern: /\bparquet_[a-z0-9_]*\s*\(/i, description: "Parquet metadata functions" },
+      // Spatial (GDAL-backed) file readers, loaded with the spatial extension:
+      // st_read(, st_readOSM(, st_read_meta(. Blocked natively too, but listed here
+      // so they fail fast with a clear message rather than a generic access error.
+      { pattern: /\bst_read[a-z0-9_]*\s*\(/i, description: "Spatial file read functions" },
       { pattern: /\bglob\s*\(/i, description: "Filesystem enumeration function" },
       // Network access (backed by enable_external_access=false)
       { pattern: /\bhttp_get\b|\bhttp_post\b/i, description: "HTTP functions" },

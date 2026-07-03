@@ -13,6 +13,10 @@ services:
       # CORS is opt-in: set ALLOWED_ORIGINS to a comma-separated list of origins
       # for browser clients. Left empty, cross-origin browser requests are denied.
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      # Point DuckDB's temp spill at the writable /tmp tmpfs below. A :memory:
+      # instance does not spill to /tmp by default, so without this a large query
+      # would try to write under the read-only root and fail.
+      - DUCKDB_TEMP_DIRECTORY=/tmp
     ports:
       - "3000:3000"
     healthcheck:
@@ -28,7 +32,8 @@ services:
     user: "node"
     read_only: true
     tmpfs:
-      # Writable scratch for DuckDB temp spill files; everything else is read-only.
+      # Writable scratch for DuckDB temp spill files (see DUCKDB_TEMP_DIRECTORY
+      # above); everything else is read-only.
       - /tmp
     security_opt:
       - no-new-privileges:true

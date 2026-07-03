@@ -151,6 +151,9 @@ describe("SqlFilterEngine Security", () => {
       { fn: "write_json", sql: "SELECT * FROM write_json((SELECT 1), '/tmp/out.json')" },
       { fn: "write_parquet", sql: "SELECT * FROM write_parquet((SELECT 1), '/tmp/out.parquet')" },
       { fn: "glob", sql: "SELECT * FROM glob('/etc/*')" },
+      { fn: "st_read", sql: "SELECT * FROM st_read('/etc/passwd')" },
+      { fn: "st_readOSM", sql: "SELECT * FROM st_readOSM('/tmp/map.osm.pbf')" },
+      { fn: "st_read_meta", sql: "SELECT * FROM st_read_meta('/tmp/data.geojson')" },
     ];
 
     for (const { fn, sql } of dangerousFunctions) {
@@ -325,7 +328,7 @@ describe("SqlFilterEngine Security", () => {
         q: "SELECT current_setting('max_expression_depth') as d",
       });
       expect(results.q.error).toBeUndefined();
-      expect(String(results.q.rows[0][0])).toBe("1000");
+      expect(String(results.q.rows[0][0])).toBe("250");
     });
   });
 
