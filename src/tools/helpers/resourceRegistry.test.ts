@@ -87,10 +87,16 @@ describe("registerAppResourceFromPath", () => {
     expect(result.contents[0]._meta).toEqual({
       ui: {
         csp: {
-          connectDomains: ["https://api.tomtom.com", "https://*.api.tomtom.com", "blob:"],
+          connectDomains: [
+            "https://api.tomtom.com",
+            "https://*.api.tomtom.com",
+            "https://unpkg.com",
+            "blob:",
+          ],
           resourceDomains: [
             "https://api.tomtom.com",
             "https://*.api.tomtom.com",
+            "https://unpkg.com",
             "blob:",
             "data:",
           ],

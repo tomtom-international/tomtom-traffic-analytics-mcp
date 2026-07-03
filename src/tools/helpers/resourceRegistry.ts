@@ -54,10 +54,29 @@ const APP_BASE_PATH = path.resolve(__dirname, "./apps");
  * CSP domain lists attached to every app resource's contents (`_meta.ui.csp`).
  * These are intentionally NOT attached to tool `_meta` — the ext-apps host
  * reads CSP from the resource contents that back the app's iframe.
+ *
+ * `https://unpkg.com` is required even though we bundle maplibre-gl's CSS
+ * ourselves: `@tomtom-org/maps-sdk` unconditionally injects, at runtime, a
+ * `<link>` to the maplibre-gl stylesheet on unpkg AND lazily fetches the
+ * Mapbox RTL text plugin script from unpkg (verified in
+ * node_modules/@tomtom-org/maps-sdk/map/dist/map.es.js). Without unpkg in
+ * both lists, sandboxed hosts block those requests with CSP violations. Do
+ * not remove this without confirming the SDK no longer does that injection.
  */
 const APP_RESOURCE_CSP = {
-  connectDomains: ["https://api.tomtom.com", "https://*.api.tomtom.com", "blob:"],
-  resourceDomains: ["https://api.tomtom.com", "https://*.api.tomtom.com", "blob:", "data:"],
+  connectDomains: [
+    "https://api.tomtom.com",
+    "https://*.api.tomtom.com",
+    "https://unpkg.com",
+    "blob:",
+  ],
+  resourceDomains: [
+    "https://api.tomtom.com",
+    "https://*.api.tomtom.com",
+    "https://unpkg.com",
+    "blob:",
+    "data:",
+  ],
 };
 
 /**

@@ -16,6 +16,9 @@ import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { bboxUnion, type Bbox } from "@shared/geo";
 import "@shared/controls";
+// Bundled so map chrome styling never depends on the CDN link the SDK
+// injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles.css";
 
 const { parseTrafficIncidentDetailsResponse } = customizeService.trafficIncidentDetails;
