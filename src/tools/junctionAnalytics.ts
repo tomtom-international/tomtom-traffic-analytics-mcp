@@ -15,6 +15,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAppTool, RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps/server";
 import {
   junctionSearchSchema,
   junctionLiveDataDetailsSchema,
@@ -25,13 +26,24 @@ import {
   getJunctionLiveDataDetailsHandler,
   getJunctionArchiveHandler,
 } from "../handlers/junctionAnalyticsHandler";
+import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
+
+const JUNCTION_LIVE_RESOURCE_URI = "ui://tomtom-traffic-analytics/junction-live/app.html";
 
 /**
  * Creates and registers Junction Analytics tools
  */
 export function createJunctionAnalyticsTools(server: McpServer): void {
+  registerAppResourceFromPath(
+    server,
+    JUNCTION_LIVE_RESOURCE_URI,
+    "traffic-analytics",
+    "junction-live"
+  );
+
   // Search junctions with SQL filtering
-  server.registerTool(
+  registerAppTool(
+    server,
     "tomtom-junction-search",
     {
       description: `Search and filter all your junctions using SQL queries. Use this FIRST to discover junction IDs by name, status, country, or other properties, then pass the IDs to tomtom-junction-live-data or tomtom-junction-archive for traffic analysis. Returns junction catalog metadata only — no live traffic data. Junctions must be pre-created in Move Portal (no ad-hoc lat/lon queries).
@@ -55,6 +67,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - Count by country: SELECT country_code, COUNT(*) as cnt FROM junctions GROUP BY country_code ORDER BY cnt DESC  -- country_code uses 3-letter codes: ESP, DEU, USA, GBR
     - Find by road (full view): SELECT j.junction_id, j.name, a.road_name FROM junctions j JOIN approaches a ON j.junction_id = a.junction_id WHERE a.road_name ILIKE '%Main%'`,
       inputSchema: junctionSearchSchema,
+      _meta: { [RESOURCE_URI_META_KEY]: JUNCTION_LIVE_RESOURCE_URI },
     },
     getJunctionSearchHandler()
   );

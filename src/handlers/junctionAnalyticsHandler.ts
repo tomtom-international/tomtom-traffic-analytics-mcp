@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { storeVizData } from "../services/cache/vizCache";
 import {
   getJunctionLiveData,
   getJunctionArchive,
@@ -42,7 +43,7 @@ import {
  */
 export function getJunctionSearchHandler() {
   return async (params: any) => {
-    const { view = "compact", sql_queries } = params;
+    const { view = "compact", sql_queries, show_ui } = params;
 
     logger.info(`Junction search (view: ${view})`);
 
@@ -84,7 +85,24 @@ export function getJunctionSearchHandler() {
       // 6. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 7. Build filtered response
+      // 7. Cache the raw junction catalog for the MCP App to render, unless disabled
+      let vizMeta: { show_ui: boolean; viz_id?: string };
+      if (show_ui !== false) {
+        try {
+          const vizId = storeVizData({
+            tool: "tomtom-junction-search",
+            junctions: allJunctions,
+          });
+          vizMeta = { show_ui: true, viz_id: vizId };
+        } catch (error: any) {
+          logger.error(`Failed to cache junction search viz payload: ${error.message}`);
+          vizMeta = { show_ui: false };
+        }
+      } else {
+        vizMeta = { show_ui: false };
+      }
+
+      // 8. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-search",
@@ -97,6 +115,7 @@ export function getJunctionSearchHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(

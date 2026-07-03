@@ -94,6 +94,12 @@ export const junctionSearchSchema = {
     .describe(
       "Table detail level. 'compact' (default): junctions table only. 'full': adds approaches and exits tables for structural search."
     ),
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive junction map app (default true). Set false for text-only analysis."
+    ),
   sql_queries: junctionSearchSqlQueriesSchema,
 };
 
