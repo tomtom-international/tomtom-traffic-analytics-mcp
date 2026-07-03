@@ -38,6 +38,68 @@ export function withBaseData(raw: any): any {
 }
 
 /**
+ * Fallback dates to use when a raw Area Analytics response has neither
+ * `properties.startDate`/`endDate` nor `properties.days`.
+ */
+export interface AreaAnalyticsDateFallback {
+  startDate?: string;
+  endDate?: string;
+}
+
+/**
+ * Area Analytics "date shape" shim.
+ *
+ * The real `/areaanalytics/reports/lite` endpoint returns collection-level
+ * `properties.days: ["YYYY-MM-DD", ...]` instead of `properties.startDate`/`endDate`.
+ * The SDK's `parseTrafficAreaAnalyticsResponse` does `new Date(properties.startDate)`
+ * unguarded, which yields an Invalid Date when `startDate` is absent. This shim
+ * synthesizes `startDate` (min of `days`) and `endDate` (max of `days`) whenever
+ * they're missing and `days` is present, composing with {@link withBaseData}.
+ *
+ * When neither `startDate`/`endDate` nor `days` is present, falls back to the
+ * dates from the original tool request (if supplied) — e.g. when the API
+ * response shape changes again and omits every date field.
+ *
+ * @param raw - Raw (or partially processed) Area Analytics API response
+ * @param fallback - Dates from the originating tool request, used only when
+ *   the response itself carries neither `startDate`/`endDate` nor `days`
+ * @returns A shallow copy of `raw` (with `baseData` guaranteed via `withBaseData`)
+ *   and collection-level `startDate`/`endDate` guaranteed whenever derivable
+ */
+export function normalizeAreaResponse(raw: any, fallback?: AreaAnalyticsDateFallback): any {
+  const withData = withBaseData(raw);
+  const properties = withData?.properties ?? {};
+
+  if (properties.startDate && properties.endDate) {
+    return withData;
+  }
+
+  let startDate = properties.startDate;
+  let endDate = properties.endDate;
+
+  const days: unknown = properties.days;
+  if ((!startDate || !endDate) && Array.isArray(days) && days.length > 0) {
+    const sorted = [...days].sort();
+    startDate = startDate ?? sorted[0];
+    endDate = endDate ?? sorted[sorted.length - 1];
+  }
+
+  if (!startDate || !endDate) {
+    startDate = startDate ?? fallback?.startDate;
+    endDate = endDate ?? fallback?.endDate;
+  }
+
+  return {
+    ...withData,
+    properties: {
+      ...properties,
+      startDate,
+      endDate,
+    },
+  };
+}
+
+/**
  * Computes the bounding box that contains all given bounding boxes.
  *
  * @param bboxes - One or more [minLon, minLat, maxLon, maxLat] boxes

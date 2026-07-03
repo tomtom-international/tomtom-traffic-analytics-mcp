@@ -4,7 +4,7 @@
  */
 
 import { customizeService } from "@tomtom-org/maps-sdk/services";
-import { bboxUnion, withBaseData } from "./geo";
+import { bboxUnion, withBaseData, normalizeAreaResponse } from "./geo";
 import areaAnalyticsFixture from "./__fixtures__/area-analytics-response.json";
 import incidentsFixture from "./__fixtures__/incidents-response.json";
 
@@ -144,6 +144,87 @@ describe("withBaseData", () => {
     const parsed = parseTrafficAreaAnalyticsResponse(shimmed as any);
     expect(parsed.features).toHaveLength(1);
     expect(parsed.features[0].properties.baseData).toEqual({ speed: 27.3, congestionLevel: 34 });
+  });
+});
+
+describe("normalizeAreaResponse", () => {
+  it("synthesizes startDate/endDate as min/max of properties.days on the real fixture (which has no startDate/endDate)", () => {
+    expect((areaAnalyticsFixture.properties as any).startDate).toBeUndefined();
+    expect(areaAnalyticsFixture.properties.days).toEqual(["2026-06-26", "2026-06-27", "2026-06-28"]);
+
+    const result = normalizeAreaResponse(areaAnalyticsFixture) as any;
+
+    expect(result.properties.startDate).toBe("2026-06-26");
+    expect(result.properties.endDate).toBe("2026-06-28");
+  });
+
+  it("parses cleanly via the SDK response parser and yields valid Dates for the real fixture", () => {
+    const normalized = normalizeAreaResponse(areaAnalyticsFixture);
+
+    expect(() => parseTrafficAreaAnalyticsResponse(normalized as any)).not.toThrow();
+
+    const parsed = parseTrafficAreaAnalyticsResponse(normalized as any);
+    expect(parsed.properties.startDate).toBeInstanceOf(Date);
+    expect(parsed.properties.endDate).toBeInstanceOf(Date);
+    expect(Number.isNaN(parsed.properties.startDate.getTime())).toBe(false);
+    expect(Number.isNaN(parsed.properties.endDate.getTime())).toBe(false);
+    expect(parsed.properties.startDate.toISOString().slice(0, 10)).toBe("2026-06-26");
+    expect(parsed.properties.endDate.toISOString().slice(0, 10)).toBe("2026-06-28");
+  });
+
+  it("also synthesizes baseData via withBaseData composition", () => {
+    const result = normalizeAreaResponse(areaAnalyticsFixture) as any;
+
+    expect(result.features[0].properties.baseData).toEqual(
+      areaAnalyticsFixture.features[0].properties.baseData
+    );
+  });
+
+  it("passes startDate/endDate through unchanged when already present", () => {
+    const raw = {
+      type: "FeatureCollection",
+      properties: {
+        startDate: "2026-01-01",
+        endDate: "2026-01-05",
+        days: ["2026-06-26", "2026-06-27"],
+        dataTypes: ["SPEED"],
+      },
+      features: [],
+    };
+
+    const result = normalizeAreaResponse(raw) as any;
+
+    expect(result.properties.startDate).toBe("2026-01-01");
+    expect(result.properties.endDate).toBe("2026-01-05");
+  });
+
+  it("falls back to the request dates when neither startDate/endDate nor days is present", () => {
+    const raw = {
+      type: "FeatureCollection",
+      properties: { dataTypes: ["SPEED"] },
+      features: [],
+    };
+
+    const result = normalizeAreaResponse(raw, {
+      startDate: "2026-02-01",
+      endDate: "2026-02-10",
+    }) as any;
+
+    expect(result.properties.startDate).toBe("2026-02-01");
+    expect(result.properties.endDate).toBe("2026-02-10");
+  });
+
+  it("leaves startDate/endDate undefined when there is no days, no existing dates, and no fallback", () => {
+    const raw = {
+      type: "FeatureCollection",
+      properties: { dataTypes: ["SPEED"] },
+      features: [],
+    };
+
+    const result = normalizeAreaResponse(raw) as any;
+
+    expect(result.properties.startDate).toBeUndefined();
+    expect(result.properties.endDate).toBeUndefined();
   });
 });
 

@@ -1,1 +1,292 @@
-/* Placeholder styles for the area-analytics MCP app. */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  background: transparent;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+.hidden {
+  display: none !important;
+}
+
+#app-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+#sdk-map {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+/* Collapse app-root in ui-hidden state (show_ui:false, missing API key, etc.) */
+html.ui-hidden #app-root {
+  min-height: 0 !important;
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Waiting / empty state panels
+   --------------------------------------------------------------------------- */
+
+.state-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #6b7280;
+  font-size: 13px;
+  text-align: center;
+}
+
+#waiting-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   Header — floats over the top-left of the map
+   --------------------------------------------------------------------------- */
+
+#analytics-panel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#analytics-panel > * {
+  pointer-events: auto;
+}
+
+.analytics-header {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 900;
+  max-width: 320px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  padding: 10px 14px;
+}
+
+.header-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.header-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* ---------------------------------------------------------------------------
+   Control bar — mode / metric / range filter
+   --------------------------------------------------------------------------- */
+
+.control-bar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 900;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  padding: 10px 14px;
+  max-width: 420px;
+}
+
+.control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.control-field select,
+.control-field input {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: #ffffff;
+}
+
+.range-field input {
+  width: 72px;
+}
+
+.control-btn {
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #374151;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  height: fit-content;
+}
+
+.control-btn:hover {
+  background: #f3f4f6;
+}
+
+/* ---------------------------------------------------------------------------
+   Legend
+   --------------------------------------------------------------------------- */
+
+.legend {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 900;
+  width: 220px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  padding: 10px 14px;
+}
+
+.legend-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.legend-bar {
+  height: 10px;
+  border-radius: 999px;
+}
+
+.legend-range {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* ---------------------------------------------------------------------------
+   Time-series panel
+   --------------------------------------------------------------------------- */
+
+.timeseries-wrap {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.timeseries-toggle {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #374151;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.timeseries-toggle .chevron {
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.timeseries-panel {
+  width: 340px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  padding: 12px 14px;
+}
+
+.timeseries-chart {
+  width: 100%;
+}
+
+.timeseries-chart svg {
+  display: block;
+}
+
+.timeseries-empty {
+  padding: 12px 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Empty state (no tiled data)
+   --------------------------------------------------------------------------- */
+
+.empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 900;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  padding: 14px 20px;
+}
+
+/* ---------------------------------------------------------------------------
+   Hover tooltip — follows the cursor over hex/square/heatmap tiles
+   --------------------------------------------------------------------------- */
+
+.tile-tooltip {
+  position: absolute;
+  z-index: 1000;
+  transform: translate(12px, 12px);
+  pointer-events: none;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tooltip-row + .tooltip-row {
+  margin-top: 2px;
+}

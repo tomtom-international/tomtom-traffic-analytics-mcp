@@ -1,14 +1,74 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background: transparent">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Area Analytics</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
+    <title>TomTom Area Analytics</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <div id="sdk-map"></div>
-    <div id="panel"></div>
+  <body style="background: transparent">
+    <div id="app-root">
+      <!-- Shown until the first tool-input/tool-result notification arrives. -->
+      <div id="waiting-state" class="state-panel">
+        <p>Waiting for tool result&hellip;</p>
+      </div>
+
+      <div id="sdk-map"></div>
+
+      <div id="analytics-panel" class="hidden">
+        <header id="analytics-header" class="analytics-header">
+          <div id="header-title" class="header-title"></div>
+          <div id="header-meta" class="header-meta"></div>
+        </header>
+
+        <div id="control-bar" class="control-bar">
+          <label class="control-field">
+            <span>Mode</span>
+            <select id="mode-select">
+              <option value="hexgrid-3d">Hex grid (3D)</option>
+              <option value="hexgrid-2d">Hex grid (2D)</option>
+              <option value="square-3d">Square (3D)</option>
+              <option value="square-2d">Square (2D)</option>
+              <option value="heatmap">Heatmap</option>
+            </select>
+          </label>
+
+          <label class="control-field">
+            <span>Metric</span>
+            <select id="metric-select"></select>
+          </label>
+
+          <label class="control-field range-field">
+            <span>Min</span>
+            <input id="range-min" type="number" inputmode="decimal" placeholder="min" />
+          </label>
+
+          <label class="control-field range-field">
+            <span>Max</span>
+            <input id="range-max" type="number" inputmode="decimal" placeholder="max" />
+          </label>
+
+          <button id="range-clear" type="button" class="control-btn">Clear filter</button>
+        </div>
+
+        <div id="legend" class="legend hidden"></div>
+
+        <div class="timeseries-wrap">
+          <button id="timeseries-toggle" type="button" class="timeseries-toggle" aria-expanded="false">
+            Time series <span class="chevron">&#9662;</span>
+          </button>
+          <div id="timeseries-panel" class="timeseries-panel hidden">
+            <div id="timeseries-chart" class="timeseries-chart"></div>
+          </div>
+        </div>
+
+        <div id="empty-state" class="state-panel empty-state hidden">No tile data for this query</div>
+      </div>
+
+      <div id="tile-tooltip" class="tile-tooltip hidden"></div>
+    </div>
     <script type="module" src="./app.ts"></script>
   </body>
 </html>
