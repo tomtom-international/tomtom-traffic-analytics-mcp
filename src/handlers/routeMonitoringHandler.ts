@@ -138,8 +138,12 @@ function createRouteSearchHandler() {
  * This prevents context window overflow when working with LLM agents.
  */
 function createGetRouteDetailsHandler() {
-  return async (params: { routeIds: string[]; sql_queries?: Record<string, string> }) => {
-    const { routeIds, sql_queries } = params;
+  return async (params: {
+    routeIds: string[];
+    sql_queries?: Record<string, string>;
+    show_ui?: boolean;
+  }) => {
+    const { routeIds, sql_queries, show_ui } = params;
 
     const ids: string[] = routeIds;
 
@@ -203,7 +207,24 @@ function createGetRouteDetailsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw route details for the MCP App to render, unless disabled
+      let vizMeta: { show_ui: boolean; viz_id?: string };
+      if (show_ui !== false) {
+        try {
+          const vizId = storeVizData({
+            tool: "tomtom-route-monitoring-details",
+            routes: rawResults,
+          });
+          vizMeta = { show_ui: true, viz_id: vizId };
+        } catch (error: any) {
+          logger.error(`Failed to cache route details viz payload: ${error.message}`);
+          vizMeta = { show_ui: false };
+        }
+      } else {
+        vizMeta = { show_ui: false };
+      }
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-route-monitoring-details",
@@ -216,6 +237,7 @@ function createGetRouteDetailsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(

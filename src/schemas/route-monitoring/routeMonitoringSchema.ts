@@ -35,6 +35,12 @@ export const getRouteDetailsSchema = {
     .max(20)
     .describe("Up to 20 IDs; data merged for cross-route SQL"),
   sql_queries: sqlQueriesSchema,
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive route map app (default true). Set false for text-only analysis."
+    ),
 };
 
 // SQL queries schema for route search

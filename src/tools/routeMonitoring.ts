@@ -73,7 +73,8 @@ export function createRouteMonitoringTools(server: McpServer): void {
   );
 
   // Get route details with SQL filtering
-  server.registerTool(
+  registerAppTool(
+    server,
     "tomtom-route-monitoring-details",
     {
       description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs. Returns a route-info summary plus one row per road segment with current vs typical speed, confidence, and OpenLR references.
@@ -97,6 +98,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
     - Compare routes by delay: SELECT route_id, route_name, delay_time, travel_time, ROUND(delay_time * 100.0 / NULLIF(travel_time, 0), 1) as delay_percent FROM route_info ORDER BY delay_percent DESC
     - Route performance ranking: SELECT route_id, route_name, ROUND(route_confidence, 2) as confidence, completeness FROM route_info ORDER BY route_confidence DESC`,
       inputSchema: getRouteDetailsSchema,
+      _meta: { [RESOURCE_URI_META_KEY]: ROUTE_DETAILS_RESOURCE_URI },
     },
     handlers.getRouteDetails
   );
