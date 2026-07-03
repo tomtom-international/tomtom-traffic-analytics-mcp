@@ -138,8 +138,8 @@ Monitor traffic at intersections with real-time and historical data.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-junction-search` | Search/filter all junctions via SQL (requires `sql_queries`) |
-| `tomtom-junction-live-data` | Real-time metrics (requires `sql_queries`) |
+| `tomtom-junction-search` | Search/filter all junctions via SQL (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
+| `tomtom-junction-live-data` | Real-time metrics (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
 | `tomtom-junction-archive` | Historical data (requires `sql_queries`) |
 
 ### Route Monitoring (2 tools) — MOVE Portal
@@ -148,8 +148,8 @@ Track real-time traffic on strategic corridors.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-route-search` | Search/filter all routes via SQL (requires `sql_queries`) |
-| `tomtom-route-monitoring-details` | Segment-level analysis (requires `sql_queries`) |
+| `tomtom-route-search` | Search/filter all routes via SQL (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
+| `tomtom-route-monitoring-details` | Segment-level analysis (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
 
 ### Live Traffic (2 tools) — TomTom Developer
 
@@ -157,35 +157,42 @@ Real-time traffic data for specific locations.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-traffic-flow-segment` | Traffic for road segment at coordinates (requires `sql_queries`) |
+| `tomtom-traffic-flow-segment` | Traffic for road segment at coordinates (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
 | `tomtom-traffic-incidents` | Traffic incidents in an area (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
 
 ---
 
 ## Interactive Map Apps
 
-Two tools ship with interactive [MCP Apps](https://modelcontextprotocol.io/) (ext-apps) UIs — a map renders alongside the usual text/SQL results when the connected host supports it:
+Seven tools ship with interactive [MCP Apps](https://modelcontextprotocol.io/) (ext-apps) UIs across five apps — a map renders alongside the usual text/SQL results when the connected host supports it:
 
 | Tool | App |
 |------|-----|
 | `tomtom-traffic-incidents` | Live incidents overlay on a map, grouped per queried area, with focus/filter controls |
 | `tomtom-area-analytics-stats` | Hexgrid/heatmap of historical congestion metrics with mode/metric/range controls and a time-series panel |
+| `tomtom-traffic-flow-segment` | Single segment polyline colored by current/free-flow speed ratio, with a stat card and a `TrafficFlowModule` backdrop toggle |
+| `tomtom-junction-search` | **junction-live app** — junction catalog pins; clicking a junction renders its approach/exit geometry |
+| `tomtom-junction-live-data` | **junction-live app** — approaches colored by Level-of-Service band on delay, with per-approach metric cards and a turn-ratio table |
+| `tomtom-route-search` | **route-details app** — route polylines colored by delay ratio |
+| `tomtom-route-monitoring-details` | **route-details app** — per-segment coloring by `relativeSpeed`, with a segment table that highlights the matching map segment |
 
 **Host support**: apps render only in ext-apps-capable hosts (e.g. Claude Desktop/web, VS Code with MCP Apps support). In any other host, these tools behave exactly like the rest — a normal JSON text response, no UI.
 
-**`show_ui` parameter**: both tools accept an optional `show_ui` boolean (default `true`). Set `show_ui: false` to skip the app entirely and get a text-only response, regardless of host capability.
+**`show_ui` parameter**: all seven tools accept an optional `show_ui` boolean (default `true`). Set `show_ui: false` to skip the app entirely and get a text-only response, regardless of host capability.
 
 **API key for map rendering**: the map apps need `TOMTOM_API_KEY` to render tiles, even for `tomtom-area-analytics-stats` whose underlying *data* comes from the MOVE Portal key. If `TOMTOM_API_KEY` is missing, the app degrades gracefully to an in-app "map unavailable" state — the text/SQL results are unaffected either way.
+
+**Junction live-data geometry**: when the UI is enabled, `tomtom-junction-live-data`'s handler fetches junction geometry internally to render the map. SQL table contents are unaffected — they still reflect exactly what `includeGeometry` requests.
 
 **Architecture**: tool responses embed `_meta: { show_ui, viz_id }`. Apps fetch the full raw payload via app-only tools (`tomtom-get-api-key`, `tomtom-get-viz-data`) over the MCP JSON-RPC bridge; these tools are not visible to the LLM. Raw payloads are cached in-memory for 5 minutes, keyed by `viz_id`.
 
 **Local development**:
 - `npm run build:apps` — bundles each app into a single-file Vite build under `dist/apps` (also runs as part of `npm run build`)
 - `npm run ui` — starts a local React host (an ext-apps-capable test harness) at `http://127.0.0.1:8080` alongside the MCP HTTP server; requires `.env` with API keys **and** `ALLOWED_ORIGINS=http://127.0.0.1:8080` (the HTTP server's CORS is opt-in — without it the browser's `/mcp` calls are blocked). Open the UI via `127.0.0.1`, not `localhost`.
-- `npm run test:e2e` — Playwright end-to-end coverage for both apps (run `npm run test:e2e:setup` once first to build and install the browser); the suite skips automatically if `TOMTOM_API_KEY` / `TOMTOM_MOVE_PORTAL_KEY` are not set
+- `npm run test:e2e` — Playwright end-to-end coverage for all five apps (run `npm run test:e2e:setup` once first to build and install the browser); the suite skips automatically if `TOMTOM_API_KEY` / `TOMTOM_MOVE_PORTAL_KEY` are not set
 - `npm run test:e2e:debug` — same suite in Playwright's debug/headed mode
 
-> Remaining tools (junction analytics, route monitoring, traffic flow segment) do not have map apps yet — planned as follow-ups.
+> `tomtom-junction-archive` has no app — it's time-series-only data with no geometry to render, so it stays text/SQL-only.
 
 ---
 
@@ -216,7 +223,7 @@ src/
 │   └── schemas/             # Table definitions
 ├── apps/                    # Interactive MCP Apps (see Interactive Map Apps above)
 │   ├── shared/              # API key/viz-data fetch, map controls, SDK config
-│   └── traffic-analytics/   # One folder per app (area-analytics, traffic-incidents)
+│   └── traffic-analytics/   # One folder per app (area-analytics, junction-live, route-details, traffic-flow, traffic-incidents)
 ├── types/                   # TypeScript types
 └── utils/                   # Logger & error handling
 ```
