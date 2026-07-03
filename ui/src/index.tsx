@@ -688,12 +688,15 @@ function InputPanel({ server, selectedTool, onCall, loading }: {
       display: "flex", flexDirection: "column",
       overflow: "hidden", background: "var(--color-bg)",
     }}>
-      {/* Tool header */}
+      {/* Tool header — capped height so a long description can never push the
+          Request Body / Run button below the visible panel; the description
+          itself scrolls once it exceeds the cap. */}
       <div style={{
         padding: "16px 16px 12px", borderBottom: "1px solid var(--color-border)",
-        flexShrink: 0,
+        flexShrink: 0, maxHeight: "40%",
+        display: "flex", flexDirection: "column", minHeight: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", flexShrink: 0 }}>
           <span data-testid="selected-tool-name" style={{
             fontFamily: "'SF Mono', 'Fira Code', monospace",
             fontSize: "13px", fontWeight: 700, color: "var(--color-text)",
@@ -709,9 +712,10 @@ function InputPanel({ server, selectedTool, onCall, loading }: {
           )}
         </div>
         {tool?.description && (
-          <div style={{
+          <div data-testid="tool-description" style={{
             fontSize: "11.5px", color: "var(--color-text-secondary)",
             lineHeight: 1.5,
+            overflowY: "auto", minHeight: 0,
           }}>
             {tool.description}
           </div>
