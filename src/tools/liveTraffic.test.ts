@@ -57,9 +57,9 @@ describe("Live Traffic Tools", () => {
   it("should register traffic tools", () => {
     createLiveTrafficTools(mockServer);
 
-    // Flow segment stays a plain tool; incidents becomes an app tool
-    expect(mockRegisterTool).toHaveBeenCalledTimes(1);
-    expect(mockRegisterAppTool).toHaveBeenCalledTimes(1);
+    // Flow segment and incidents are both bound to MCP apps via registerAppTool
+    expect(mockRegisterTool).toHaveBeenCalledTimes(0);
+    expect(mockRegisterAppTool).toHaveBeenCalledTimes(2);
 
     const toolNames = [
       ...mockRegisterTool.mock.calls.map((call) => call[0]),
@@ -69,22 +69,38 @@ describe("Live Traffic Tools", () => {
     expect(toolNames).toContain("tomtom-traffic-incidents");
   });
 
-  it("should register tomtom-traffic-flow-segment via server.registerTool (untouched)", () => {
+  it("should register traffic-flow-segment tool via registerAppTool bound to the app resource", () => {
     createLiveTrafficTools(mockServer);
 
-    const call = mockRegisterTool.mock.calls.find((c) => c[0] === "tomtom-traffic-flow-segment");
+    const call = mockRegisterAppTool.mock.calls.find((c) => c[1] === "tomtom-traffic-flow-segment");
     expect(call).toBeDefined();
     if (!call) return;
 
-    const [name, config, handler] = call;
+    const [server, name, config, handler] = call;
+    expect(server).toBe(mockServer);
     expect(name).toBe("tomtom-traffic-flow-segment");
     expect(config.inputSchema).toBeDefined();
     expect(typeof handler).toBe("function");
 
-    // Should never be registered via registerAppTool
-    expect(
-      mockRegisterAppTool.mock.calls.some((c) => c[1] === "tomtom-traffic-flow-segment")
-    ).toBe(false);
+    expect(config._meta["ui/resourceUri"]).toBe(
+      "ui://tomtom-traffic-analytics/traffic-flow/app.html"
+    );
+
+    // Should never be registered via the plain server.registerTool
+    expect(mockRegisterTool.mock.calls.some((c) => c[0] === "tomtom-traffic-flow-segment")).toBe(
+      false
+    );
+  });
+
+  it("should register the traffic-flow app resource once", () => {
+    createLiveTrafficTools(mockServer);
+
+    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
+      mockServer,
+      "ui://tomtom-traffic-analytics/traffic-flow/app.html",
+      "traffic-analytics",
+      "traffic-flow"
+    );
   });
 
   it("should register traffic incidents tool via registerAppTool bound to the app resource", () => {
@@ -121,7 +137,7 @@ describe("Live Traffic Tools", () => {
   it("should register the traffic-incidents app resource once", () => {
     createLiveTrafficTools(mockServer);
 
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledTimes(1);
+    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledTimes(2);
     expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
       mockServer,
       "ui://tomtom-traffic-analytics/traffic-incidents/app.html",

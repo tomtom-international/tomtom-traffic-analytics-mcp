@@ -127,6 +127,66 @@ describe("liveTrafficHandler", () => {
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.metadata.warnings).toEqual(["Schema warning: extra columns"]);
     });
+
+    describe("getFlowSegmentDataHandler viz cache", () => {
+      const vizParams = {
+        point: { latitude: 52.37, longitude: 4.89 },
+        style: "absolute",
+        zoom: 10,
+        unit: "mph",
+        sql_queries: { test_query: "SELECT * FROM flow_segment" },
+      };
+
+      it("defaults show_ui to true, stores raw viz payload, and includes viz_id", async () => {
+        const result = await handler(vizParams);
+
+        expect(mockStoreVizData).toHaveBeenCalledTimes(1);
+        expect(mockStoreVizData).toHaveBeenCalledWith({
+          tool: "tomtom-traffic-flow-segment",
+          request: {
+            point: vizParams.point,
+            style: vizParams.style,
+            zoom: vizParams.zoom,
+            unit: vizParams.unit,
+          },
+          segment: { flowSegmentData: {} },
+        });
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: true, viz_id: "mock-viz-id" });
+      });
+
+      it("does not call storeVizData, sets show_ui false, and strips show_ui from the API request when show_ui: false", async () => {
+        const result = await handler({ ...vizParams, show_ui: false });
+
+        expect(mockStoreVizData).not.toHaveBeenCalled();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: false });
+        expect(getFlowSegmentData).toHaveBeenCalledWith(
+          expect.not.objectContaining({ show_ui: expect.anything() })
+        );
+      });
+
+      it("degrades gracefully to show_ui:false when storeVizData throws", async () => {
+        mockStoreVizData.mockImplementationOnce(() => {
+          throw new Error("cache full");
+        });
+
+        const result = await handler(vizParams);
+
+        expect(result.isError).toBeUndefined();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: false });
+        expect(logger.error).toHaveBeenCalled();
+      });
+
+      it("does not call storeVizData on error paths (e.g. missing sql_queries)", async () => {
+        const { sql_queries: _sql_queries, ...rest } = vizParams;
+        const result = await handler(rest);
+        expect(result.isError).toBe(true);
+        expect(mockStoreVizData).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("createTrafficIncidentsHandler", () => {

@@ -40,7 +40,7 @@ export function getFlowSegmentDataHandler() {
   return async (params: any) => {
     logger.info("Processing flow segment data request");
 
-    const { sql_queries, ...requestParams } = params;
+    const { sql_queries, show_ui, ...requestParams } = params;
     const request = requestParams as TrafficFlowSegmentRequest;
 
     // Validate sql_queries is provided (mandatory)
@@ -74,7 +74,30 @@ export function getFlowSegmentDataHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw segment for the MCP App to render, unless disabled
+      let vizMeta: { show_ui: boolean; viz_id?: string };
+      if (show_ui !== false) {
+        try {
+          const vizId = storeVizData({
+            tool: "tomtom-traffic-flow-segment",
+            request: {
+              point: request.point,
+              style: request.style,
+              zoom: request.zoom,
+              unit: request.unit,
+            },
+            segment: rawResult,
+          });
+          vizMeta = { show_ui: true, viz_id: vizId };
+        } catch (error: any) {
+          logger.error(`Failed to cache traffic flow viz payload: ${error.message}`);
+          vizMeta = { show_ui: false };
+        }
+      } else {
+        vizMeta = { show_ui: false };
+      }
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-traffic-flow-segment",
@@ -88,6 +111,7 @@ export function getFlowSegmentDataHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
