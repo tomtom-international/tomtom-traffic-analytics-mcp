@@ -45,8 +45,8 @@ html.ui-hidden #app-root {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  color: #6b7280;
-  font-size: 13px;
+  color: var(--color-text-secondary, #6b7280);
+  font-size: var(--font-text-sm-size, 13px);
   text-align: center;
 }
 
@@ -57,7 +57,9 @@ html.ui-hidden #app-root {
 }
 
 /* ---------------------------------------------------------------------------
-   Header — floats over the top-left of the map
+   Header — floats over the top-left of the map. Card chrome (background,
+   radius, shadow) comes from the shared `.tta-panel` class; only positioning
+   and typography live here.
    --------------------------------------------------------------------------- */
 
 #analytics-panel {
@@ -76,26 +78,25 @@ html.ui-hidden #app-root {
   left: 16px;
   z-index: 900;
   max-width: 320px;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
   padding: 10px 14px;
 }
 
 .header-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #111827;
+  font-size: var(--font-heading-xs-size, 15px);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-primary, #111827);
 }
 
 .header-meta {
   margin-top: 4px;
-  font-size: 12px;
-  color: #6b7280;
+  font-size: var(--font-text-xs-size, 12px);
+  color: var(--color-text-secondary, #6b7280);
 }
 
 /* ---------------------------------------------------------------------------
-   Control bar — mode / metric / range filter
+   Control bar — mode / metric / range filter. See `@shared/controls` for the
+   shared `.tta-panel` / `.tta-control-bar` / `.tta-field` / `.tta-select` /
+   `.tta-input` / `.tta-btn` chrome; only positioning lives here.
    --------------------------------------------------------------------------- */
 
 .control-bar {
@@ -103,60 +104,7 @@ html.ui-hidden #app-root {
   top: 16px;
   right: 16px;
   z-index: 900;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  padding: 10px 14px;
   max-width: 420px;
-}
-
-.control-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.control-field select,
-.control-field input {
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
-  color: #111827;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 5px 8px;
-  background: #ffffff;
-}
-
-.range-field input {
-  width: 72px;
-}
-
-.control-btn {
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #374151;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  height: fit-content;
-}
-
-.control-btn:hover {
-  background: #f3f4f6;
 }
 
 /* ---------------------------------------------------------------------------
@@ -169,30 +117,27 @@ html.ui-hidden #app-root {
   left: 16px;
   z-index: 900;
   width: 220px;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
   padding: 10px 14px;
 }
 
 .legend-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #111827;
+  font-size: var(--font-text-xs-size, 12px);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-primary, #111827);
   margin-bottom: 6px;
 }
 
 .legend-bar {
   height: 10px;
-  border-radius: 999px;
+  border-radius: var(--border-radius-full, 999px);
 }
 
 .legend-range {
   display: flex;
   justify-content: space-between;
   margin-top: 4px;
-  font-size: 11px;
-  color: #6b7280;
+  font-size: var(--font-text-xs-size, 11px);
+  color: var(--color-text-secondary, #6b7280);
 }
 
 /* ---------------------------------------------------------------------------
@@ -211,15 +156,10 @@ html.ui-hidden #app-root {
 }
 
 .timeseries-toggle {
-  border: 1px solid #d1d5db;
-  background: #ffffff;
-  color: #374151;
-  border-radius: 999px;
+  /* Floats directly on the map (not inside a `.tta-panel` card), so it needs
+     its own elevation shadow. */
   padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md, 0 2px 10px rgba(0, 0, 0, 0.15));
 }
 
 .timeseries-toggle .chevron {
@@ -229,9 +169,6 @@ html.ui-hidden #app-root {
 
 .timeseries-panel {
   width: 340px;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
   padding: 12px 14px;
 }
 
@@ -241,6 +178,35 @@ html.ui-hidden #app-root {
 
 .timeseries-chart svg {
   display: block;
+}
+
+.timeseries-bar {
+  fill: var(--color-ring-primary, #2563eb);
+  transition: fill 0.15s ease;
+}
+
+.timeseries-bar:hover {
+  fill: var(--color-ring-info, #1d4ed8);
+}
+
+.timeseries-bar-empty {
+  fill: var(--color-background-tertiary, #e5e7eb);
+}
+
+.timeseries-baseline {
+  stroke: var(--color-border-primary, #e5e7eb);
+  stroke-width: 1;
+}
+
+.timeseries-value-label {
+  font-size: 8.5px;
+  font-weight: var(--font-weight-semibold, 600);
+  fill: var(--color-text-primary, #374151);
+}
+
+.timeseries-axis-label {
+  font-size: 8.5px;
+  fill: var(--color-text-tertiary, #9ca3af);
 }
 
 .timeseries-empty {
@@ -257,9 +223,6 @@ html.ui-hidden #app-root {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 900;
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
   padding: 14px 20px;
 }
 
@@ -272,12 +235,12 @@ html.ui-hidden #app-root {
   z-index: 1000;
   transform: translate(12px, 12px);
   pointer-events: none;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  background: var(--color-background-primary, #ffffff);
+  border-radius: var(--border-radius-lg, 8px);
+  box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
   padding: 8px 12px;
-  font-size: 12px;
-  color: #374151;
+  font-size: var(--font-text-xs-size, 12px);
+  color: var(--color-text-secondary, #374151);
   white-space: nowrap;
 }
 

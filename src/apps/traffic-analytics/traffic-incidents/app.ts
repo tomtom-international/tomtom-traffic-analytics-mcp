@@ -15,6 +15,7 @@ import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { bboxUnion, type Bbox } from "@shared/geo";
+import "@shared/controls";
 import "./styles.css";
 
 const { parseTrafficIncidentDetailsResponse } = customizeService.trafficIncidentDetails;
@@ -300,7 +301,7 @@ function renderAreaFilters(names: string[]): void {
   const makeChip = (label: string, value: string | null): HTMLButtonElement => {
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "area-chip" + (activeAreaFilter === value ? " active" : "");
+    chip.className = "area-chip tta-chip" + (activeAreaFilter === value ? " active" : "");
     chip.textContent = label;
     chip.addEventListener("click", () => void selectAreaFilter(value));
     return chip;

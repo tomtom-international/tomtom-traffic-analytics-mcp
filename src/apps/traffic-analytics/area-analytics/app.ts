@@ -22,6 +22,7 @@ import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { normalizeAreaResponse } from "@shared/geo";
+import "@shared/controls";
 import "./styles.css";
 
 const { parseTrafficAreaAnalyticsResponse } = customizeService.trafficAreaAnalytics;
@@ -200,7 +201,18 @@ function renderLegend(): void {
   }
 
   const range = analytics.properties.ranges[activeMetric];
-  const gradient = stops.map((s) => `${s.color} ${Math.round(s.value * 100)}%`).join(", ");
+  // `stop.value` scale depends on the resolved config: preset themes (e.g. "trafficLight")
+  // resolve to 0–1 fractions, but the module's *own* getConfig() returns each metric's
+  // fully-resolved AreaAnalyticsColorStopsConfig, whose `stops` carry whatever domain the
+  // valueType implies (0–100 for the *PCT variants, raw metric units for "raw"). Normalizing
+  // by the stop array's own min/max — instead of assuming a fixed 0–1 scale — keeps the
+  // gradient correct regardless of which shape resolveColorStops() handed back.
+  const stopValues = stops.map((s) => s.value);
+  const stopMin = Math.min(...stopValues);
+  const stopSpan = Math.max(...stopValues) - stopMin || 1;
+  const gradient = stops
+    .map((s) => `${s.color} ${(((s.value - stopMin) / stopSpan) * 100).toFixed(1)}%`)
+    .join(", ");
 
   legend.innerHTML = `
     <div class="legend-title">${METRIC_LABEL[activeMetric] ?? activeMetric}</div>
@@ -217,13 +229,28 @@ function renderLegend(): void {
 // Time-series panel (inline SVG bars, no chart library)
 // ---------------------------------------------------------------------------
 
+/** Entry timestamp as milliseconds, or `NaN` when `date` is missing/invalid. */
+function entryTime(entry: AreaAnalyticsTimedEntry): number {
+  if (!entry.date) return NaN;
+  const date = entry.date instanceof Date ? entry.date : new Date(entry.date);
+  return date.getTime();
+}
+
+/** Full label for the native SVG `<title>` hover tooltip. */
 function formatTimeLabel(entry: AreaAnalyticsTimedEntry): string {
-  if (entry.date) {
-    const date = entry.date instanceof Date ? entry.date : new Date(entry.date);
-    const day = Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
-    return entry.hour !== undefined ? `${day} ${entry.hour}:00` : day;
-  }
-  return "";
+  const t = entryTime(entry);
+  if (Number.isNaN(t)) return "";
+  const day = new Date(t).toISOString().slice(0, 10);
+  return entry.hour !== undefined ? `${day} ${entry.hour}:00` : day;
+}
+
+/** Compact axis label rendered under each bar — day-of-month for daily series, hour for hourly. */
+function formatAxisLabel(entry: AreaAnalyticsTimedEntry): string {
+  const t = entryTime(entry);
+  if (entry.hour !== undefined) return `${entry.hour}h`;
+  if (Number.isNaN(t)) return "";
+  const date = new Date(t);
+  return `${String(date.getUTCMonth() + 1).padStart(2, "0")}/${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
 function renderTimeSeries(): void {
@@ -231,34 +258,63 @@ function renderTimeSeries(): void {
   if (!chart) return;
 
   const feature = analytics?.features[0];
-  const series = feature?.properties.timedData.daily ?? feature?.properties.timedData.hourly ?? [];
+  const daily = feature?.properties.timedData.daily;
+  const series = [...(daily?.length ? daily : (feature?.properties.timedData.hourly ?? []))];
 
   if (series.length === 0) {
     chart.innerHTML = `<div class="state-panel timeseries-empty">No time-series data for this metric</div>`;
     return;
   }
 
-  const values = series.map((entry) => entry[activeMetric] ?? 0);
-  const max = Math.max(...values, 0.0001);
+  // Entries should already arrive in chronological order, but sort defensively — the
+  // API's `days` can be a sparse/non-consecutive list, and nothing here guarantees order.
+  series.sort((a, b) => {
+    const byTime = entryTime(a) - entryTime(b);
+    if (byTime !== 0) return byTime;
+    return (a.hour ?? 0) - (b.hour ?? 0);
+  });
+
+  const values = series.map((entry) => entry[activeMetric]);
+  const finiteValues = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  const max = Math.max(...finiteValues, 0.0001);
 
   const width = 320;
-  const height = 110;
+  const height = 130;
+  const topPad = 16; // room for the value label above the tallest bar
+  const bottomPad = 20; // room for the axis label below each bar
+  const barAreaHeight = height - topPad - bottomPad;
   const barGap = 4;
   const barWidth = (width - barGap * (values.length - 1)) / values.length;
 
+  // Thin axis labels when there are too many bars for them to stay legible.
+  const maxLabels = 8;
+  const labelStep = Math.max(1, Math.ceil(series.length / maxLabels));
+
   const bars = values
     .map((value, i) => {
-      const barHeight = Math.max(2, (value / max) * (height - 16));
       const x = i * (barWidth + barGap);
-      const y = height - barHeight;
-      const label = formatTimeLabel(series[i]);
-      const valueLabel = formatMetricValue(activeMetric, value);
-      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" fill="#2563eb" rx="1.5"><title>${label}: ${valueLabel}</title></rect>`;
+      const hasValue = typeof value === "number" && Number.isFinite(value);
+      const barHeight = hasValue ? Math.max(2, (value / max) * barAreaHeight) : 2;
+      const y = height - bottomPad - barHeight;
+      const tooltipLabel = formatTimeLabel(series[i]);
+      const valueText = hasValue ? formatMetricValue(activeMetric, value) : "No data";
+      const showLabel = i % labelStep === 0 || i === series.length - 1;
+      const axisLabel = showLabel ? formatAxisLabel(series[i]) : "";
+      const valueLabel = hasValue && showLabel ? formatMetricValue(activeMetric, value) : "";
+      const barClass = hasValue ? "timeseries-bar" : "timeseries-bar timeseries-bar-empty";
+      const cx = (x + barWidth / 2).toFixed(1);
+
+      return `<g>
+        <rect class="${barClass}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="1.5"><title>${tooltipLabel}: ${valueText}</title></rect>
+        ${valueLabel ? `<text class="timeseries-value-label" x="${cx}" y="${(y - 4).toFixed(1)}" text-anchor="middle">${valueLabel}</text>` : ""}
+        ${axisLabel ? `<text class="timeseries-axis-label" x="${cx}" y="${height - 6}" text-anchor="middle">${axisLabel}</text>` : ""}
+      </g>`;
     })
     .join("");
 
   chart.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="none" role="img" aria-label="${METRIC_LABEL[activeMetric]} time series">
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${METRIC_LABEL[activeMetric]} time series">
+      <line class="timeseries-baseline" x1="0" y1="${height - bottomPad}" x2="${width}" y2="${height - bottomPad}" />
       ${bars}
     </svg>
   `;

@@ -83,26 +83,8 @@ html.ui-hidden #app-root {
   border-bottom: 1px solid #e5e7eb;
 }
 
-.area-chip {
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #374151;
-  border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.area-chip:hover {
-  background: #f3f4f6;
-}
-
-.area-chip.active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #ffffff;
-}
+/* Chip chrome (colors, pill shape, active/hover states) comes from the shared
+   `.tta-chip` class — see `@shared/controls`. */
 
 .incident-list {
   flex: 1 1 auto;
@@ -212,17 +194,16 @@ html.ui-hidden #app-root {
    --------------------------------------------------------------------------- */
 
 .incident-detail-card {
+  /* Card chrome (background, radius, shadow) comes from the shared `.tta-panel`
+     class — see `@shared/controls`; only positioning and type live here. */
   position: absolute;
   left: 16px;
   bottom: 16px;
   z-index: 1000;
   max-width: 300px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   padding: 16px 20px 14px;
-  font-size: 13px;
-  color: #374151;
+  font-size: var(--font-text-sm-size, 13px);
+  color: var(--color-text-secondary, #374151);
 }
 
 .detail-close {
