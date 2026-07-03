@@ -1,0 +1,18 @@
+/* Ramp legend used by traffic-flow and route-details apps. */
+.ramp-legend-label {
+  font-size: var(--font-text-sm-size, 12px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text-primary, #111827);
+  margin-bottom: 6px;
+}
+.ramp-legend-bar {
+  height: 10px;
+  border-radius: var(--border-radius-full, 999px);
+}
+.ramp-legend-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-text-xs-size, 11px);
+  color: var(--color-text-secondary, #6b7280);
+  margin-top: 2px;
+}

@@ -1,0 +1,52 @@
+/*
+ * Shared speed-ratio color scale for MCP apps (traffic-flow, route-details).
+ * Ratio domain (0, 1]: 1 = free-flow/typical conditions, lower = slower.
+ * Same hues as the area-analytics legend.
+ */
+import "./speed-colors.css";
+
+export const RATIO_STOPS: ReadonlyArray<readonly [number, string]> = [
+  [0.4, "#e03030"], // ≤40% of free-flow — red
+  [0.7, "#f5a623"], // amber
+  [0.9, "#2dc653"], // ≥90% of free-flow — green
+];
+
+export const NO_DATA_COLOR = "#9ca3af";
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+function mixHex(c0: string, c1: string, t: number): string {
+  const a = hexToRgb(c0);
+  const b = hexToRgb(c1);
+  const mixed = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  return `#${mixed.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+export function ratioToColor(ratio: number | null | undefined): string {
+  if (ratio == null || !Number.isFinite(ratio)) return NO_DATA_COLOR;
+  if (ratio <= RATIO_STOPS[0][0]) return RATIO_STOPS[0][1];
+  const last = RATIO_STOPS[RATIO_STOPS.length - 1];
+  if (ratio >= last[0]) return last[1];
+  for (let i = 0; i < RATIO_STOPS.length - 1; i++) {
+    const [v0, c0] = RATIO_STOPS[i];
+    const [v1, c1] = RATIO_STOPS[i + 1];
+    if (ratio <= v1) return mixHex(c0, c1, (ratio - v0) / (v1 - v0));
+  }
+  return last[1];
+}
+
+/** Renders the shared green→amber→red ramp legend. `label` must be a static string. */
+export function renderRampLegend(container: HTMLElement, label: string): void {
+  const min = RATIO_STOPS[0][0];
+  const max = RATIO_STOPS[RATIO_STOPS.length - 1][0];
+  const gradient = RATIO_STOPS.map(
+    ([v, c]) => `${c} ${(((v - min) / (max - min)) * 100).toFixed(1)}%`
+  ).join(", ");
+  container.innerHTML = `
+    <div class="ramp-legend-label">${label}</div>
+    <div class="ramp-legend-bar" style="background: linear-gradient(to right, ${gradient})"></div>
+    <div class="ramp-legend-ends"><span>Slower</span><span>Free flow</span></div>`;
+}
