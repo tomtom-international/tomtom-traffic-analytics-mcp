@@ -396,6 +396,7 @@ function renderJunctionList(junctions: JunctionDefinition[]): void {
   list.innerHTML = "";
 
   if (junctions.length === 0) {
+    empty.textContent = "No junctions found";
     empty.classList.remove("hidden");
     return;
   }
@@ -415,7 +416,7 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
 
   const approachList = model?.approaches.length
     ? `<ul class="detail-approach-list">${model.approaches
-        .map((a) => `<li>${escapeHtml(a.roadName)} · ${escapeHtml(a.direction)} · FRC ${a.frc}</li>`)
+        .map((a) => `<li>${escapeHtml(a.roadName)} · ${escapeHtml(a.direction)} · FRC ${Number(a.frc)}</li>`)
         .join("")}</ul>`
     : "";
 
@@ -548,7 +549,7 @@ function renderTurnRatioTable(table: HTMLElement, approachId: number): void {
     .map((tr) => {
       const exit = currentExits.find((e) => e.id === tr.exitId);
       const label = exit ? exit.roadName || exit.name : `#${tr.exitId}`;
-      return `<tr data-exit-id="${tr.exitId}"><td>${escapeHtml(label)}</td><td>${Math.round(tr.ratioPercent)}%</td><td>${tr.probesCount}</td></tr>`;
+      return `<tr data-exit-id="${Number(tr.exitId)}"><td>${escapeHtml(label)}</td><td>${Math.round(tr.ratioPercent)}%</td><td>${Number(tr.probesCount)}</td></tr>`;
     })
     .join("");
 
@@ -601,7 +602,7 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
   const los = losFor(live?.delaySec);
   const headerLabel = row.roadName
     ? `${escapeHtml(row.roadName)}${row.direction ? " · " + escapeHtml(row.direction) : ""}`
-    : `Approach ${row.id}`;
+    : `Approach ${Number(row.id)}`;
 
   const bodyRows: string[] = [];
   if (live) {
@@ -609,7 +610,7 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
       `<div class="approach-card-row">Travel time ${Math.round(live.travelTimeSec)} s (free-flow ${Math.round(live.freeFlowTravelTimeSec)} s)</div>`
     );
     bodyRows.push(`<div class="approach-card-row">Queue ${Math.round(live.queueLengthMeters)} m</div>`);
-    bodyRows.push(`<div class="approach-card-row">Stops ${live.stops}</div>`);
+    bodyRows.push(`<div class="approach-card-row">Stops ${Number(live.stops)}</div>`);
     if (live.volumePerHour !== undefined) {
       bodyRows.push(`<div class="approach-card-row">Volume ${Math.round(live.volumePerHour)} veh/h</div>`);
     }
@@ -644,6 +645,7 @@ function renderApproachCards(junction: JunctionLiveData): void {
   );
 
   if (rows.length === 0) {
+    empty.textContent = "No approach data for this junction";
     empty.classList.remove("hidden");
     return;
   }

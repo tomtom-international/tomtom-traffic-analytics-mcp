@@ -147,8 +147,7 @@ function formatKm(meters: number): string {
 }
 
 function formatConfidence(value: number): string {
-  const pct = value <= 1 ? Math.round(value * 100) : Math.round(value);
-  return `${pct}%`;
+  return `${Math.round(value)}%`;
 }
 
 // ---------------------------------------------------------------------------
