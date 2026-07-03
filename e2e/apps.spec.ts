@@ -56,8 +56,13 @@ async function runToolWithUI(
   return getAppFrame(page);
 }
 
-/** Switch to JSON Result tab and validate the response is a non-error tool result. */
-async function verifyJsonResult(page: Page): Promise<void> {
+/**
+ * Switch to JSON Result tab and validate the response is a non-error tool
+ * result. Returns the tool's actual response payload (the double-encoded
+ * `content[0].text` JSON — `{ metadata, aggregated_data, _meta }`) so specs
+ * can chain a discovery call into a follow-up details call.
+ */
+async function verifyJsonResult(page: Page): Promise<any> {
   await page.getByTestId("tab-result").click();
   const result = page.getByTestId("json-result");
   await expect(result).toBeVisible({ timeout: 60_000 });
@@ -68,6 +73,24 @@ async function verifyJsonResult(page: Page): Promise<void> {
   const parsed = JSON.parse(text!);
   expect(parsed.isError).not.toBe(true);
   expect(parsed.content?.length).toBeGreaterThan(0);
+
+  const firstText = parsed.content?.find((c: { type: string }) => c.type === "text")?.text;
+  return firstText ? JSON.parse(firstText) : parsed;
+}
+
+/**
+ * `aggregated_data.<queryName>` entries are `SqlQueryExecutionResult` objects
+ * — `{ columns: string[], rows: unknown[][], rowCount }` — not row objects
+ * (see `src/sql/types.ts`). Look up a column's value in the first row by name
+ * so discovery specs don't hardcode column ordinal positions.
+ */
+function firstRowValue(
+  queryResult: { columns?: string[]; rows?: unknown[][] } | undefined,
+  column: string,
+): unknown {
+  const idx = queryResult?.columns?.indexOf(column) ?? -1;
+  if (idx < 0) return undefined;
+  return queryResult?.rows?.[0]?.[idx];
 }
 
 /** A small bbox around central Amsterdam — kept tight so the API call is fast. */
@@ -171,6 +194,101 @@ test.describe("Area Analytics app", () => {
       return style.layers.some((l: { id: string }) => l.id.startsWith("area-analytics-"));
     }, undefined, { timeout: 30_000 });
     expect(await hasAreaAnalyticsLayer.jsonValue()).toBe(true);
+
+    await verifyJsonResult(page);
+  });
+});
+
+// ─── tomtom-traffic-flow-segment ────────────────────────────────────────────
+
+test.describe("Traffic Flow app", () => {
+  test("renders segment and stat card", async ({ connectedPage: page }) => {
+    // Example input has show_ui: true baked in.
+    await runToolWithUI(page, "tomtom-traffic-flow-segment");
+    const frame = await getAppFrame(page);
+
+    await expect(frame.locator("#sdk-map")).toHaveClass(/visible/, { timeout: 30_000 });
+    await expect(frame.locator("#flow-panel")).not.toHaveClass(/hidden/);
+    await expect(frame.locator("#stat-grid dt").first()).toBeVisible();
+
+    const inner = await findInnerAppFrame(page);
+    await inner.waitForFunction(() =>
+      (window as any).__e2e_ml
+        ?.getStyle()
+        .layers.some((l: { id: string }) => l.id.includes("traffic-flow-segment")),
+    );
+
+    await verifyJsonResult(page);
+  });
+});
+
+// ─── tomtom-junction-search / tomtom-junction-live-data ─────────────────────
+
+test.describe("Junction app", () => {
+  test("renders search mode and live mode", async ({ connectedPage: page }) => {
+    await runToolWithUI(page, "tomtom-junction-search");
+    const frame = await getAppFrame(page);
+
+    await expect(frame.locator("#sdk-map")).toHaveClass(/visible/, { timeout: 30_000 });
+    await expect(frame.locator("#junction-panel")).not.toHaveClass(/hidden/);
+
+    const searchResult = await verifyJsonResult(page);
+    const junctionsResult = searchResult?.aggregated_data?.junctions;
+    if (!junctionsResult?.rows?.length) {
+      await expect(frame.locator("#empty-state")).toBeVisible();
+    }
+    const junctionId = firstRowValue(junctionsResult, "junction_id");
+    test.skip(!junctionId, "No junctions configured in this Move Portal account");
+
+    await runToolWithUI(page, "tomtom-junction-live-data", {
+      junctionIds: [junctionId],
+      sql_queries: { delays: "SELECT junction_id, approach_id, delay_sec FROM approaches" },
+      show_ui: true,
+    });
+    const liveFrame = await getAppFrame(page);
+    await expect(liveFrame.locator(".approach-card").first()).toBeVisible({ timeout: 30_000 });
+
+    const inner = await findInnerAppFrame(page);
+    await inner.waitForFunction(() =>
+      (window as any).__e2e_ml
+        ?.getStyle()
+        .layers.some((l: { id: string }) => l.id.includes("junction-live-approaches")),
+    );
+
+    await verifyJsonResult(page);
+  });
+});
+
+// ─── tomtom-route-search / tomtom-route-monitoring-details ──────────────────
+
+test.describe("Route app", () => {
+  test("renders search mode and segment details", async ({ connectedPage: page }) => {
+    await runToolWithUI(page, "tomtom-route-search");
+    const frame = await getAppFrame(page);
+
+    await expect(frame.locator("#sdk-map")).toHaveClass(/visible/, { timeout: 30_000 });
+    await expect(frame.locator("#route-panel")).not.toHaveClass(/hidden/);
+
+    const searchResult = await verifyJsonResult(page);
+    const routesResult = searchResult?.aggregated_data?.routes;
+    if (!routesResult?.rows?.length) {
+      await expect(frame.locator("#empty-state")).toBeVisible();
+    }
+    const routeId = firstRowValue(routesResult, "route_id");
+    test.skip(routeId == null, "No routes configured in this Move Portal account");
+
+    await runToolWithUI(page, "tomtom-route-monitoring-details", {
+      routeIds: [String(routeId)],
+      sql_queries: { info: "SELECT * FROM route_info" },
+      show_ui: true,
+    });
+    const detailsFrame = await getAppFrame(page);
+    await expect(detailsFrame.locator(".segment-row").first()).toBeVisible({ timeout: 30_000 });
+
+    // Row↔map highlight smoke test: hovering a row must mark it (feature-state
+    // side is asserted visually in Task 11).
+    await detailsFrame.locator(".segment-row").first().hover();
+    await expect(detailsFrame.locator(".segment-row").first()).toHaveClass(/hover/);
 
     await verifyJsonResult(page);
   });

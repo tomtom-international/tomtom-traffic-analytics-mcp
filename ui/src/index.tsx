@@ -89,6 +89,7 @@ const EXAMPLE_INPUTS: Record<string, Record<string, unknown> | (() => Record<str
     sql_queries: {
       segment_info: "SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment",
     },
+    show_ui: true,
   },
   "tomtom-traffic-incidents": {
     bboxes: [{ name: "Amsterdam Center", bbox: AMSTERDAM_CENTER_BBOX }],
@@ -103,12 +104,14 @@ const EXAMPLE_INPUTS: Record<string, Record<string, unknown> | (() => Record<str
     sql_queries: {
       junctions: "SELECT junction_id, name, status FROM junctions LIMIT 20",
     },
+    show_ui: true,
   },
   "tomtom-junction-live-data": {
     junctionIds: ["EXAMPLE_JUNCTION_ID"],
     sql_queries: {
       delays: "SELECT junction_id, approach_id, delay_sec FROM approaches",
     },
+    show_ui: true,
   },
   "tomtom-junction-archive": {
     junctionIds: ["EXAMPLE_JUNCTION_ID"],
@@ -121,12 +124,14 @@ const EXAMPLE_INPUTS: Record<string, Record<string, unknown> | (() => Record<str
     sql_queries: {
       routes: "SELECT * FROM routes LIMIT 20",
     },
+    show_ui: true,
   },
   "tomtom-route-monitoring-details": {
     routeIds: ["EXAMPLE_ROUTE_ID"],
     sql_queries: {
       info: "SELECT * FROM route_info",
     },
+    show_ui: true,
   },
 };
 
