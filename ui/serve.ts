@@ -25,7 +25,7 @@ const HOST_PORT = parseInt(process.env.HOST_PORT || "8080", 10);
 const SANDBOX_PORT = parseInt(process.env.SANDBOX_PORT || "8081", 10);
 const DIRECTORY = join(__dirname, "dist");
 
-const MCP_SERVER_URL = process.env.MCP_SERVER_URL || "http://localhost:3000/mcp";
+const MCP_SERVER_URL = process.env.MCP_SERVER_URL || "http://127.0.0.1:3000/mcp";
 const TOMTOM_API_KEY = process.env.TOMTOM_API_KEY || "";
 const TOMTOM_MOVE_PORTAL_KEY = process.env.TOMTOM_MOVE_PORTAL_KEY || "";
 
@@ -116,8 +116,8 @@ sandboxApp.use((_req, res) => {
 hostApp.listen(HOST_PORT, "127.0.0.1", () => {
   console.log(`\n  TomTom Traffic Analytics MCP App Host`);
   console.log(`  ────────────────────────────────────`);
-  console.log(`  Host UI:              http://localhost:${HOST_PORT}`);
-  console.log(`  Sandbox:              http://localhost:${SANDBOX_PORT}`);
+  console.log(`  Host UI:              http://127.0.0.1:${HOST_PORT}`);
+  console.log(`  Sandbox:              http://127.0.0.1:${SANDBOX_PORT}`);
   console.log(`  MCP Server:           ${MCP_SERVER_URL}`);
   console.log(`  Traffic API Key:      ${TOMTOM_API_KEY ? TOMTOM_API_KEY.slice(0, 6) + "..." : "NOT SET"}`);
   console.log(`  Move Portal API Key:  ${TOMTOM_MOVE_PORTAL_KEY ? TOMTOM_MOVE_PORTAL_KEY.slice(0, 6) + "..." : "NOT SET"}`);

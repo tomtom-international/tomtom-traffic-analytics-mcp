@@ -22,7 +22,7 @@ import type { CallToolResult, Resource, Tool } from "@modelcontextprotocol/sdk/t
 import { getTheme, onThemeChange } from "./theme";
 import { HOST_STYLE_VARIABLES } from "./host-styles";
 
-const SANDBOX_PROXY_BASE_URL = "http://localhost:8081/sandbox.html";
+const SANDBOX_PROXY_BASE_URL = "http://127.0.0.1:8081/sandbox.html";
 const IMPLEMENTATION = { name: "TomTom Traffic Analytics MCP App Host", version: "1.0.0" };
 
 export const log = {
