@@ -74,7 +74,8 @@ function areaAnalyticsExample(): Record<string, unknown> {
       },
     ],
     sql_queries: {
-      summary: "SELECT * FROM area_summary",
+      daily_summary:
+        "SELECT time, ROUND(congestion_level, 1) AS congestion_pct, ROUND(speed, 1) AS speed_kmh FROM timed_data WHERE aggregation_type = 'daily' ORDER BY time",
     },
     show_ui: true,
   };

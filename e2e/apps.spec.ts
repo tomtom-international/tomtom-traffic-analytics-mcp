@@ -110,7 +110,10 @@ function areaAnalyticsInput(): Record<string, unknown> {
         properties: { name: "Amsterdam Center" },
       },
     ],
-    sql_queries: { summary: "SELECT * FROM area_summary" },
+    sql_queries: {
+      daily_summary:
+        "SELECT time, ROUND(congestion_level, 1) AS congestion_pct FROM timed_data WHERE aggregation_type = 'daily' ORDER BY time",
+    },
     show_ui: true,
   };
 }
