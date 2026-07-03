@@ -608,6 +608,7 @@ function selectDetailsRoute(routeId: number): void {
   renderRouteChips(detailsRoutes);
 
   selectedSegmentId = null;
+  setState("routes", null, "hover");
   setState("segments", null, "selected");
   setState("segments", null, "hover");
 
