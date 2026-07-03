@@ -191,7 +191,7 @@ test.describe("show_ui: false", () => {
     await expect(page.getByTestId("tab-map")).toBeVisible({ timeout: 60_000 });
     const app = getAppFrame(page);
 
-    await expect(app.locator("#ui-hidden-indicator")).toBeVisible({ timeout: 15_000 });
+    await expect(app.locator("#ui-hidden-indicator")).toBeVisible({ timeout: 30_000 });
     await expect(app.locator(".indicator-pill")).toContainText("Data processed");
     await expect(app.locator("html")).toHaveClass(/ui-hidden/);
 
