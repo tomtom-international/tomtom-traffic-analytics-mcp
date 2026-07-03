@@ -157,6 +157,12 @@ let junctionsClickBound = false;
 let approachesClickBound = false;
 let approachesHoverBound = false;
 
+// Which mode last rendered onto the shared `approaches`/`exits` sources. Search mode
+// draws display-only neutral approach lines onto the same source live mode uses for
+// interactive cards, so approach click/hover handlers must gate on this to stay inert
+// in search mode.
+let currentMode: "search" | "live" | null = null;
+
 // Search mode state
 let searchJunctions: JunctionDefinition[] = [];
 let selectedJunctionId: string | null = null;
@@ -735,6 +741,17 @@ function renderLiveMode(junctions: JunctionLiveData[]): void {
 // ---------------------------------------------------------------------------
 
 async function resetPanelState(): Promise<void> {
+  // Clear MapLibre feature-state via the setters BEFORE clearing sources.
+  // CustomGeoJSONModule.clear() only calls setData() — feature-state lives in a
+  // separate MapLibre store keyed by (source, id) and survives setData(), so stale
+  // selected/hover flags would otherwise reapply to whatever feature reuses a
+  // tracked id (e.g. "a-"+id, "x-"+id are small integers reused across junctions
+  // and shared between search/live modes) after the reset.
+  setJunctionSelected(null);
+  setApproachSelected(null);
+  setApproachHover(null);
+  setExitHover(null);
+
   await geoModule?.clear();
 
   clearAndHide("junction-chips");
@@ -907,6 +924,9 @@ app.ontoolresult = async (result): Promise<void> => {
   }
   if (!approachesClickBound) {
     geoModule.events.approaches.on("click", (f) => {
+      // Search mode renders display-only neutral approach lines onto the same
+      // source — ignore clicks there so they don't trigger live-mode selection.
+      if (currentMode !== "live") return;
       const id = parseApproachFeatureId(f.id);
       if (id !== null) selectApproach(id);
     });
@@ -914,6 +934,7 @@ app.ontoolresult = async (result): Promise<void> => {
   }
   if (!approachesHoverBound) {
     geoModule.events.approaches.on("hover", (f) => {
+      if (currentMode !== "live") return;
       setApproachHover(parseApproachFeatureId(f?.id));
     });
     approachesHoverBound = true;
@@ -923,6 +944,7 @@ app.ontoolresult = async (result): Promise<void> => {
   setPanelVisible(true);
 
   const mode = viz.tool === "tomtom-junction-live-data" ? "live" : "search";
+  currentMode = mode;
   if (mode === "live") {
     renderLiveMode(viz.junctions as JunctionLiveData[]);
   } else {
