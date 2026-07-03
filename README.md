@@ -181,7 +181,7 @@ Two tools ship with interactive [MCP Apps](https://modelcontextprotocol.io/) (ex
 
 **Local development**:
 - `npm run build:apps` — bundles each app into a single-file Vite build under `dist/apps` (also runs as part of `npm run build`)
-- `npm run ui` — starts a local React host (an ext-apps-capable test harness) at `http://localhost:8080` alongside the MCP HTTP server; requires `.env` with API keys
+- `npm run ui` — starts a local React host (an ext-apps-capable test harness) at `http://127.0.0.1:8080` alongside the MCP HTTP server; requires `.env` with API keys **and** `ALLOWED_ORIGINS=http://127.0.0.1:8080` (the HTTP server's CORS is opt-in — without it the browser's `/mcp` calls are blocked). Open the UI via `127.0.0.1`, not `localhost`.
 - `npm run test:e2e` — Playwright end-to-end coverage for both apps (run `npm run test:e2e:setup` once first to build and install the browser); the suite skips automatically if `TOMTOM_API_KEY` / `TOMTOM_MOVE_PORTAL_KEY` are not set
 - `npm run test:e2e:debug` — same suite in Playwright's debug/headed mode
 
