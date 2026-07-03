@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { storeVizData } from "../services/cache/vizCache";
 import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsService";
 import { AreaAnalyticsStatsRequest } from "../services/area-analytics/types";
 import {
@@ -34,8 +35,9 @@ export function getAreaAnalyticsStatsHandler() {
   return async (params: any) => {
     logger.info("Processing Area Analytics stats request");
 
-    const { sql_queries, ...request } = params as AreaAnalyticsStatsRequest & {
+    const { sql_queries, show_ui, ...request } = params as AreaAnalyticsStatsRequest & {
       sql_queries?: Record<string, string>;
+      show_ui?: boolean;
     };
 
     // Validate sql_queries is provided (mandatory)
@@ -69,7 +71,32 @@ export function getAreaAnalyticsStatsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw report for the MCP App to render, unless disabled
+      let vizMeta: { show_ui: boolean; viz_id?: string };
+      if (show_ui !== false) {
+        try {
+          const vizId = storeVizData({
+            tool: "tomtom-area-analytics-stats",
+            request: {
+              name: request.name,
+              startDate: request.startDate,
+              endDate: request.endDate,
+              dataTypes: request.dataTypes,
+              hours: request.hours,
+              frcs: request.frcs,
+            },
+            report: rawResult,
+          });
+          vizMeta = { show_ui: true, viz_id: vizId };
+        } catch (error: any) {
+          logger.error(`Failed to cache Area Analytics viz payload: ${error.message}`);
+          vizMeta = { show_ui: false };
+        }
+      } else {
+        vizMeta = { show_ui: false };
+      }
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-area-analytics-stats",
@@ -83,6 +110,7 @@ export function getAreaAnalyticsStatsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(

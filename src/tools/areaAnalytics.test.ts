@@ -16,57 +16,122 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createAreaAnalyticsTools } from "./areaAnalytics";
+
+// Mock the handler module
+vi.mock("../handlers/areaAnalyticsHandler", () => ({
+  getAreaAnalyticsStatsHandler: vi.fn(() => vi.fn()),
+}));
+
+// Mock the service functions
+vi.mock("../services/area-analytics/areaAnalyticsService", () => ({
+  getAreaAnalyticsStats: vi.fn(),
+}));
+
+const mockRegisterAppTool = vi.fn();
+vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
+  registerAppTool: mockRegisterAppTool,
+  RESOURCE_URI_META_KEY: "ui/resourceUri",
+}));
+
+const mockRegisterAppResourceFromPath = vi.fn();
+vi.mock("./helpers/resourceRegistry", () => ({
+  registerAppResourceFromPath: mockRegisterAppResourceFromPath,
+}));
+
+const { createAreaAnalyticsTools } = await import("./areaAnalytics");
 
 describe("Area Analytics Tools", () => {
   let mockServer: McpServer;
   let mockRegisterTool: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     mockRegisterTool = vi.fn();
     mockServer = {
       registerTool: mockRegisterTool,
     } as any;
   });
 
-  it("should register only the stats tool", () => {
+  it("should register the stats tool via registerAppTool bound to the app resource", () => {
     createAreaAnalyticsTools(mockServer);
 
-    expect(mockRegisterTool).toHaveBeenCalledTimes(1);
+    expect(mockRegisterTool).not.toHaveBeenCalled();
+    expect(mockRegisterAppTool).toHaveBeenCalledTimes(1);
 
-    const toolCalls = mockRegisterTool.mock.calls;
-    expect(toolCalls[0][0]).toBe("tomtom-area-analytics-stats");
+    const call = mockRegisterAppTool.mock.calls.find((c) => c[1] === "tomtom-area-analytics-stats");
+    expect(call).toBeDefined();
   });
 
   it("should register stats tool with appropriate description", () => {
     createAreaAnalyticsTools(mockServer);
 
-    const toolCalls = mockRegisterTool.mock.calls;
-    expect(toolCalls[0][1].description).toContain("historical traffic patterns");
-    expect(toolCalls[0][1].description).toContain("timed_data");
-    expect(toolCalls[0][1].description).toContain("tiled_data");
+    const call = mockRegisterAppTool.mock.calls.find((c) => c[1] === "tomtom-area-analytics-stats");
+    expect(call).toBeDefined();
+    if (!call) return;
+
+    const [, , config] = call;
+    expect(config.description).toContain("historical traffic patterns");
+    expect(config.description).toContain("timed_data");
+    expect(config.description).toContain("tiled_data");
   });
 
-  it("should register stats tool with proper schema", () => {
+  it("should register stats tool with proper schema including show_ui", () => {
     createAreaAnalyticsTools(mockServer);
 
-    const toolCalls = mockRegisterTool.mock.calls;
-    expect(toolCalls[0][1].inputSchema).toBeDefined();
-    expect(typeof toolCalls[0][1].inputSchema).toBe("object");
+    const call = mockRegisterAppTool.mock.calls.find((c) => c[1] === "tomtom-area-analytics-stats");
+    expect(call).toBeDefined();
+    if (!call) return;
+
+    const [, , config] = call;
+    expect(config.inputSchema).toBeDefined();
+    expect(typeof config.inputSchema).toBe("object");
+    expect(config.inputSchema.show_ui).toBeDefined();
   });
 
   it("should register stats tool with handler function", () => {
     createAreaAnalyticsTools(mockServer);
 
-    const toolCalls = mockRegisterTool.mock.calls;
-    expect(toolCalls[0][2]).toBeDefined();
-    expect(typeof toolCalls[0][2]).toBe("function");
+    const call = mockRegisterAppTool.mock.calls.find((c) => c[1] === "tomtom-area-analytics-stats");
+    expect(call).toBeDefined();
+    if (!call) return;
+
+    const [, , , handler] = call;
+    expect(handler).toBeDefined();
+    expect(typeof handler).toBe("function");
+  });
+
+  it("should bind the tool to the area-analytics app resource URI", () => {
+    createAreaAnalyticsTools(mockServer);
+
+    const call = mockRegisterAppTool.mock.calls.find((c) => c[1] === "tomtom-area-analytics-stats");
+    expect(call).toBeDefined();
+    if (!call) return;
+
+    const [server, , config] = call;
+    expect(server).toBe(mockServer);
+    expect(config._meta["ui/resourceUri"]).toBe(
+      "ui://tomtom-traffic-analytics/area-analytics/app.html"
+    );
+  });
+
+  it("should register the area-analytics app resource once", () => {
+    createAreaAnalyticsTools(mockServer);
+
+    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledTimes(1);
+    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
+      mockServer,
+      "ui://tomtom-traffic-analytics/area-analytics/app.html",
+      "traffic-analytics",
+      "area-analytics"
+    );
   });
 
   it("should follow consistent naming pattern", () => {
     createAreaAnalyticsTools(mockServer);
 
-    const toolCalls = mockRegisterTool.mock.calls;
-    expect(toolCalls[0][0]).toMatch(/^tomtom-area-analytics-/);
+    const toolNames = mockRegisterAppTool.mock.calls.map((call) => call[1]);
+    toolNames.forEach((toolName) => {
+      expect(toolName).toMatch(/^tomtom-area-analytics-/);
+    });
   });
 });

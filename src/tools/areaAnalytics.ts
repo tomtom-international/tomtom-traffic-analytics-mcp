@@ -15,14 +15,26 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAppTool, RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps/server";
 import { areaAnalyticsStatsSchema } from "../schemas/area-analytics/areaAnalyticsSchema";
 import { getAreaAnalyticsStatsHandler } from "../handlers/areaAnalyticsHandler";
+import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
+
+const AREA_ANALYTICS_RESOURCE_URI = "ui://tomtom-traffic-analytics/area-analytics/app.html";
 
 /**
  * Creates and registers Area Analytics tools
  */
 export function createAreaAnalyticsTools(server: McpServer): void {
-  server.registerTool(
+  registerAppResourceFromPath(
+    server,
+    AREA_ANALYTICS_RESOURCE_URI,
+    "traffic-analytics",
+    "area-analytics"
+  );
+
+  registerAppTool(
+    server,
     "tomtom-area-analytics-stats",
     {
       description: `Retrieve historical traffic patterns (speed, free-flow speed, congestion, travel time) for one GeoJSON polygon over up to a 31-day window. NOT real-time — data has a 24–48h processing delay. timed_data = time-series across the polygon (trends over hours/days/months); tiled_data = spatial grid cells within the polygon (hotspot locations). Use for trend analysis, peak vs off-peak comparison, and hotspot detection.
@@ -48,6 +60,9 @@ export function createAreaAnalyticsTools(server: McpServer): void {
     - Hotspots (congestion > 70%): SELECT lat, lon, congestion_level FROM tiled_data WHERE congestion_level > 70 ORDER BY congestion_level DESC LIMIT 20
     - Spatial filter: SELECT lat, lon, congestion_level FROM tiled_data WHERE ST_DWithin(point_geom, ST_Point(4.9, 52.37), 1000)`,
       inputSchema: areaAnalyticsStatsSchema,
+      _meta: {
+        [RESOURCE_URI_META_KEY]: AREA_ANALYTICS_RESOURCE_URI,
+      },
     },
     getAreaAnalyticsStatsHandler()
   );

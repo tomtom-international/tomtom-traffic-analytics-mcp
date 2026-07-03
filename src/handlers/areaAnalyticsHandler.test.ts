@@ -32,8 +32,16 @@ vi.mock("../utils/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
+const { mockStoreVizData } = vi.hoisted(() => ({
+  mockStoreVizData: vi.fn().mockReturnValue("mock-viz-id"),
+}));
+vi.mock("../services/cache/vizCache", () => ({
+  storeVizData: mockStoreVizData,
+}));
+
 import { getAreaAnalyticsStatsHandler } from "./areaAnalyticsHandler";
 import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsService";
+import { logger } from "../utils/logger";
 
 describe("areaAnalyticsHandler", () => {
   beforeEach(() => {
@@ -43,6 +51,7 @@ describe("areaAnalyticsHandler", () => {
       test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
     });
     mockSqlEngine.getTableRowCounts.mockReturnValue({ timed_data: 10 });
+    mockStoreVizData.mockReturnValue("mock-viz-id");
   });
 
   const handler = getAreaAnalyticsStatsHandler();
@@ -117,5 +126,56 @@ describe("areaAnalyticsHandler", () => {
     vi.mocked(getAreaAnalyticsStats).mockRejectedValueOnce(new Error("fail"));
     await handler(validParams);
     expect(mockSqlEngine.close).toHaveBeenCalled();
+  });
+
+  describe("MCP App viz payload (show_ui)", () => {
+    it("defaults show_ui to true, stores raw viz payload, and includes viz_id", async () => {
+      const result = await handler(validParams);
+
+      expect(mockStoreVizData).toHaveBeenCalledTimes(1);
+      expect(mockStoreVizData).toHaveBeenCalledWith({
+        tool: "tomtom-area-analytics-stats",
+        request: {
+          name: "Test Region",
+          startDate: "2024-01-01",
+          endDate: "2024-01-15",
+          dataTypes: ["CONGESTION_LEVEL"],
+          hours: [8, 9, 10],
+          frcs: [0, 1, 2],
+        },
+        report: { features: [{ type: "Feature" }] },
+      });
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed._meta).toEqual({ show_ui: true, viz_id: "mock-viz-id" });
+    });
+
+    it("does not call storeVizData and sets show_ui false when show_ui: false", async () => {
+      const result = await handler({ ...validParams, show_ui: false });
+
+      expect(mockStoreVizData).not.toHaveBeenCalled();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed._meta).toEqual({ show_ui: false });
+    });
+
+    it("degrades gracefully to show_ui:false when storeVizData throws", async () => {
+      mockStoreVizData.mockImplementationOnce(() => {
+        throw new Error("cache full");
+      });
+
+      const result = await handler(validParams);
+
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed._meta).toEqual({ show_ui: false });
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it("does not call storeVizData on error paths (e.g. missing sql_queries)", async () => {
+      const { sql_queries, ...paramsWithout } = validParams;
+      const result = await handler(paramsWithout);
+      expect(result.isError).toBe(true);
+      expect(mockStoreVizData).not.toHaveBeenCalled();
+    });
   });
 });
