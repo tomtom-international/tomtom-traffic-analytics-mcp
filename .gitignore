@@ -36,6 +36,8 @@ desktop.ini
 # Test output and coverage
 test-output/
 coverage/
+playwright-report/
+test-results/
 
 # Temporary directories
 temp/
