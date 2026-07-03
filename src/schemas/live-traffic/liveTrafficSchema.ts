@@ -133,6 +133,13 @@ export const trafficIncidentsSchema = {
       "Time validity filter: 'present' (current), 'future' (upcoming). Default: 'present'."
     ),
 
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive incidents map app (default true). Set false for text-only analysis."
+    ),
+
   sql_queries: incidentsSqlQueriesSchema,
 };
 

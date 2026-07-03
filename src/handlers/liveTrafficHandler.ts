@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { storeVizData } from "../services/cache/vizCache";
 import {
   getFlowSegmentData,
   getTrafficIncidents,
@@ -135,7 +136,7 @@ async function getTrafficByBbox(bbox?: string, options: any = {}) {
  */
 export function createTrafficIncidentsHandler() {
   return async (params: any) => {
-    const { sql_queries, bboxes, ...requestParams } = params;
+    const { sql_queries, bboxes, show_ui, ...requestParams } = params;
 
     const areas: Array<{ name: string; bbox: string }> = bboxes;
 
@@ -178,6 +179,7 @@ export function createTrafficIncidentsHandler() {
       const rawResults = await Promise.all(
         areas.map(async (area) => ({
           areaName: area.name,
+          bbox: area.bbox,
           data: await getTrafficByBbox(area.bbox, options),
         }))
       );
@@ -213,7 +215,28 @@ export function createTrafficIncidentsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw per-area results for the MCP App to render, unless disabled
+      let vizMeta: { show_ui: boolean; viz_id?: string };
+      if (show_ui !== false) {
+        try {
+          const vizId = storeVizData({
+            tool: "tomtom-traffic-incidents",
+            areas: rawResults.map(({ areaName, bbox, data }) => ({
+              name: areaName,
+              bbox,
+              incidents: data,
+            })),
+          });
+          vizMeta = { show_ui: true, viz_id: vizId };
+        } catch (error: any) {
+          logger.error(`Failed to cache traffic incidents viz payload: ${error.message}`);
+          vizMeta = { show_ui: false };
+        }
+      } else {
+        vizMeta = { show_ui: false };
+      }
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-traffic-incidents",
@@ -226,6 +249,7 @@ export function createTrafficIncidentsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(

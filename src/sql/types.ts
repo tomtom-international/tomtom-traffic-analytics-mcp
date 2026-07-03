@@ -90,6 +90,10 @@ export interface SqlFilterMetadata {
 export interface SqlFilteredResponse {
   metadata: SqlFilterMetadata;
   aggregated_data: Record<string, SqlQueryExecutionResult>;
+  _meta?: {
+    show_ui: boolean;
+    viz_id?: string;
+  };
 }
 
 /**

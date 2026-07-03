@@ -37,11 +37,19 @@ vi.mock("../utils/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
+const { mockStoreVizData } = vi.hoisted(() => ({
+  mockStoreVizData: vi.fn().mockReturnValue("mock-viz-id"),
+}));
+vi.mock("../services/cache/vizCache", () => ({
+  storeVizData: mockStoreVizData,
+}));
+
 import { getFlowSegmentDataHandler, createTrafficIncidentsHandler } from "./liveTrafficHandler";
 import {
   getFlowSegmentData,
   getTrafficIncidents,
 } from "../services/live-traffic/liveTrafficService";
+import { logger } from "../utils/logger";
 
 describe("liveTrafficHandler", () => {
   beforeEach(() => {
@@ -51,6 +59,7 @@ describe("liveTrafficHandler", () => {
       test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
     });
     mockSqlEngine.getTableRowCounts.mockReturnValue({ flow_segment: 1 });
+    mockStoreVizData.mockReturnValue("mock-viz-id");
   });
 
   describe("getFlowSegmentDataHandler", () => {
@@ -174,6 +183,64 @@ describe("liveTrafficHandler", () => {
     it("always calls sqlEngine.close()", async () => {
       await handler(validParams);
       expect(mockSqlEngine.close).toHaveBeenCalled();
+    });
+
+    describe("MCP App viz payload (show_ui)", () => {
+      it("defaults show_ui to true, stores raw viz payload, and includes viz_id", async () => {
+        const result = await handler(validParams);
+
+        expect(mockStoreVizData).toHaveBeenCalledTimes(1);
+        expect(mockStoreVizData).toHaveBeenCalledWith({
+          tool: "tomtom-traffic-incidents",
+          areas: [
+            {
+              name: "Downtown",
+              bbox: "-122.42,37.77,-122.40,37.79",
+              incidents: { incidents: [{ id: "1" }] },
+            },
+          ],
+        });
+
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: true, viz_id: "mock-viz-id" });
+      });
+
+      it("does not call storeVizData and sets show_ui false when show_ui: false", async () => {
+        const result = await handler({ ...validParams, show_ui: false });
+
+        expect(mockStoreVizData).not.toHaveBeenCalled();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: false });
+      });
+
+      it("degrades gracefully to show_ui:false when storeVizData throws", async () => {
+        mockStoreVizData.mockImplementationOnce(() => {
+          throw new Error("cache full");
+        });
+
+        const result = await handler(validParams);
+
+        expect(result.isError).toBeUndefined();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed._meta).toEqual({ show_ui: false });
+        expect(logger.error).toHaveBeenCalled();
+      });
+
+      it("does not call storeVizData on error paths (e.g. invalid sql_queries)", async () => {
+        const result = await handler({ bboxes: validParams.bboxes });
+        expect(result.isError).toBe(true);
+        expect(mockStoreVizData).not.toHaveBeenCalled();
+      });
+
+      it("does not call storeVizData when too many bboxes are requested", async () => {
+        const tooManyBboxes = Array.from({ length: 11 }, (_, i) => ({
+          name: `area${i}`,
+          bbox: "0,0,1,1",
+        }));
+        const result = await handler({ bboxes: tooManyBboxes, sql_queries: { q: "SELECT 1" } });
+        expect(result.isError).toBe(true);
+        expect(mockStoreVizData).not.toHaveBeenCalled();
+      });
     });
   });
 });

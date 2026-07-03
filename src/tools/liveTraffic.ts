@@ -15,6 +15,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAppTool, RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps/server";
 import {
   trafficFlowDataSchema,
   trafficIncidentsSchema,
@@ -23,6 +24,9 @@ import {
   getFlowSegmentDataHandler,
   createTrafficIncidentsHandler,
 } from "../handlers/liveTrafficHandler";
+import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
+
+const TRAFFIC_INCIDENTS_RESOURCE_URI = "ui://tomtom-traffic-analytics/traffic-incidents/app.html";
 
 /**
  * Creates and registers Traffic API tools (Flow, Incidents, etc.)
@@ -54,7 +58,15 @@ FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting
     getFlowSegmentDataHandler()
   );
 
-  server.registerTool(
+  registerAppResourceFromPath(
+    server,
+    TRAFFIC_INCIDENTS_RESOURCE_URI,
+    "traffic-analytics",
+    "traffic-incidents"
+  );
+
+  registerAppTool(
+    server,
     "tomtom-traffic-incidents",
     {
       description: `Query live traffic incidents (accidents, jams, closures, roadworks) within one or more named bounding boxes. Returns each active incident in the requested areas with category, delay, magnitude, geometry, and report metadata.
@@ -92,6 +104,9 @@ FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting
     - Incidents by area: SELECT area_name, COUNT(*) as total_incidents, SUM(CASE WHEN iconCategory = 'Accident' THEN 1 ELSE 0 END) as accidents FROM incidents GROUP BY area_name
     - Average delay by area: SELECT area_name, ROUND(AVG(delay), 2) as avg_delay_sec, COUNT(*) as incidents_with_delay FROM incidents WHERE delay IS NOT NULL GROUP BY area_name ORDER BY avg_delay_sec DESC`,
       inputSchema: trafficIncidentsSchema,
+      _meta: {
+        [RESOURCE_URI_META_KEY]: TRAFFIC_INCIDENTS_RESOURCE_URI,
+      },
     },
     createTrafficIncidentsHandler()
   );
