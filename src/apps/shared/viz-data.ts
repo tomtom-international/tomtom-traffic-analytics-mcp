@@ -17,7 +17,9 @@ function saveToLocalCache(vizId: string, data: unknown): void {
     const key = VIZ_CACHE_PREFIX + vizId;
     localStorage.setItem(key, JSON.stringify(data));
 
-    // Evict oldest entries if we exceed the limit
+    // Evict entries if we exceed the limit. Note: sort() on uuid-suffixed keys
+    // does not order by recency, so eviction is arbitrary among cached entries,
+    // not actually oldest-first.
     const allKeys = Object.keys(localStorage).filter((k) => k.startsWith(VIZ_CACHE_PREFIX));
     if (allKeys.length > VIZ_CACHE_MAX_ENTRIES) {
       allKeys.sort();

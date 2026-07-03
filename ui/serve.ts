@@ -113,7 +113,7 @@ sandboxApp.use((_req, res) => {
 });
 
 // ============ Start ============
-hostApp.listen(HOST_PORT, () => {
+hostApp.listen(HOST_PORT, "127.0.0.1", () => {
   console.log(`\n  TomTom Traffic Analytics MCP App Host`);
   console.log(`  ────────────────────────────────────`);
   console.log(`  Host UI:              http://localhost:${HOST_PORT}`);
@@ -124,4 +124,4 @@ hostApp.listen(HOST_PORT, () => {
   console.log(`  ────────────────────────────────────\n`);
 });
 
-sandboxApp.listen(SANDBOX_PORT, () => {});
+sandboxApp.listen(SANDBOX_PORT, "127.0.0.1", () => {});

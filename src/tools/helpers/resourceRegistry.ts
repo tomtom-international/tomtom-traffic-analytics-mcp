@@ -43,6 +43,10 @@ const __dirname = path.dirname(__filename);
  * Base path for built MCP apps.
  * After rollup bundling, import.meta.url points to dist/index(.esm|.cjs).js
  * so we need ./apps to reach dist/apps/.
+ *
+ * This resolves relative to the built bundle (dist/), not the source tree —
+ * running from source via `npm run dev` has no dist/apps, so it serves the
+ * "not found" fallback HTML by design (run `npm run build:apps` to populate it).
  */
 const APP_BASE_PATH = path.resolve(__dirname, "./apps");
 

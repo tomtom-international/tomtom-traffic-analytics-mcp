@@ -148,8 +148,8 @@ async function main() {
   }
   if (!fs.existsSync(path.join(DIST_DIR, 'apps'))) {
     console.warn(
-      'Warning: dist/apps not found (expected if "npm run build" ran build:apps). ' +
-        'MCP App resources will fall back to their "not found" HTML at runtime.'
+      'Warning: dist/apps not found — MCP app UIs will serve fallback HTML. ' +
+        'Run "npm run build" (includes build:apps) before build:mcpb.'
     );
   }
 

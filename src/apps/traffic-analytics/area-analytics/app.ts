@@ -396,6 +396,13 @@ app.ontoolresult = async (result): Promise<void> => {
 
   const viz = (await extractFullData(app, parsedResp)) as VizPayload;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
+  if (!(viz as any)?.report) {
+    setPanelVisible(false);
+    showErrorUI("Visualization data expired — re-run the tool");
+    return;
+  }
+
   showMapUI();
 
   map ??= new TomTomMap({
