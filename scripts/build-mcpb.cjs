@@ -146,6 +146,12 @@ async function main() {
     console.error('Error: manifest-binary.json not found at project root.');
     process.exit(1);
   }
+  if (!fs.existsSync(path.join(DIST_DIR, 'apps'))) {
+    console.warn(
+      'Warning: dist/apps not found (expected if "npm run build" ran build:apps). ' +
+        'MCP App resources will fall back to their "not found" HTML at runtime.'
+    );
+  }
 
   try {
     fs.mkdirSync(path.join(TEMP_DIR, 'bin', 'runtime'), { recursive: true });
@@ -196,6 +202,18 @@ async function main() {
       )
     );
     console.log('  ✓ Application files');
+
+    // 3b. Copy dist/apps (MCP App resource HTML) so resourceRegistry's
+    //     module-relative `./apps` lookup (resolved next to app/index.cjs.js)
+    //     finds it inside the bundle. Guarded: older builds or a build run
+    //     without `build:apps` won't have this directory.
+    const distAppsDir = path.join(DIST_DIR, 'apps');
+    if (fs.existsSync(distAppsDir)) {
+      copyDir(distAppsDir, path.join(appDir, 'apps'));
+      console.log('  ✓ MCP App resources (dist/apps)');
+    } else {
+      console.warn('  ⚠ dist/apps not found — skipping MCP App resources');
+    }
 
     // 4. Copy node_modules (host already has the right DuckDB platform binding
     //    via @duckdb/node-api's optionalDependencies for PLATFORM-ARCH).
