@@ -1,14 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background: transparent">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Traffic Incidents</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
+    <title>TomTom Traffic Incidents</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <div id="sdk-map"></div>
-    <div id="panel"></div>
+  <body style="background: transparent">
+    <div id="app-root">
+      <!-- Shown until the first tool-input/tool-result notification arrives. -->
+      <div id="waiting-state" class="state-panel">
+        <p>Waiting for tool result&hellip;</p>
+      </div>
+
+      <div id="sdk-map"></div>
+
+      <aside id="incident-panel" class="hidden">
+        <div id="area-filters" class="area-filters"></div>
+        <div id="incident-list" class="incident-list"></div>
+        <div id="empty-state" class="state-panel hidden">No incidents in the queried areas</div>
+      </aside>
+
+      <div id="incident-detail-card" class="incident-detail-card hidden"></div>
+    </div>
     <script type="module" src="./app.ts"></script>
   </body>
 </html>

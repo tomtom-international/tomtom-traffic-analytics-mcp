@@ -1,1 +1,255 @@
-/* Placeholder styles for the traffic-incidents MCP app. */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  background: transparent;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+.hidden {
+  display: none !important;
+}
+
+#app-root {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+#sdk-map {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+/* ---------------------------------------------------------------------------
+   Waiting / empty state panels
+   --------------------------------------------------------------------------- */
+
+.state-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #6b7280;
+  font-size: 13px;
+  text-align: center;
+}
+
+#waiting-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   Side panel — area filters + incident list
+   --------------------------------------------------------------------------- */
+
+#incident-panel {
+  flex: 0 0 320px;
+  width: 320px;
+  height: 100%;
+  min-height: 600px;
+  overflow-y: auto;
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+}
+
+.area-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.area-chip {
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #374151;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-chip:hover {
+  background: #f3f4f6;
+}
+
+.area-chip.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.incident-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.area-heading {
+  margin: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+}
+
+.incident-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #ffffff;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.incident-item:hover {
+  background: #f9fafb;
+}
+
+.incident-item.active {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.incident-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.incident-category {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.incident-route {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.incident-delay {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+#empty-state {
+  flex: 1 1 auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Magnitude badges
+   --------------------------------------------------------------------------- */
+
+.magnitude-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.magnitude-unknown {
+  background: #6b7280;
+}
+
+.magnitude-minor {
+  background: #ca8a04;
+}
+
+.magnitude-moderate {
+  background: #ea580c;
+}
+
+.magnitude-major {
+  background: #dc2626;
+}
+
+.magnitude-indefinite {
+  background: #991b1b;
+}
+
+/* ---------------------------------------------------------------------------
+   Incident detail card — floats over the map
+   --------------------------------------------------------------------------- */
+
+.incident-detail-card {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  max-width: 300px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 16px 20px 14px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.detail-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+}
+
+.detail-close:hover {
+  color: #374151;
+}
+
+.detail-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+  margin-right: 20px;
+}
+
+.detail-row {
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.detail-events {
+  color: #6b7280;
+  font-size: 12px;
+}
