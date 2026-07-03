@@ -130,7 +130,7 @@ Analyze traffic patterns in custom geographical areas.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-area-analytics-stats` | Direct statistics (requires `sql_queries`) |
+| `tomtom-area-analytics-stats` | Direct statistics (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
 
 ### Junction Analytics (3 tools) — MOVE Portal
 
@@ -158,7 +158,34 @@ Real-time traffic data for specific locations.
 | Tool | Description |
 |------|-------------|
 | `tomtom-traffic-flow-segment` | Traffic for road segment at coordinates (requires `sql_queries`) |
-| `tomtom-traffic-incidents` | Traffic incidents in an area (requires `sql_queries`) |
+| `tomtom-traffic-incidents` | Traffic incidents in an area (requires `sql_queries`) · [interactive map app](#interactive-map-apps) |
+
+---
+
+## Interactive Map Apps
+
+Two tools ship with interactive [MCP Apps](https://modelcontextprotocol.io/) (ext-apps) UIs — a map renders alongside the usual text/SQL results when the connected host supports it:
+
+| Tool | App |
+|------|-----|
+| `tomtom-traffic-incidents` | Live incidents overlay on a map, grouped per queried area, with focus/filter controls |
+| `tomtom-area-analytics-stats` | Hexgrid/heatmap of historical congestion metrics with mode/metric/range controls and a time-series panel |
+
+**Host support**: apps render only in ext-apps-capable hosts (e.g. Claude Desktop/web, VS Code with MCP Apps support). In any other host, these tools behave exactly like the rest — a normal JSON text response, no UI.
+
+**`show_ui` parameter**: both tools accept an optional `show_ui` boolean (default `true`). Set `show_ui: false` to skip the app entirely and get a text-only response, regardless of host capability.
+
+**API key for map rendering**: the map apps need `TOMTOM_API_KEY` to render tiles, even for `tomtom-area-analytics-stats` whose underlying *data* comes from the MOVE Portal key. If `TOMTOM_API_KEY` is missing, the app degrades gracefully to an in-app "map unavailable" state — the text/SQL results are unaffected either way.
+
+**Architecture**: tool responses embed `_meta: { show_ui, viz_id }`. Apps fetch the full raw payload via app-only tools (`tomtom-get-api-key`, `tomtom-get-viz-data`) over the MCP JSON-RPC bridge; these tools are not visible to the LLM. Raw payloads are cached in-memory for 5 minutes, keyed by `viz_id`.
+
+**Local development**:
+- `npm run build:apps` — bundles each app into a single-file Vite build under `dist/apps` (also runs as part of `npm run build`)
+- `npm run ui` — starts a local React host (an ext-apps-capable test harness) at `http://localhost:8080` alongside the MCP HTTP server; requires `.env` with API keys
+- `npm run test:e2e` — Playwright end-to-end coverage for both apps (run `npm run test:e2e:setup` once first to build and install the browser); the suite skips automatically if `TOMTOM_API_KEY` / `TOMTOM_MOVE_PORTAL_KEY` are not set
+- `npm run test:e2e:debug` — same suite in Playwright's debug/headed mode
+
+> Remaining tools (junction analytics, route monitoring, traffic flow segment) do not have map apps yet — planned as follow-ups.
 
 ---
 
@@ -187,6 +214,9 @@ src/
 │   ├── SqlFilterEngine.ts   # DuckDB engine
 │   ├── flatteners/          # JSON → table converters
 │   └── schemas/             # Table definitions
+├── apps/                    # Interactive MCP Apps (see Interactive Map Apps above)
+│   ├── shared/              # API key/viz-data fetch, map controls, SDK config
+│   └── traffic-analytics/   # One folder per app (area-analytics, traffic-incidents)
 ├── types/                   # TypeScript types
 └── utils/                   # Logger & error handling
 ```
@@ -194,13 +224,16 @@ src/
 ### Commands
 
 ```bash
-npm run build          # Build TypeScript
+npm run build          # Build TypeScript, bundle, and build the apps
+npm run build:apps     # Build only the MCP Apps (Vite single-file bundles → dist/apps)
 npm test               # Run unit tests
 npm run test:all       # Run all tests (requires API key)
+npm run test:e2e       # Playwright E2E tests for the MCP Apps (see Interactive Map Apps above)
+npm run ui             # Local ext-apps-capable host + MCP HTTP server for manual app testing
 npm run lint           # Lint code
 ```
 
-> Unit tests run without API keys. Integration tests (`npm run test:all`) require valid API keys in `.env`.
+> Unit tests run without API keys. Integration tests (`npm run test:all`) require valid API keys in `.env`. E2E tests (`npm run test:e2e`) also require API keys and skip automatically otherwise.
 
 ---
 
