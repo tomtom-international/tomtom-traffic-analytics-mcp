@@ -239,6 +239,10 @@ html.ui-hidden #app-root {
   column-gap: 12px;
   row-gap: 6px;
   align-items: center;
+  /* Grid items default to justify-self: stretch, which would blow up the
+     passable/impassable pill (an inline-block with its own background) into
+     a full-width bar. Right-align every value at its natural content width. */
+  justify-items: end;
 }
 
 .route-stats-grid .stats-label {
@@ -246,7 +250,7 @@ html.ui-hidden #app-root {
   color: var(--color-text-secondary, #6b7280);
 }
 
-.route-stats-grid > span:not(.stats-label) {
+.route-stats-grid > span:not(.stats-label):not(.passable-pill):not(.impassable-pill) {
   font-size: 13px;
   font-weight: 600;
   color: #111827;
@@ -276,7 +280,19 @@ html.ui-hidden #app-root {
 .segment-table th:first-child,
 .segment-table td:first-child {
   text-align: left;
-  width: 28px;
+  width: 34px;
+}
+
+/* Length/Ratio get just enough room for their short values; Speed (the
+   longest header/value) takes whatever's left under table-layout: fixed. */
+.segment-table th:nth-child(2),
+.segment-table td:nth-child(2) {
+  width: 56px;
+}
+
+.segment-table th:nth-child(4),
+.segment-table td:nth-child(4) {
+  width: 62px;
 }
 
 .segment-table thead th {

@@ -525,7 +525,7 @@ function renderSegmentTable(route: RouteDetailedInfo | undefined): void {
   table.className = "segment-table";
   table.innerHTML = `
     <thead>
-      <tr><th>#</th><th>Length</th><th>Speed (current / typical)</th><th>Ratio</th></tr>
+      <tr><th>#</th><th>Length</th><th title="Speed (current / typical)">Speed (cur/typ)</th><th>Ratio</th></tr>
     </thead>
     <tbody></tbody>
   `;
