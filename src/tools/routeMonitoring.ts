@@ -15,11 +15,15 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAppTool, RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps/server";
 import {
   getRouteDetailsSchema,
   routeSearchSchema,
 } from "../schemas/route-monitoring/routeMonitoringSchema";
 import { createRouteMonitoringHandlers } from "../handlers/routeMonitoringHandler";
+import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
+
+const ROUTE_DETAILS_RESOURCE_URI = "ui://tomtom-traffic-analytics/route-details/app.html";
 
 /**
  * Creates and registers route monitoring tools
@@ -27,8 +31,16 @@ import { createRouteMonitoringHandlers } from "../handlers/routeMonitoringHandle
 export function createRouteMonitoringTools(server: McpServer): void {
   const handlers = createRouteMonitoringHandlers();
 
+  registerAppResourceFromPath(
+    server,
+    ROUTE_DETAILS_RESOURCE_URI,
+    "traffic-analytics",
+    "route-details"
+  );
+
   // Search routes with SQL filtering
-  server.registerTool(
+  registerAppTool(
+    server,
     "tomtom-route-search",
     {
       description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis. Returns one row per monitored route with current aggregate delay and travel-time vs typical. Routes must be pre-configured in Move Portal.
@@ -55,6 +67,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
     - Status summary: SELECT route_status, COUNT(*) as cnt FROM routes GROUP BY route_status
     - Active with delays: SELECT route_id, route_name, delay_time, ROUND(delay_time * 100.0 / NULLIF(travel_time, 0), 1) as delay_pct FROM routes WHERE route_status = 'ACTIVE' AND delay_time > 0 ORDER BY delay_pct DESC`,
       inputSchema: routeSearchSchema,
+      _meta: { [RESOURCE_URI_META_KEY]: ROUTE_DETAILS_RESOURCE_URI },
     },
     handlers.searchRoutes
   );

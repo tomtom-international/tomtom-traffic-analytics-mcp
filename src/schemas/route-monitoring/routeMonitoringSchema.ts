@@ -51,6 +51,12 @@ const routeSearchSqlQueriesSchema = z
 // Route search schema
 export const routeSearchSchema = {
   sql_queries: routeSearchSqlQueriesSchema,
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive route map app (default true). Set false for text-only analysis."
+    ),
 };
 
 // Combined schemas export

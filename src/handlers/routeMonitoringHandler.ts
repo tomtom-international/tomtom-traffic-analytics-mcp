@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { storeVizData } from "../services/cache/vizCache";
 import { getRoutes, getRouteDetails } from "../services/route-monitoring/routeMonitoringService";
 import {
   SqlFilterEngine,
@@ -44,8 +45,8 @@ export function createRouteMonitoringHandlers() {
  * Requires sql_queries parameter.
  */
 function createRouteSearchHandler() {
-  return async (params: { sql_queries?: Record<string, string> }) => {
-    const { sql_queries } = params;
+  return async (params: { sql_queries?: Record<string, string>; show_ui?: boolean }) => {
+    const { sql_queries, show_ui } = params;
 
     logger.info("Route search");
 
@@ -79,7 +80,24 @@ function createRouteSearchHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw route list for the MCP App to render, unless disabled
+      let vizMeta: { show_ui: boolean; viz_id?: string };
+      if (show_ui !== false) {
+        try {
+          const vizId = storeVizData({
+            tool: "tomtom-route-search",
+            routes: allRoutes,
+          });
+          vizMeta = { show_ui: true, viz_id: vizId };
+        } catch (error: any) {
+          logger.error(`Failed to cache route search viz payload: ${error.message}`);
+          vizMeta = { show_ui: false };
+        }
+      } else {
+        vizMeta = { show_ui: false };
+      }
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-route-search",
@@ -91,6 +109,7 @@ function createRouteSearchHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
