@@ -1,0 +1,147 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  background: transparent;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+.hidden {
+  display: none !important;
+}
+
+#app-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+#sdk-map {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+/* Collapse app-root in ui-hidden state (show_ui:false, missing API key, etc.) */
+html.ui-hidden #app-root {
+  min-height: 0 !important;
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Waiting / empty state panels
+   --------------------------------------------------------------------------- */
+
+.state-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--color-text-secondary, #6b7280);
+  font-size: var(--font-text-sm-size, 13px);
+  text-align: center;
+}
+
+#waiting-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   Flow panel — floats over the map. Card/chip chrome (background, radius,
+   shadow) comes from the shared `.tta-panel` / `.tta-chip` classes; only
+   positioning and typography live here.
+   --------------------------------------------------------------------------- */
+
+#flow-panel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 900;
+}
+
+#flow-panel > * {
+  pointer-events: auto;
+}
+
+.stat-card {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  max-width: 280px;
+  padding: 14px 16px;
+}
+
+.stat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stat-card-header h1 {
+  font-size: var(--font-heading-xs-size, 15px);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-primary, #111827);
+}
+
+.closure-badge {
+  background: #e03030;
+  color: #fff;
+  border-radius: var(--border-radius-full, 999px);
+  font-size: var(--font-text-xs-size, 11px);
+  font-weight: var(--font-weight-semibold, 600);
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+
+.stat-grid dt {
+  font-size: var(--font-text-xs-size, 11px);
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.stat-grid dd {
+  font-size: var(--font-text-sm-size, 13px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text-primary, #111827);
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------------------
+   Control bar — backdrop toggle chip
+   --------------------------------------------------------------------------- */
+
+.control-bar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+/* ---------------------------------------------------------------------------
+   Legend
+   --------------------------------------------------------------------------- */
+
+.legend {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  width: 220px;
+  padding: 10px 14px;
+}
