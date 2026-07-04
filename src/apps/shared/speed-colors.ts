@@ -44,16 +44,12 @@ export function ratioToColor(ratio: number | null | undefined): string {
  * varies: 0–1 fractions for ratio ramps, 0–100 or raw units for analytics
  * metric configs). Zero-span stop lists collapse to position 0%.
  */
-export function gradientCss(
-  stops: ReadonlyArray<{ value: number; color: string }>
-): string {
+export function gradientCss(stops: ReadonlyArray<{ value: number; color: string }>): string {
   if (stops.length === 0) return "";
   const values = stops.map((s) => s.value);
   const min = Math.min(...values);
   const span = Math.max(...values) - min || 1;
-  return stops
-    .map((s) => `${s.color} ${(((s.value - min) / span) * 100).toFixed(1)}%`)
-    .join(", ");
+  return stops.map((s) => `${s.color} ${(((s.value - min) / span) * 100).toFixed(1)}%`).join(", ");
 }
 
 /** Renders the shared green→amber→red ramp legend. `label` must be a static string. */

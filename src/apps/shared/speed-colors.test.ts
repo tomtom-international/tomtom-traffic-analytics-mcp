@@ -37,9 +37,12 @@ describe("gradientCss", () => {
     ).toBe("#e03030 0.0%, #f5a623 60.0%, #2dc653 100.0%");
   });
   it("guards a zero span (all stops equal)", () => {
-    expect(gradientCss([{ value: 5, color: "#111111" }, { value: 5, color: "#222222" }])).toBe(
-      "#111111 0.0%, #222222 0.0%"
-    );
+    expect(
+      gradientCss([
+        { value: 5, color: "#111111" },
+        { value: 5, color: "#222222" },
+      ])
+    ).toBe("#111111 0.0%, #222222 0.0%");
   });
   it("returns empty string for no stops", () => {
     expect(gradientCss([])).toBe("");

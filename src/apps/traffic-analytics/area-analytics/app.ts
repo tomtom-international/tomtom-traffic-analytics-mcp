@@ -157,7 +157,10 @@ function populateModeSelect(mode: AreaAnalyticsDisplayMode): void {
   if (select) select.value = mode;
 }
 
-function populateMetricSelect(metrics: AreaAnalyticsMetricKey[], active: AreaAnalyticsMetricKey): void {
+function populateMetricSelect(
+  metrics: AreaAnalyticsMetricKey[],
+  active: AreaAnalyticsMetricKey
+): void {
   const select = el<HTMLSelectElement>("metric-select");
   if (!select) return;
 
@@ -263,7 +266,9 @@ function renderTimeSeries(): void {
   });
 
   const values = series.map((entry) => entry[activeMetric]);
-  const finiteValues = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  const finiteValues = values.filter(
+    (v): v is number => typeof v === "number" && Number.isFinite(v)
+  );
   const max = Math.max(...finiteValues, 0.0001);
 
   const width = 320;

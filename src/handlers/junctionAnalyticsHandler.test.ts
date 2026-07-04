@@ -239,7 +239,13 @@ describe("junctionAnalyticsHandler", () => {
         // The viz payload retains the full (unstripped) result with junctionModel.
         expect(mockStoreVizData).toHaveBeenCalledWith({
           tool: "tomtom-junction-live-data",
-          junctions: [{ id: "j1", approachesLiveData: [{ approach_id: 1 }], junctionModel: junctionModelFixture }],
+          junctions: [
+            {
+              id: "j1",
+              approachesLiveData: [{ approach_id: 1 }],
+              junctionModel: junctionModelFixture,
+            },
+          ],
         });
 
         const parsed = JSON.parse(result.content[0].text);

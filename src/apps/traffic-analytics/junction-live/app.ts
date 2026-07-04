@@ -347,7 +347,10 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
 
   const approachList = model?.approaches.length
     ? `<ul class="detail-approach-list">${model.approaches
-        .map((a) => `<li>${escapeHtml(a.roadName)} · ${escapeHtml(a.direction)} · FRC ${Number(a.frc)}</li>`)
+        .map(
+          (a) =>
+            `<li>${escapeHtml(a.roadName)} · ${escapeHtml(a.direction)} · FRC ${Number(a.frc)}</li>`
+        )
         .join("")}</ul>`
     : "";
 
@@ -393,7 +396,10 @@ function selectJunction(id: string): void {
       .filter(hasGeometry);
     const exitFeatures = junction.junctionModel.exits.map(buildExitFeature).filter(hasGeometry);
 
-    void geoModule?.show({ type: "FeatureCollection" as const, features: approachFeatures }, "approaches");
+    void geoModule?.show(
+      { type: "FeatureCollection" as const, features: approachFeatures },
+      "approaches"
+    );
     void geoModule?.show({ type: "FeatureCollection" as const, features: exitFeatures }, "exits");
   } else {
     void geoModule?.clear("approaches");
@@ -406,7 +412,9 @@ function selectJunction(id: string): void {
 function renderSearchMode(junctions: JunctionDefinition[]): void {
   searchJunctions = junctions;
 
-  const junctionFeatures = junctions.map(buildJunctionFeature).filter((f): f is NonNullable<typeof f> => f !== null);
+  const junctionFeatures = junctions
+    .map(buildJunctionFeature)
+    .filter((f): f is NonNullable<typeof f> => f !== null);
   const fc = { type: "FeatureCollection" as const, features: junctionFeatures };
   void geoModule?.show(fc, "junctions");
 
@@ -540,10 +548,14 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
     bodyRows.push(
       `<div class="approach-card-row">Travel time ${Math.round(live.travelTimeSec)} s (free-flow ${Math.round(live.freeFlowTravelTimeSec)} s)</div>`
     );
-    bodyRows.push(`<div class="approach-card-row">Queue ${Math.round(live.queueLengthMeters)} m</div>`);
+    bodyRows.push(
+      `<div class="approach-card-row">Queue ${Math.round(live.queueLengthMeters)} m</div>`
+    );
     bodyRows.push(`<div class="approach-card-row">Stops ${Number(live.stops)}</div>`);
     if (live.volumePerHour !== undefined) {
-      bodyRows.push(`<div class="approach-card-row">Volume ${Math.round(live.volumePerHour)} veh/h</div>`);
+      bodyRows.push(
+        `<div class="approach-card-row">Volume ${Math.round(live.volumePerHour)} veh/h</div>`
+      );
     }
   }
 
@@ -615,12 +627,19 @@ function selectLiveJunction(junction: JunctionLiveData): void {
     const approachFeatures = model.approaches
       .map((a) => {
         const live = currentLiveById.get(a.id);
-        return buildApproachFeature(a, losFor(live?.delaySec)?.color ?? NEUTRAL_APPROACH, live?.isClosed === true);
+        return buildApproachFeature(
+          a,
+          losFor(live?.delaySec)?.color ?? NEUTRAL_APPROACH,
+          live?.isClosed === true
+        );
       })
       .filter(hasGeometry);
     const exitFeatures = model.exits.map(buildExitFeature).filter(hasGeometry);
 
-    void geoModule?.show({ type: "FeatureCollection" as const, features: approachFeatures }, "approaches");
+    void geoModule?.show(
+      { type: "FeatureCollection" as const, features: approachFeatures },
+      "approaches"
+    );
     void geoModule?.show({ type: "FeatureCollection" as const, features: exitFeatures }, "exits");
 
     const unionFeatures = [...approachFeatures, ...exitFeatures];

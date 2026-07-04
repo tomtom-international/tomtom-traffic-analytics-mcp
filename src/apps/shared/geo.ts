@@ -137,8 +137,7 @@ export function polygonRingCentroid(ring: number[][]): [number, number] | null {
 
   const first = ring[0];
   const last = ring[ring.length - 1];
-  const isClosed =
-    ring.length > 1 && first[0] === last[0] && first[1] === last[1];
+  const isClosed = ring.length > 1 && first[0] === last[0] && first[1] === last[1];
   const vertices = isClosed ? ring.slice(0, -1) : ring;
 
   let sumLon = 0;

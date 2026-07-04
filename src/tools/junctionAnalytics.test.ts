@@ -92,9 +92,7 @@ describe("Junction Analytics Tools", () => {
   it("should register junction-live-data tool via registerAppTool bound to the SAME app resource", () => {
     createJunctionAnalyticsTools(mockServer);
 
-    const call = mockRegisterAppTool.mock.calls.find(
-      (c) => c[1] === "tomtom-junction-live-data"
-    );
+    const call = mockRegisterAppTool.mock.calls.find((c) => c[1] === "tomtom-junction-live-data");
     expect(call).toBeDefined();
     if (!call) return;
 
@@ -110,9 +108,9 @@ describe("Junction Analytics Tools", () => {
     );
 
     // Should never be registered via the plain server.registerTool
-    expect(
-      mockRegisterTool.mock.calls.some((c) => c[0] === "tomtom-junction-live-data")
-    ).toBe(false);
+    expect(mockRegisterTool.mock.calls.some((c) => c[0] === "tomtom-junction-live-data")).toBe(
+      false
+    );
   });
 
   it("should register the junction-live app resource exactly once", () => {

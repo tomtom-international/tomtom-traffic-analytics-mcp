@@ -111,9 +111,7 @@ export function getAreaAnalyticsStatsHandler() {
     } catch (error: any) {
       logger.error(`Error getting Area Analytics stats: ${error.message}`);
       return {
-        content: [
-          { type: "text" as const, text: JSON.stringify({ error: error.message }) },
-        ],
+        content: [{ type: "text" as const, text: JSON.stringify({ error: error.message }) }],
         isError: true,
       };
     } finally {

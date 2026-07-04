@@ -150,7 +150,11 @@ describe("withBaseData", () => {
 describe("normalizeAreaResponse", () => {
   it("synthesizes startDate/endDate as min/max of properties.days on the real fixture (which has no startDate/endDate)", () => {
     expect((areaAnalyticsFixture.properties as any).startDate).toBeUndefined();
-    expect(areaAnalyticsFixture.properties.days).toEqual(["2026-06-26", "2026-06-27", "2026-06-28"]);
+    expect(areaAnalyticsFixture.properties.days).toEqual([
+      "2026-06-26",
+      "2026-06-27",
+      "2026-06-28",
+    ]);
 
     const result = normalizeAreaResponse(areaAnalyticsFixture) as any;
 
@@ -261,12 +265,25 @@ describe("polygonRingCentroid", () => {
     expect(polygonRingCentroid([])).toBeNull();
   });
   it("averages vertices of an open ring", () => {
-    expect(polygonRingCentroid([[0, 0], [2, 0], [2, 2], [0, 2]])).toEqual([1, 1]);
+    expect(
+      polygonRingCentroid([
+        [0, 0],
+        [2, 0],
+        [2, 2],
+        [0, 2],
+      ])
+    ).toEqual([1, 1]);
   });
   it("ignores the duplicated closing vertex of a closed GeoJSON ring", () => {
     // Closed ring: first == last. Naive averaging counts [0,0] twice and
     // biases the centroid toward that corner.
-    const closed = [[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]];
+    const closed = [
+      [0, 0],
+      [2, 0],
+      [2, 2],
+      [0, 2],
+      [0, 0],
+    ];
     expect(polygonRingCentroid(closed)).toEqual([1, 1]);
   });
   it("handles a degenerate single-vertex ring", () => {

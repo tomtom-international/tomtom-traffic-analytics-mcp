@@ -29,9 +29,7 @@ describe("vizCache", () => {
       expect(vizId).toBeDefined();
       expect(typeof vizId).toBe("string");
       // UUID format check (basic)
-      expect(vizId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      );
+      expect(vizId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     });
 
     it("stores different data with distinct viz_ids", () => {
