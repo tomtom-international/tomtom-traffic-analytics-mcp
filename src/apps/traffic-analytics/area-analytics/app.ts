@@ -3,7 +3,6 @@
  * Licensed under the Apache License, Version 2.0
  */
 
-import { App } from "@modelcontextprotocol/ext-apps";
 import {
   TomTomMap,
   TrafficAreaAnalyticsModule,
@@ -18,12 +17,10 @@ import type {
   AreaAnalyticsTimedEntry,
 } from "@tomtom-org/maps-sdk/core";
 import type { AreaAnalyticsTileFeature } from "@tomtom-org/maps-sdk/map";
-import { ensureTomTomConfigured } from "@shared/sdk-config";
-import { extractFullData } from "@shared/viz-data";
-import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
+import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { normalizeAreaResponse } from "@shared/geo";
 import { computeBarLayout } from "@shared/chart-layout";
-import { el, hideWaiting } from "@shared/dom";
+import { el } from "@shared/dom";
 import { gradientCss } from "@shared/speed-colors";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -65,8 +62,6 @@ const METRIC_LABEL: Record<AreaAnalyticsMetricKey, string> = {
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-
-const app = new App({ name: "tta-area-analytics", version: "1.0.0" });
 
 let map: TomTomMap | undefined;
 let analyticsModule: TrafficAreaAnalyticsModule | undefined;
@@ -411,123 +406,72 @@ el("timeseries-toggle")?.addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------------------
-// MCP App lifecycle — register hooks before connect() (ext-apps 1.7 rule)
+// MCP App lifecycle — shared bootstrap owns parse/gates/map creation.
 // ---------------------------------------------------------------------------
 
-app.ontoolinput = async (): Promise<void> => {
-  hideWaiting();
-};
-
-app.ontoolresult = async (result): Promise<void> => {
-  hideWaiting();
-
-  if (result.isError) {
-    setPanelVisible(false);
-    showErrorUI("Failed to fetch area analytics");
-    return;
-  }
-
-  const rawText = (result.content?.[0] as { text?: string } | undefined)?.text ?? "{}";
-  const parsedResp = JSON.parse(rawText);
-
-  if (!shouldShowUI(parsedResp)) {
-    setPanelVisible(false);
-    hideMapUI();
-    return;
-  }
-
-  if (!(await ensureTomTomConfigured(app))) {
-    setPanelVisible(false);
-    showErrorUI("TOMTOM_API_KEY not configured — map unavailable");
-    return;
-  }
-
-  const viz = (await extractFullData(app, parsedResp)) as VizPayload;
-
+bootstrapVizApp<VizPayload>({
+  name: "tta-area-analytics",
+  panelId: "analytics-panel",
+  errorMessage: "Failed to fetch area analytics",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
-  if (!(viz as any)?.report) {
-    setPanelVisible(false);
-    showErrorUI("Visualization data expired — re-run the tool");
-    return;
-  }
+  validate: (viz): viz is VizPayload => Boolean((viz as any)?.report),
+  resetUI: hideTooltip, // panel hide previously also hid the tile tooltip
+  render: async ({ map: m, viz }) => {
+    map = m;
 
-  showMapUI();
+    currentRequest = viz.request ?? {};
 
-  map ??= new TomTomMap({
-    style: "standardLight",
-    mapLibre: { container: "sdk-map", center: [0, 0], zoom: 2 },
-  });
-
-  // E2E hook — tiles/hexes are canvas-rendered, not DOM.
-  if (!(window as unknown as { __e2e_ml?: unknown }).__e2e_ml) {
-    (window as unknown as { __e2e_ml: unknown }).__e2e_ml = map.mapLibreMap;
-  }
-
-  currentRequest = viz.request ?? {};
-
-  const normalized = normalizeAreaResponse(viz.report, {
-    startDate: currentRequest.startDate,
-    endDate: currentRequest.endDate,
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API shape, validated by the SDK parser
-  analytics = parseTrafficAreaAnalyticsResponse(normalized as any);
-
-  availableMetrics = analytics.properties.metrics;
-  activeMetric = pickMetric(availableMetrics, activeMetric);
-
-  if (!analyticsModule) {
-    analyticsModule = await TrafficAreaAnalyticsModule.get(map, {
-      displayMode: currentMode,
-      activeMetric,
+    const normalized = normalizeAreaResponse(viz.report, {
+      startDate: currentRequest.startDate,
+      endDate: currentRequest.endDate,
     });
-  } else {
-    analyticsModule.setMetric(activeMetric);
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API shape, validated by the SDK parser
+    analytics = parseTrafficAreaAnalyticsResponse(normalized as any);
 
-  if (!hoverBound) {
-    analyticsModule.events.on("hover", handleHover);
-    map.mapLibreMap.getContainer().addEventListener("mouseleave", hideTooltip);
-    hoverBound = true;
-  }
+    availableMetrics = analytics.properties.metrics;
+    activeMetric = pickMetric(availableMetrics, activeMetric);
 
-  analyticsModule.clearFilter();
-  clearRangeInputs();
-
-  await analyticsModule.show(analytics);
-
-  const emptyTiles = !hasTileData(analytics);
-
-  setPanelVisible(true);
-  renderHeader(analytics, currentRequest);
-  populateModeSelect(currentMode);
-  populateMetricSelect(availableMetrics, activeMetric);
-  renderLegend();
-  renderTimeSeries();
-  toggleEmptyState(emptyTiles);
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bboxFromGeoJSON's HasBBox union doesn't include TrafficAreaAnalytics
-    const bbox = bboxFromGeoJSON(analytics as any);
-    if (bbox) {
-      map.mapLibreMap.fitBounds(bbox, { padding: 40, pitch: 45 });
+    if (!analyticsModule) {
+      analyticsModule = await TrafficAreaAnalyticsModule.get(map, {
+        displayMode: currentMode,
+        activeMetric,
+      });
+    } else {
+      analyticsModule.setMetric(activeMetric);
     }
-  } catch (error) {
-    console.warn("[area-analytics] Failed to fit map bounds:", error);
-  }
-};
 
-app.onteardown = async (): Promise<Record<string, never>> => {
-  analyticsModule?.setVisible(false);
-  return {};
-};
+    if (!hoverBound) {
+      analyticsModule.events.on("hover", handleHover);
+      map.mapLibreMap.getContainer().addEventListener("mouseleave", hideTooltip);
+      hoverBound = true;
+    }
 
-async function connectApp(): Promise<void> {
-  try {
-    await app.connect();
-  } catch (error) {
-    // Expected when opened standalone (no MCP host) — e.g. local smoke testing.
-    console.warn("[area-analytics] Failed to connect to MCP host:", error);
-  }
-}
+    analyticsModule.clearFilter();
+    clearRangeInputs();
 
-void connectApp();
+    await analyticsModule.show(analytics);
+
+    const emptyTiles = !hasTileData(analytics);
+
+    setPanelVisible(true);
+    renderHeader(analytics, currentRequest);
+    populateModeSelect(currentMode);
+    populateMetricSelect(availableMetrics, activeMetric);
+    renderLegend();
+    renderTimeSeries();
+    toggleEmptyState(emptyTiles);
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bboxFromGeoJSON's HasBBox union doesn't include TrafficAreaAnalytics
+      const bbox = bboxFromGeoJSON(analytics as any);
+      if (bbox) {
+        map.mapLibreMap.fitBounds(bbox, { padding: 40, pitch: 45 });
+      }
+    } catch (error) {
+      console.warn("[area-analytics] Failed to fit map bounds:", error);
+    }
+  },
+  teardown: () => {
+    analyticsModule?.setVisible(false);
+  },
+});

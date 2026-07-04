@@ -3,15 +3,12 @@
  * Licensed under the Apache License, Version 2.0
  */
 
-import { App } from "@modelcontextprotocol/ext-apps";
 import { TomTomMap, CustomGeoJSONModule, TrafficFlowModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromCoordsArray } from "@tomtom-org/maps-sdk/core";
-import { ensureTomTomConfigured } from "@shared/sdk-config";
-import { extractFullData } from "@shared/viz-data";
-import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
+import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
 import { formatDuration, formatConfidence, formatSpeed } from "@shared/format";
-import { el, hideWaiting } from "@shared/dom";
+import { el } from "@shared/dom";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -63,8 +60,6 @@ const CLOSED_COLOR = "#e03030";
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-
-const app = new App({ name: "tta-traffic-flow", version: "1.0.0" });
 
 let map: TomTomMap | undefined;
 let geoModule: CustomGeoJSONModule | undefined;
@@ -134,162 +129,110 @@ el("backdrop-toggle")?.addEventListener("click", () => {
 });
 
 // ---------------------------------------------------------------------------
-// MCP App lifecycle — register hooks before connect() (ext-apps 1.7 rule)
+// MCP App lifecycle — shared bootstrap owns parse/gates/map creation.
 // ---------------------------------------------------------------------------
 
-app.ontoolinput = async (): Promise<void> => {
-  hideWaiting();
-};
-
-app.ontoolresult = async (result): Promise<void> => {
-  hideWaiting();
-
-  if (result.isError) {
-    setPanelVisible(false);
-    showErrorUI("Failed to fetch traffic flow data");
-    return;
-  }
-
-  const rawText = (result.content?.[0] as { text?: string } | undefined)?.text ?? "{}";
-  const parsedResp = JSON.parse(rawText);
-
-  if (!shouldShowUI(parsedResp)) {
-    setPanelVisible(false);
-    hideMapUI();
-    return;
-  }
-
-  if (!(await ensureTomTomConfigured(app))) {
-    setPanelVisible(false);
-    showErrorUI("TOMTOM_API_KEY not configured — map unavailable");
-    return;
-  }
-
-  const viz = (await extractFullData(app, parsedResp)) as VizPayload;
-
+bootstrapVizApp<VizPayload>({
+  name: "tta-traffic-flow",
+  panelId: "flow-panel",
+  errorMessage: "Failed to fetch traffic flow data",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
-  if (!Array.isArray((viz as any)?.segment?.coordinates)) {
-    setPanelVisible(false);
-    showErrorUI("Visualization data expired — re-run the tool");
-    return;
-  }
+  validate: (viz): viz is VizPayload => Array.isArray((viz as any)?.segment?.coordinates),
+  render: async ({ map: m, viz }) => {
+    map = m;
 
-  showMapUI();
-
-  map ??= new TomTomMap({
-    style: "standardLight",
-    mapLibre: { container: "sdk-map", center: [0, 0], zoom: 2 },
-  });
-
-  // E2E hook — the flow line/point are canvas-rendered, not DOM.
-  if (!(window as unknown as { __e2e_ml?: unknown }).__e2e_ml) {
-    (window as unknown as { __e2e_ml: unknown }).__e2e_ml = map.mapLibreMap;
-  }
-
-  // Backdrop FIRST so the queried segment's layers draw on top of it.
-  flowBackdrop ??= await TrafficFlowModule.get(map, { visible: backdropOn });
-  geoModule ??= await CustomGeoJSONModule.get(map, {
-    sources: {
-      segment: {
-        layers: [
-          {
-            id: "traffic-flow-segment-casing",
-            type: "line",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "#ffffff", "line-width": 9 },
-          },
-          {
-            id: "traffic-flow-segment-line",
-            type: "line",
-            filter: ["!=", ["get", "closed"], true],
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": ["get", "color"], "line-width": 5 },
-          },
-          {
-            id: "traffic-flow-segment-closed",
-            type: "line",
-            filter: ["==", ["get", "closed"], true],
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": CLOSED_COLOR, "line-width": 5, "line-dasharray": [2, 1.5] },
-          },
-        ],
-      },
-      point: {
-        layers: [
-          {
-            id: "traffic-flow-point-circle",
-            type: "circle",
-            paint: {
-              "circle-radius": 5,
-              "circle-color": "#0a3653",
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  const seg = viz.segment;
-  const ratio = seg.freeFlowSpeed > 0 ? seg.currentSpeed / seg.freeFlowSpeed : undefined;
-  const lineCoords = seg.coordinates.map((c) => [c.longitude, c.latitude]);
-  await geoModule.show(
-    {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          id: "segment",
-          geometry: { type: "LineString", coordinates: lineCoords },
-          properties: { id: "segment", color: ratioToColor(ratio), closed: seg.roadClosure === true },
-        },
-      ],
-    },
-    "segment"
-  );
-
-  const pt = viz.request?.point;
-  await geoModule.show(
-    {
-      type: "FeatureCollection",
-      features: pt
-        ? [
+    // Backdrop FIRST so the queried segment's layers draw on top of it.
+    flowBackdrop ??= await TrafficFlowModule.get(map, { visible: backdropOn });
+    geoModule ??= await CustomGeoJSONModule.get(map, {
+      sources: {
+        segment: {
+          layers: [
             {
-              type: "Feature",
-              id: "query-point",
-              geometry: { type: "Point", coordinates: [pt.longitude, pt.latitude] },
-              properties: { id: "query-point" },
+              id: "traffic-flow-segment-casing",
+              type: "line",
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": "#ffffff", "line-width": 9 },
             },
-          ]
-        : [],
-    },
-    "point"
-  );
+            {
+              id: "traffic-flow-segment-line",
+              type: "line",
+              filter: ["!=", ["get", "closed"], true],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": ["get", "color"], "line-width": 5 },
+            },
+            {
+              id: "traffic-flow-segment-closed",
+              type: "line",
+              filter: ["==", ["get", "closed"], true],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": CLOSED_COLOR, "line-width": 5, "line-dasharray": [2, 1.5] },
+            },
+          ],
+        },
+        point: {
+          layers: [
+            {
+              id: "traffic-flow-point-circle",
+              type: "circle",
+              paint: {
+                "circle-radius": 5,
+                "circle-color": "#0a3653",
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+              },
+            },
+          ],
+        },
+      },
+    });
 
-  setPanelVisible(true);
-  renderStats(viz);
+    const seg = viz.segment;
+    const ratio = seg.freeFlowSpeed > 0 ? seg.currentSpeed / seg.freeFlowSpeed : undefined;
+    const lineCoords = seg.coordinates.map((c) => [c.longitude, c.latitude]);
+    await geoModule.show(
+      {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            id: "segment",
+            geometry: { type: "LineString", coordinates: lineCoords },
+            properties: { id: "segment", color: ratioToColor(ratio), closed: seg.roadClosure === true },
+          },
+        ],
+      },
+      "segment"
+    );
 
-  const legendEl = el("legend");
-  if (legendEl) renderRampLegend(legendEl, "Current vs free-flow speed");
+    const pt = viz.request?.point;
+    await geoModule.show(
+      {
+        type: "FeatureCollection",
+        features: pt
+          ? [
+              {
+                type: "Feature",
+                id: "query-point",
+                geometry: { type: "Point", coordinates: [pt.longitude, pt.latitude] },
+                properties: { id: "query-point" },
+              },
+            ]
+          : [],
+      },
+      "point"
+    );
 
-  const bbox = bboxFromCoordsArray(lineCoords);
-  if (bbox) map.mapLibreMap.fitBounds(bbox, { padding: 80, maxZoom: 16 });
-};
+    setPanelVisible(true);
+    renderStats(viz);
 
-app.onteardown = async (): Promise<Record<string, never>> => {
-  geoModule?.setVisible(false);
-  flowBackdrop?.setVisible(false);
-  return {};
-};
+    const legendEl = el("legend");
+    if (legendEl) renderRampLegend(legendEl, "Current vs free-flow speed");
 
-async function connectApp(): Promise<void> {
-  try {
-    await app.connect();
-  } catch (error) {
-    // Expected when opened standalone (no MCP host) — e.g. local smoke testing.
-    console.warn("[traffic-flow] Failed to connect to MCP host:", error);
-  }
-}
-
-void connectApp();
+    const bbox = bboxFromCoordsArray(lineCoords);
+    if (bbox) map.mapLibreMap.fitBounds(bbox, { padding: 80, maxZoom: 16 });
+  },
+  teardown: () => {
+    geoModule?.setVisible(false);
+    flowBackdrop?.setVisible(false);
+  },
+});
