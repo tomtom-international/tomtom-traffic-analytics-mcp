@@ -31,9 +31,11 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
   RESOURCE_URI_META_KEY: "ui/resourceUri",
 }));
 
-const mockRegisterAppResourceFromPath = vi.fn();
+const mockRegisterTrafficAnalyticsApp = vi.fn(
+  (_server: unknown, appName: string) => `ui://tomtom-traffic-analytics/${appName}/app.html`
+);
 vi.mock("./helpers/resourceRegistry", () => ({
-  registerAppResourceFromPath: mockRegisterAppResourceFromPath,
+  registerTrafficAnalyticsApp: mockRegisterTrafficAnalyticsApp,
 }));
 
 const { createRouteMonitoringTools } = await import("./routeMonitoring");
@@ -111,13 +113,8 @@ describe("Route Monitoring Tools", () => {
   it("should register the route-details app resource exactly once", () => {
     createRouteMonitoringTools(mockServer);
 
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledTimes(1);
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
-      mockServer,
-      "ui://tomtom-traffic-analytics/route-details/app.html",
-      "traffic-analytics",
-      "route-details"
-    );
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledTimes(1);
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledWith(mockServer, "route-details");
   });
 
   it("should register tomtom-route-monitoring-details via registerAppTool bound to the same app resource", () => {

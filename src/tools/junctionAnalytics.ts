@@ -26,20 +26,13 @@ import {
   getJunctionLiveDataDetailsHandler,
   getJunctionArchiveHandler,
 } from "../handlers/junctionAnalyticsHandler";
-import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
-
-const JUNCTION_LIVE_RESOURCE_URI = "ui://tomtom-traffic-analytics/junction-live/app.html";
+import { registerTrafficAnalyticsApp } from "./helpers/resourceRegistry";
 
 /**
  * Creates and registers Junction Analytics tools
  */
 export function createJunctionAnalyticsTools(server: McpServer): void {
-  registerAppResourceFromPath(
-    server,
-    JUNCTION_LIVE_RESOURCE_URI,
-    "traffic-analytics",
-    "junction-live"
-  );
+  const junctionLiveUri = registerTrafficAnalyticsApp(server, "junction-live");
 
   // Search junctions with SQL filtering
   registerAppTool(
@@ -67,7 +60,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - Count by country: SELECT country_code, COUNT(*) as cnt FROM junctions GROUP BY country_code ORDER BY cnt DESC  -- country_code uses 3-letter codes: ESP, DEU, USA, GBR
     - Find by road (full view): SELECT j.junction_id, j.name, a.road_name FROM junctions j JOIN approaches a ON j.junction_id = a.junction_id WHERE a.road_name ILIKE '%Main%'`,
       inputSchema: junctionSearchSchema,
-      _meta: { [RESOURCE_URI_META_KEY]: JUNCTION_LIVE_RESOURCE_URI },
+      _meta: { [RESOURCE_URI_META_KEY]: junctionLiveUri },
     },
     getJunctionSearchHandler()
   );
@@ -103,7 +96,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - Rank by congestion: SELECT junction_id, ROUND(AVG(delay_sec), 2) as avg_delay FROM approaches GROUP BY junction_id ORDER BY avg_delay DESC
     - Compare queues: SELECT junction_id, MAX(queue_length_meters) as max_queue, COUNT(DISTINCT approach_id) as num_approaches FROM approaches GROUP BY junction_id`,
       inputSchema: junctionLiveDataDetailsSchema,
-      _meta: { [RESOURCE_URI_META_KEY]: JUNCTION_LIVE_RESOURCE_URI },
+      _meta: { [RESOURCE_URI_META_KEY]: junctionLiveUri },
     },
     getJunctionLiveDataDetailsHandler()
   );

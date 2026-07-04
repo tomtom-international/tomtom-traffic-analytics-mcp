@@ -30,9 +30,11 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
   RESOURCE_URI_META_KEY: "ui/resourceUri",
 }));
 
-const mockRegisterAppResourceFromPath = vi.fn();
+const mockRegisterTrafficAnalyticsApp = vi.fn(
+  (_server: unknown, appName: string) => `ui://tomtom-traffic-analytics/${appName}/app.html`
+);
 vi.mock("./helpers/resourceRegistry", () => ({
-  registerAppResourceFromPath: mockRegisterAppResourceFromPath,
+  registerTrafficAnalyticsApp: mockRegisterTrafficAnalyticsApp,
 }));
 
 const { createJunctionAnalyticsTools } = await import("./junctionAnalytics");
@@ -116,13 +118,8 @@ describe("Junction Analytics Tools", () => {
   it("should register the junction-live app resource exactly once", () => {
     createJunctionAnalyticsTools(mockServer);
 
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledTimes(1);
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
-      mockServer,
-      "ui://tomtom-traffic-analytics/junction-live/app.html",
-      "traffic-analytics",
-      "junction-live"
-    );
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledTimes(1);
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledWith(mockServer, "junction-live");
   });
 
   it("should register tools with correct schemas", () => {

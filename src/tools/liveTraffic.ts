@@ -24,21 +24,13 @@ import {
   getFlowSegmentDataHandler,
   createTrafficIncidentsHandler,
 } from "../handlers/liveTrafficHandler";
-import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
-
-const TRAFFIC_FLOW_RESOURCE_URI = "ui://tomtom-traffic-analytics/traffic-flow/app.html";
-const TRAFFIC_INCIDENTS_RESOURCE_URI = "ui://tomtom-traffic-analytics/traffic-incidents/app.html";
+import { registerTrafficAnalyticsApp } from "./helpers/resourceRegistry";
 
 /**
  * Creates and registers Traffic API tools (Flow, Incidents, etc.)
  */
 export function createLiveTrafficTools(server: McpServer): void {
-  registerAppResourceFromPath(
-    server,
-    TRAFFIC_FLOW_RESOURCE_URI,
-    "traffic-analytics",
-    "traffic-flow"
-  );
+  const trafficFlowUri = registerTrafficAnalyticsApp(server, "traffic-flow");
 
   registerAppTool(
     server,
@@ -63,17 +55,12 @@ FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting
 - Calculate delay: SELECT current_travel_time - free_flow_travel_time as delay_seconds, confidence FROM flow_segment
 - Spatial filter: SELECT current_speed FROM flow_segment WHERE ST_Intersects(ST_GeomFromGeoJSON(geom_geojson), ST_GeomFromGeoJSON('{...polygon...}'))`,
       inputSchema: trafficFlowDataSchema,
-      _meta: { [RESOURCE_URI_META_KEY]: TRAFFIC_FLOW_RESOURCE_URI },
+      _meta: { [RESOURCE_URI_META_KEY]: trafficFlowUri },
     },
     getFlowSegmentDataHandler()
   );
 
-  registerAppResourceFromPath(
-    server,
-    TRAFFIC_INCIDENTS_RESOURCE_URI,
-    "traffic-analytics",
-    "traffic-incidents"
-  );
+  const trafficIncidentsUri = registerTrafficAnalyticsApp(server, "traffic-incidents");
 
   registerAppTool(
     server,
@@ -115,7 +102,7 @@ FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting
     - Average delay by area: SELECT area_name, ROUND(AVG(delay), 2) as avg_delay_sec, COUNT(*) as incidents_with_delay FROM incidents WHERE delay IS NOT NULL GROUP BY area_name ORDER BY avg_delay_sec DESC`,
       inputSchema: trafficIncidentsSchema,
       _meta: {
-        [RESOURCE_URI_META_KEY]: TRAFFIC_INCIDENTS_RESOURCE_URI,
+        [RESOURCE_URI_META_KEY]: trafficIncidentsUri,
       },
     },
     createTrafficIncidentsHandler()

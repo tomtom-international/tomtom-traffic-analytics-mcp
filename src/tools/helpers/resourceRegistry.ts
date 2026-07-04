@@ -89,21 +89,21 @@ const APP_RESOURCE_CSP = {
  */
 const htmlCache = new Map<string, { html: string; mtimeMs: number }>();
 
+/** All MCP apps in this server live under one category directory. */
+const APP_CATEGORY = "traffic-analytics";
+
 /**
- * Register an MCP App resource from the dist-apps directory.
+ * Registers an MCP App resource and returns its `ui://` URI, derived from the
+ * app directory name so the URI, the on-disk path, and the tool `_meta`
+ * reference can never drift apart.
  *
  * @param server - MCP server instance
- * @param resourceUri - URI for the resource (e.g., "ui://tomtom-traffic/area-analytics/app.html")
- * @param category - App category (e.g., area-analytics, traffic-incidents)
- * @param appName - App directory name
+ * @param appName - App directory name under dist/apps/traffic-analytics/
+ * @returns The registered resource URI (bind it to the tool's `_meta`)
  */
-export function registerAppResourceFromPath(
-  server: McpServer,
-  resourceUri: string,
-  category: string,
-  appName: string
-): void {
-  const htmlPath = path.join(APP_BASE_PATH, category, appName, "app.html");
+export function registerTrafficAnalyticsApp(server: McpServer, appName: string): string {
+  const resourceUri = `ui://tomtom-${APP_CATEGORY}/${appName}/app.html`;
+  const htmlPath = path.join(APP_BASE_PATH, APP_CATEGORY, appName, "app.html");
 
   registerAppResource(
     server,
@@ -136,6 +136,8 @@ export function registerAppResourceFromPath(
       }
     }
   );
+
+  return resourceUri;
 }
 
 function buildResult(resourceUri: string, html: string): ReadResourceResult {

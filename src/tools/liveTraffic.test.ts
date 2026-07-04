@@ -35,9 +35,11 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
   RESOURCE_URI_META_KEY: "ui/resourceUri",
 }));
 
-const mockRegisterAppResourceFromPath = vi.fn();
+const mockRegisterTrafficAnalyticsApp = vi.fn(
+  (_server: unknown, appName: string) => `ui://tomtom-traffic-analytics/${appName}/app.html`
+);
 vi.mock("./helpers/resourceRegistry", () => ({
-  registerAppResourceFromPath: mockRegisterAppResourceFromPath,
+  registerTrafficAnalyticsApp: mockRegisterTrafficAnalyticsApp,
 }));
 
 const { createLiveTrafficTools } = await import("./liveTraffic");
@@ -95,12 +97,7 @@ describe("Live Traffic Tools", () => {
   it("should register the traffic-flow app resource once", () => {
     createLiveTrafficTools(mockServer);
 
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
-      mockServer,
-      "ui://tomtom-traffic-analytics/traffic-flow/app.html",
-      "traffic-analytics",
-      "traffic-flow"
-    );
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledWith(mockServer, "traffic-flow");
   });
 
   it("should register traffic incidents tool via registerAppTool bound to the app resource", () => {
@@ -137,13 +134,8 @@ describe("Live Traffic Tools", () => {
   it("should register the traffic-incidents app resource once", () => {
     createLiveTrafficTools(mockServer);
 
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledTimes(2);
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
-      mockServer,
-      "ui://tomtom-traffic-analytics/traffic-incidents/app.html",
-      "traffic-analytics",
-      "traffic-incidents"
-    );
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledTimes(2);
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledWith(mockServer, "traffic-incidents");
   });
 
   describe("Tool Naming Convention", () => {

@@ -21,9 +21,7 @@ import {
   routeSearchSchema,
 } from "../schemas/route-monitoring/routeMonitoringSchema";
 import { createRouteMonitoringHandlers } from "../handlers/routeMonitoringHandler";
-import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
-
-const ROUTE_DETAILS_RESOURCE_URI = "ui://tomtom-traffic-analytics/route-details/app.html";
+import { registerTrafficAnalyticsApp } from "./helpers/resourceRegistry";
 
 /**
  * Creates and registers route monitoring tools
@@ -31,12 +29,7 @@ const ROUTE_DETAILS_RESOURCE_URI = "ui://tomtom-traffic-analytics/route-details/
 export function createRouteMonitoringTools(server: McpServer): void {
   const handlers = createRouteMonitoringHandlers();
 
-  registerAppResourceFromPath(
-    server,
-    ROUTE_DETAILS_RESOURCE_URI,
-    "traffic-analytics",
-    "route-details"
-  );
+  const routeDetailsUri = registerTrafficAnalyticsApp(server, "route-details");
 
   // Search routes with SQL filtering
   registerAppTool(
@@ -67,7 +60,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
     - Status summary: SELECT route_status, COUNT(*) as cnt FROM routes GROUP BY route_status
     - Active with delays: SELECT route_id, route_name, delay_time, ROUND(delay_time * 100.0 / NULLIF(travel_time, 0), 1) as delay_pct FROM routes WHERE route_status = 'ACTIVE' AND delay_time > 0 ORDER BY delay_pct DESC`,
       inputSchema: routeSearchSchema,
-      _meta: { [RESOURCE_URI_META_KEY]: ROUTE_DETAILS_RESOURCE_URI },
+      _meta: { [RESOURCE_URI_META_KEY]: routeDetailsUri },
     },
     handlers.searchRoutes
   );
@@ -98,7 +91,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
     - Compare routes by delay: SELECT route_id, route_name, delay_time, travel_time, ROUND(delay_time * 100.0 / NULLIF(travel_time, 0), 1) as delay_percent FROM route_info ORDER BY delay_percent DESC
     - Route performance ranking: SELECT route_id, route_name, ROUND(route_confidence, 2) as confidence, completeness FROM route_info ORDER BY route_confidence DESC`,
       inputSchema: getRouteDetailsSchema,
-      _meta: { [RESOURCE_URI_META_KEY]: ROUTE_DETAILS_RESOURCE_URI },
+      _meta: { [RESOURCE_URI_META_KEY]: routeDetailsUri },
     },
     handlers.getRouteDetails
   );

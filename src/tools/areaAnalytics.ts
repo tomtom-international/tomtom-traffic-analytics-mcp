@@ -18,20 +18,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAppTool, RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps/server";
 import { areaAnalyticsStatsSchema } from "../schemas/area-analytics/areaAnalyticsSchema";
 import { getAreaAnalyticsStatsHandler } from "../handlers/areaAnalyticsHandler";
-import { registerAppResourceFromPath } from "./helpers/resourceRegistry";
-
-const AREA_ANALYTICS_RESOURCE_URI = "ui://tomtom-traffic-analytics/area-analytics/app.html";
+import { registerTrafficAnalyticsApp } from "./helpers/resourceRegistry";
 
 /**
  * Creates and registers Area Analytics tools
  */
 export function createAreaAnalyticsTools(server: McpServer): void {
-  registerAppResourceFromPath(
-    server,
-    AREA_ANALYTICS_RESOURCE_URI,
-    "traffic-analytics",
-    "area-analytics"
-  );
+  const areaAnalyticsUri = registerTrafficAnalyticsApp(server, "area-analytics");
 
   registerAppTool(
     server,
@@ -61,7 +54,7 @@ export function createAreaAnalyticsTools(server: McpServer): void {
     - Spatial filter: SELECT lat, lon, congestion_level FROM tiled_data WHERE ST_DWithin(point_geom, ST_Point(4.9, 52.37), 1000)`,
       inputSchema: areaAnalyticsStatsSchema,
       _meta: {
-        [RESOURCE_URI_META_KEY]: AREA_ANALYTICS_RESOURCE_URI,
+        [RESOURCE_URI_META_KEY]: areaAnalyticsUri,
       },
     },
     getAreaAnalyticsStatsHandler()

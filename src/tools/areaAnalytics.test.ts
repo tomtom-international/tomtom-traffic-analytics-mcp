@@ -33,9 +33,11 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
   RESOURCE_URI_META_KEY: "ui/resourceUri",
 }));
 
-const mockRegisterAppResourceFromPath = vi.fn();
+const mockRegisterTrafficAnalyticsApp = vi.fn(
+  (_server: unknown, appName: string) => `ui://tomtom-traffic-analytics/${appName}/app.html`
+);
 vi.mock("./helpers/resourceRegistry", () => ({
-  registerAppResourceFromPath: mockRegisterAppResourceFromPath,
+  registerTrafficAnalyticsApp: mockRegisterTrafficAnalyticsApp,
 }));
 
 const { createAreaAnalyticsTools } = await import("./areaAnalytics");
@@ -117,13 +119,8 @@ describe("Area Analytics Tools", () => {
   it("should register the area-analytics app resource once", () => {
     createAreaAnalyticsTools(mockServer);
 
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledTimes(1);
-    expect(mockRegisterAppResourceFromPath).toHaveBeenCalledWith(
-      mockServer,
-      "ui://tomtom-traffic-analytics/area-analytics/app.html",
-      "traffic-analytics",
-      "area-analytics"
-    );
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledTimes(1);
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledWith(mockServer, "area-analytics");
   });
 
   it("should follow consistent naming pattern", () => {

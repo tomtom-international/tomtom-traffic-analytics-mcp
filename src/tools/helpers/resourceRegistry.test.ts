@@ -45,30 +45,25 @@ vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
   RESOURCE_MIME_TYPE: "text/html",
 }));
 
-const { registerAppResourceFromPath } = await import("./resourceRegistry");
+const { registerTrafficAnalyticsApp } = await import("./resourceRegistry");
 
-describe("registerAppResourceFromPath", () => {
+describe("registerTrafficAnalyticsApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedResourceHandler = null;
     mockStat.mockResolvedValue({ mtimeMs: 1000 });
   });
 
-  it("registers synchronously (returns void, no promise) and passes the URI + mime type", () => {
+  it("registers synchronously and returns the derived URI + mime type", () => {
     const mockServer = {} as McpServer;
 
-    const result = registerAppResourceFromPath(
-      mockServer,
-      "ui://test/app.html",
-      "search",
-      "geocode"
-    );
+    const result = registerTrafficAnalyticsApp(mockServer, "geocode");
 
-    expect(result).toBeUndefined();
+    expect(result).toBe("ui://tomtom-traffic-analytics/geocode/app.html");
     expect(mockRegisterAppResource).toHaveBeenCalledOnce();
     expect(mockRegisterAppResource).toHaveBeenCalledWith(
       mockServer,
-      "ui://test/app.html",
+      "ui://tomtom-traffic-analytics/geocode/app.html",
       expect.any(String),
       { mimeType: "text/html" },
       expect.any(Function)
@@ -77,13 +72,12 @@ describe("registerAppResourceFromPath", () => {
 
   it("serves HTML content with the exact CSP domain lists on read", async () => {
     const mockServer = {} as McpServer;
-    const resourceUri = "ui://test/app.html";
     mockReadFile.mockResolvedValue("<html><body>Test App</body></html>");
 
-    registerAppResourceFromPath(mockServer, resourceUri, "search", "geocode");
+    const uri = registerTrafficAnalyticsApp(mockServer, "geocode");
     const result = await capturedResourceHandler!();
 
-    expect(result.contents[0].uri).toBe(resourceUri);
+    expect(result.contents[0].uri).toBe(uri);
     expect(result.contents[0].mimeType).toBe("text/html");
     expect(result.contents[0].text).toBe("<html><body>Test App</body></html>");
     expect(result.contents[0]._meta).toEqual({
@@ -109,11 +103,10 @@ describe("registerAppResourceFromPath", () => {
 
   it("memoizes by mtime: unchanged file is read once, changed file is re-read", async () => {
     const mockServer = {} as McpServer;
-    const resourceUri = "ui://test/memo.html";
     mockStat.mockResolvedValue({ mtimeMs: 1000 });
     mockReadFile.mockResolvedValue("<html>v1</html>");
 
-    registerAppResourceFromPath(mockServer, resourceUri, "search", "memo-app");
+    registerTrafficAnalyticsApp(mockServer, "memo-app");
 
     const first = await capturedResourceHandler!();
     const second = await capturedResourceHandler!();
@@ -131,11 +124,10 @@ describe("registerAppResourceFromPath", () => {
 
   it("returns fallback HTML when the file is missing, without throwing", async () => {
     const mockServer = {} as McpServer;
-    const resourceUri = "ui://test/missing.html";
     mockStat.mockRejectedValue(new Error("ENOENT"));
     mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
-    registerAppResourceFromPath(mockServer, resourceUri, "search", "missing-app");
+    registerTrafficAnalyticsApp(mockServer, "missing-app");
 
     const result = await capturedResourceHandler!();
 
@@ -147,10 +139,9 @@ describe("registerAppResourceFromPath", () => {
 
   it("does not memoize the fallback: a subsequent successful read is served fresh", async () => {
     const mockServer = {} as McpServer;
-    const resourceUri = "ui://test/retry.html";
     mockStat.mockRejectedValueOnce(new Error("ENOENT"));
 
-    registerAppResourceFromPath(mockServer, resourceUri, "search", "retry-app");
+    registerTrafficAnalyticsApp(mockServer, "retry-app");
 
     const failedResult = await capturedResourceHandler!();
     expect(failedResult.contents[0].text).toContain("App UI not available");
