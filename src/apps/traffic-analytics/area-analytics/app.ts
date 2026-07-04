@@ -22,6 +22,7 @@ import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { normalizeAreaResponse } from "@shared/geo";
+import { computeBarLayout } from "@shared/chart-layout";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -286,8 +287,7 @@ function renderTimeSeries(): void {
   const topPad = 16; // room for the value label above the tallest bar
   const bottomPad = 20; // room for the axis label below each bar
   const barAreaHeight = height - topPad - bottomPad;
-  const barGap = 4;
-  const barWidth = (width - barGap * (values.length - 1)) / values.length;
+  const { barWidth, barGap } = computeBarLayout(values.length, width, 4);
 
   // Thin axis labels when there are too many bars for them to stay legible.
   const maxLabels = 8;
