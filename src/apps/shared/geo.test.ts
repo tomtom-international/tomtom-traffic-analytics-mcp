@@ -4,7 +4,7 @@
  */
 
 import { customizeService } from "@tomtom-org/maps-sdk/services";
-import { bboxUnion, withBaseData, normalizeAreaResponse } from "./geo";
+import { bboxUnion, withBaseData, normalizeAreaResponse, polygonRingCentroid } from "./geo";
 import areaAnalyticsFixture from "./__fixtures__/area-analytics-response.json";
 import incidentsFixture from "./__fixtures__/incidents-response.json";
 
@@ -253,5 +253,23 @@ describe("bboxUnion", () => {
     const a: [number, number, number, number] = [1, 2, 3, 4];
 
     expect(bboxUnion([a])).toEqual(a);
+  });
+});
+
+describe("polygonRingCentroid", () => {
+  it("returns null for an empty ring", () => {
+    expect(polygonRingCentroid([])).toBeNull();
+  });
+  it("averages vertices of an open ring", () => {
+    expect(polygonRingCentroid([[0, 0], [2, 0], [2, 2], [0, 2]])).toEqual([1, 1]);
+  });
+  it("ignores the duplicated closing vertex of a closed GeoJSON ring", () => {
+    // Closed ring: first == last. Naive averaging counts [0,0] twice and
+    // biases the centroid toward that corner.
+    const closed = [[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]];
+    expect(polygonRingCentroid(closed)).toEqual([1, 1]);
+  });
+  it("handles a degenerate single-vertex ring", () => {
+    expect(polygonRingCentroid([[3, 4]])).toEqual([3, 4]);
   });
 });

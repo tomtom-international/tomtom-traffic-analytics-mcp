@@ -121,3 +121,31 @@ export function bboxUnion(bboxes: Bbox[]): Bbox {
     [...bboxes[0]] as Bbox
   );
 }
+
+/**
+ * Vertex-average centroid of a GeoJSON polygon ring.
+ *
+ * GeoJSON rings are closed (first coordinate repeated as the last); averaging
+ * all vertices would count that shared vertex twice and bias the centroid
+ * toward it, so the duplicated closing vertex is excluded first.
+ *
+ * @param ring - Array of [lon, lat] vertices (open or closed)
+ * @returns [lon, lat] centroid, or null when the ring is empty
+ */
+export function polygonRingCentroid(ring: number[][]): [number, number] | null {
+  if (ring.length === 0) return null;
+
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  const isClosed =
+    ring.length > 1 && first[0] === last[0] && first[1] === last[1];
+  const vertices = isClosed ? ring.slice(0, -1) : ring;
+
+  let sumLon = 0;
+  let sumLat = 0;
+  for (const vertex of vertices) {
+    sumLon += vertex[0];
+    sumLat += vertex[1];
+  }
+  return [sumLon / vertices.length, sumLat / vertices.length];
+}

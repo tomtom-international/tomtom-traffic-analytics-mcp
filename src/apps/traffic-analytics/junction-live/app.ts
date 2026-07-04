@@ -6,6 +6,7 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 import { TomTomMap, CustomGeoJSONModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromGeoJSON } from "@tomtom-org/maps-sdk/core";
+import { polygonRingCentroid } from "@shared/geo";
 import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
@@ -177,6 +178,7 @@ let prevHoverApproachFeatureId: string | null = null;
 let prevHoverExitFeatureId: string | null = null;
 let currentLiveById = new Map<number, ApproachLiveData>();
 let currentExits: Exit[] = [];
+let currentExitById = new Map<number, Exit>();
 
 // ---------------------------------------------------------------------------
 // DOM helpers
@@ -219,17 +221,7 @@ function escapeHtml(text: string): string {
 
 function junctionCenter(geometry: GeoJSONPointGeom | GeoJSONPolygonGeom): [number, number] | null {
   if (geometry.type === "Point") return geometry.coordinates;
-
-  const ring = geometry.coordinates[0];
-  if (!ring || ring.length === 0) return null;
-
-  let sumLon = 0;
-  let sumLat = 0;
-  for (const vertex of ring) {
-    sumLon += vertex[0];
-    sumLat += vertex[1];
-  }
-  return [sumLon / ring.length, sumLat / ring.length];
+  return polygonRingCentroid(geometry.coordinates[0] ?? []);
 }
 
 interface JunctionFeature {
@@ -547,7 +539,7 @@ function renderTurnRatioTable(table: HTMLElement, approachId: number): void {
 
   const rows = turnRatios
     .map((tr) => {
-      const exit = currentExits.find((e) => e.id === tr.exitId);
+      const exit = currentExitById.get(tr.exitId);
       const label = exit ? exit.roadName || exit.name : `#${tr.exitId}`;
       return `<tr data-exit-id="${Number(tr.exitId)}"><td>${escapeHtml(label)}</td><td>${Math.round(tr.ratioPercent)}%</td><td>${Number(tr.probesCount)}</td></tr>`;
     })
@@ -675,6 +667,7 @@ function selectLiveJunction(junction: JunctionLiveData): void {
   const model = junction.junctionModel;
   currentLiveById = new Map(junction.approachesLiveData.map((a) => [a.id, a]));
   currentExits = model?.exits ?? [];
+  currentExitById = new Map(currentExits.map((e) => [e.id, e]));
 
   if (!model) {
     void geoModule?.clear("approaches");
@@ -774,6 +767,7 @@ async function resetPanelState(): Promise<void> {
   prevHoverExitFeatureId = null;
   currentLiveById = new Map();
   currentExits = [];
+  currentExitById = new Map();
 }
 
 // ---------------------------------------------------------------------------
