@@ -9,7 +9,6 @@
  */
 
 import express from "express";
-import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { config } from "dotenv";
@@ -30,8 +29,10 @@ const TOMTOM_API_KEY = process.env.TOMTOM_API_KEY || "";
 const TOMTOM_MOVE_PORTAL_KEY = process.env.TOMTOM_MOVE_PORTAL_KEY || "";
 
 // ============ Host Server (port 8080) ============
+// NOTE: deliberately NO cors() here. /api/config returns real API keys; the
+// UI fetches it same-origin, and browsers' same-origin policy is what stops
+// arbitrary websites from reading it off the running dev harness.
 const hostApp = express();
-hostApp.use(cors());
 
 hostApp.use((req, res, next) => {
   if (req.path === "/sandbox.html") {
@@ -63,11 +64,17 @@ hostApp.get("/", (_req, res) => {
 
 // ============ Sandbox Server (port 8081) ============
 const sandboxApp = express();
-sandboxApp.use(cors());
+
+/**
+ * Only forward well-formed origins/schemes into the CSP header. The csp query
+ * param is attacker-influenceable, so this is an allowlist of shapes (https/
+ * wss origins and the blob:/data: schemes the apps need), not a char filter.
+ */
+const CSP_DOMAIN_PATTERN = /^(https:\/\/[^\s;'"]+|wss:\/\/[^\s;'"]+|blob:|data:)$/;
 
 function sanitizeCspDomains(domains?: string[]): string[] {
   if (!domains) return [];
-  return domains.filter((d) => typeof d === "string" && !/[;\r\n'" ]/.test(d));
+  return domains.filter((d) => typeof d === "string" && CSP_DOMAIN_PATTERN.test(d));
 }
 
 function buildCspHeader(csp?: McpUiResourceCsp): string {

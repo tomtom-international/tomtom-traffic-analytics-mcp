@@ -63,7 +63,11 @@ window.addEventListener("message", async (event) => {
       }
     } else {
       if (inner && inner.contentWindow) {
-        inner.contentWindow.postMessage(event.data, "*");
+        // Pin the target origin: the inner document is written via
+        // document.write from this page, so it shares this origin. If the
+        // frame ever ends up on a different origin, host payloads (tool
+        // results, model context) must not be delivered there.
+        inner.contentWindow.postMessage(event.data, OWN_ORIGIN);
       }
     }
   } else if (event.source === inner.contentWindow) {

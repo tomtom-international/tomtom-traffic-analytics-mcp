@@ -288,6 +288,18 @@ export function newAppBridge(
   };
 
   appBridge.onopenlink = async (params) => {
+    // Apps are untrusted content: only allow web URLs (no javascript:, file:, data:).
+    let protocol: string;
+    try {
+      protocol = new URL(params.url).protocol;
+    } catch {
+      log.warn("Blocked openLink with unparseable URL:", params.url);
+      return {};
+    }
+    if (protocol !== "https:" && protocol !== "http:") {
+      log.warn("Blocked openLink with disallowed scheme:", params.url);
+      return {};
+    }
     window.open(params.url, "_blank", "noopener,noreferrer");
     return {};
   };
