@@ -9,6 +9,7 @@ import {
   standardStyleIDs,
   type StandardStyleID,
 } from "@tomtom-org/maps-sdk/map";
+import { exposeMapForE2E } from "./e2e";
 
 export interface MapControlsOptions {
   position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -36,8 +37,7 @@ export async function createMapControls(
   setTrafficVisible: (visible: boolean) => void;
   destroy: () => void;
 }> {
-  // Expose MapLibre map instance for E2E test automation (markers are canvas-rendered, not DOM)
-  (window as any).__e2e_ml = map.mapLibreMap;
+  exposeMapForE2E(map);
 
   const opts = {
     position: options.position ?? ("top-right" as const),
