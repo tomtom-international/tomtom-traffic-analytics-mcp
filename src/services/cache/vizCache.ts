@@ -15,6 +15,10 @@
  *
  * Visualization data cache service using node-cache.
  * Stores full API responses with short TTL for MCP Apps to retrieve.
+ * Per-process only: in multi-process/load-balanced HTTP deployments a
+ * `tomtom-get-viz-data` call routed to a different process misses the cache
+ * and the app falls back to its localStorage copy or the 'expired' state.
+ * viz_ids are unguessable UUIDs but not session-bound.
  */
 
 import NodeCache from "node-cache";
@@ -40,6 +44,17 @@ const CACHE_CONFIG = {
 const vizCache = new NodeCache(CACHE_CONFIG);
 
 /**
+ * Hard bound on resident entries. Every tool call stores its full raw
+ * upstream response (multi-MB for multi-bbox incidents or area reports) for
+ * the whole TTL window, and nothing deletes entries on consumption — without
+ * a bound, a burst of tool calls retains all of them for 5 minutes.
+ * node-cache has no LRU support, so insertion order (FIFO) is tracked here;
+ * TTL-expired keys are pruned from the queue lazily via `has()`.
+ */
+const MAX_VIZ_ENTRIES = 50;
+const insertionOrder: string[] = [];
+
+/**
  * Store visualization data in cache and return unique viz_id
  *
  * @param data - Full API response data to cache
@@ -48,6 +63,20 @@ const vizCache = new NodeCache(CACHE_CONFIG);
 export function storeVizData(data: unknown): string {
   const vizId = randomUUID();
   vizCache.set(vizId, data);
+  insertionOrder.push(vizId);
+
+  // Drop already-expired keys from the queue, then evict oldest beyond the bound.
+  while (insertionOrder.length > 0 && !vizCache.has(insertionOrder[0])) {
+    insertionOrder.shift();
+  }
+  while (insertionOrder.length > MAX_VIZ_ENTRIES) {
+    const oldest = insertionOrder.shift();
+    if (oldest !== undefined) {
+      vizCache.del(oldest);
+      logger.debug(`vizCache: evicted ${oldest} (FIFO bound ${MAX_VIZ_ENTRIES})`);
+    }
+  }
+
   logger.debug(`vizCache: stored ${vizId}`);
   return vizId;
 }
@@ -86,6 +115,7 @@ export function getCacheStats(): NodeCache.Stats {
  * Useful for testing or server shutdown
  */
 export function clearVizCache(): void {
+  insertionOrder.length = 0;
   vizCache.flushAll();
   logger.info("Cleared all visualization data from cache");
 }

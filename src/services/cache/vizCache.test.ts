@@ -173,4 +173,27 @@ describe("vizCache", () => {
       }
     });
   });
+
+  describe("entry bound (FIFO eviction)", () => {
+    it("evicts the oldest entry once more than 50 entries are stored", () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 51; i++) {
+        ids.push(storeVizData({ i }));
+      }
+      // Oldest evicted, newest 50 retained
+      expect(getVizData(ids[0])).toBeUndefined();
+      expect(getVizData(ids[1])).toEqual({ i: 1 });
+      expect(getVizData(ids[50])).toEqual({ i: 50 });
+      expect(getCacheStats().keys).toBe(50);
+    });
+
+    it("does not evict anything at exactly the bound", () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 50; i++) {
+        ids.push(storeVizData({ i }));
+      }
+      expect(getVizData(ids[0])).toEqual({ i: 0 });
+      expect(getCacheStats().keys).toBe(50);
+    });
+  });
 });
