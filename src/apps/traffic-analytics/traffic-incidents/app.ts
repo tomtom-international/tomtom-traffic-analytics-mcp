@@ -15,6 +15,7 @@ import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { bboxUnion, type Bbox } from "@shared/geo";
+import { dedupeBy } from "@shared/collections";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -412,14 +413,20 @@ app.ontoolresult = async (result): Promise<void> => {
   activeAreaFilter = null;
   clearFocus();
 
-  allFeatures = viz.areas.flatMap((area) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API shape, validated by the SDK parser
-    const parsed = parseTrafficIncidentDetailsResponse(area.incidents as any);
-    return parsed.features.map((f) => ({
-      ...f,
-      properties: { ...f.properties, areaName: area.name },
-    })) as IncidentFeature[];
-  });
+  // The same incident can be returned by two overlapping bboxes — dedupe by
+  // the TomTom-global incident id (first area wins) so MapLibre feature ids
+  // stay unique and the list shows each incident once.
+  allFeatures = dedupeBy(
+    viz.areas.flatMap((area) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API shape, validated by the SDK parser
+      const parsed = parseTrafficIncidentDetailsResponse(area.incidents as any);
+      return parsed.features.map((f) => ({
+        ...f,
+        properties: { ...f.properties, areaName: area.name },
+      })) as IncidentFeature[];
+    }),
+    (f) => f.properties.id
+  );
   featuresById = new Map(allFeatures.map((f) => [f.properties.id, f]));
 
   setPanelVisible(true);
