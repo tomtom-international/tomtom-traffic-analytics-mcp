@@ -4,29 +4,39 @@
  */
 
 import type { App } from "@modelcontextprotocol/ext-apps";
+import { selectEvictionKeys } from "./viz-eviction";
 
 const VIZ_CACHE_PREFIX = "tta-viz-";
 const VIZ_CACHE_MAX_ENTRIES = 20;
 
+/** localStorage wrapper: timestamp + payload, so eviction is oldest-first. */
+interface CachedViz {
+  t: number;
+  data: unknown;
+}
+
 /**
  * Save visualization data to localStorage for offline/reconnect scenarios.
- * Silently fails if localStorage is unavailable or full.
+ * Entries are wrapped with a stored timestamp; eviction removes the oldest
+ * entries first. Silently fails if localStorage is unavailable or full.
  */
 function saveToLocalCache(vizId: string, data: unknown): void {
   try {
-    const key = VIZ_CACHE_PREFIX + vizId;
-    localStorage.setItem(key, JSON.stringify(data));
+    const wrapper: CachedViz = { t: Date.now(), data };
+    localStorage.setItem(VIZ_CACHE_PREFIX + vizId, JSON.stringify(wrapper));
 
-    // Evict entries if we exceed the limit. Note: sort() on uuid-suffixed keys
-    // does not order by recency, so eviction is arbitrary among cached entries,
-    // not actually oldest-first.
-    const allKeys = Object.keys(localStorage).filter((k) => k.startsWith(VIZ_CACHE_PREFIX));
-    if (allKeys.length > VIZ_CACHE_MAX_ENTRIES) {
-      allKeys.sort();
-      const toRemove = allKeys.slice(0, allKeys.length - VIZ_CACHE_MAX_ENTRIES);
-      for (const k of toRemove) {
-        localStorage.removeItem(k);
-      }
+    const entries = Object.keys(localStorage)
+      .filter((k) => k.startsWith(VIZ_CACHE_PREFIX))
+      .map((key) => {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(key) ?? "null") as CachedViz | null;
+          return { key, t: typeof parsed?.t === "number" ? parsed.t : 0 };
+        } catch {
+          return { key, t: 0 };
+        }
+      });
+    for (const key of selectEvictionKeys(entries, VIZ_CACHE_MAX_ENTRIES)) {
+      localStorage.removeItem(key);
     }
   } catch {
     // localStorage unavailable or quota exceeded — silently continue
@@ -40,7 +50,13 @@ function saveToLocalCache(vizId: string, data: unknown): void {
 function loadFromLocalCache(vizId: string): unknown {
   try {
     const raw = localStorage.getItem(VIZ_CACHE_PREFIX + vizId);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedViz | unknown;
+    // Wrapped entry — unwrap; anything else is a legacy raw payload.
+    if (parsed && typeof parsed === "object" && "t" in parsed && "data" in parsed) {
+      return (parsed as CachedViz).data;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -80,8 +96,9 @@ async function fetchVizData(app: App, vizId: string): Promise<unknown> {
  * Extract full data from MCP tool response by fetching from server cache.
  * The response contains a viz_id in _meta which is used to retrieve cached data.
  * Falls back to client-side localStorage when server cache is unavailable
- * (e.g. conversation reopened after server restart), and finally to the
- * trimmed response itself if no cached data can be found anywhere.
+ * (e.g. conversation reopened after server restart), and returns `null`
+ * when no cached payload can be found anywhere (callers show their
+ * data-expired state).
  *
  * @param app - Connected MCP App instance
  * @param agentResponse - The tool response containing _meta.viz_id
@@ -111,6 +128,8 @@ export async function extractFullData(
     }
   }
 
-  // Final fallback: use the response as-is (trimmed data)
-  return agentResponse;
+  // No cached payload anywhere (server cache expired/restarted AND no local
+  // copy). The trimmed tool response can never satisfy an app's payload
+  // guard, so return an explicit miss — apps render their "expired" state.
+  return null;
 }
