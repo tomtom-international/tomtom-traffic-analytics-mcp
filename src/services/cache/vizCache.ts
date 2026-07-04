@@ -99,6 +99,12 @@ export function getVizData(vizId: string): unknown | undefined {
  */
 export function deleteVizData(vizId: string): void {
   vizCache.del(vizId);
+  // Free the FIFO slot too — a ghost entry would count toward MAX_VIZ_ENTRIES
+  // and evict a still-live entry prematurely.
+  const queueIndex = insertionOrder.indexOf(vizId);
+  if (queueIndex !== -1) {
+    insertionOrder.splice(queueIndex, 1);
+  }
 }
 
 /**

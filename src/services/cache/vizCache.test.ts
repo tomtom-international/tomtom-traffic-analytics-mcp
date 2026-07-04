@@ -195,5 +195,21 @@ describe("vizCache", () => {
       expect(getVizData(ids[0])).toEqual({ i: 0 });
       expect(getCacheStats().keys).toBe(50);
     });
+
+    it("deleteVizData frees a slot instead of leaving a ghost in the FIFO queue", () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 50; i++) {
+        ids.push(storeVizData({ i }));
+      }
+      // Delete a mid-queue entry, then store one more: 50 live entries fit the
+      // bound exactly, so nothing may be evicted. A ghost queue slot for the
+      // deleted id would push the queue over the bound and evict ids[0] early.
+      deleteVizData(ids[5]);
+      const extra = storeVizData({ i: 50 });
+
+      expect(getVizData(ids[0])).toEqual({ i: 0 });
+      expect(getVizData(extra)).toEqual({ i: 50 });
+      expect(getCacheStats().keys).toBe(50);
+    });
   });
 });

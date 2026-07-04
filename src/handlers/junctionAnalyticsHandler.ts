@@ -315,8 +315,12 @@ export function getJunctionArchiveHandler() {
       for (const rawResult of rawResults) {
         const flattened = flattenJunctionArchive(rawResult);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
