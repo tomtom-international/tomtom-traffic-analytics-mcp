@@ -12,6 +12,7 @@ import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visi
 import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
 import { formatDuration, formatConfidence } from "@shared/format";
 import { el, hideWaiting, escapeHtml, clearAndHide } from "@shared/dom";
+import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -236,30 +237,17 @@ function parseSegmentFeatureId(
 }
 
 // ---------------------------------------------------------------------------
-// Feature-state helper — tracks the previously flagged feature id per
-// (source, state) pair so at most one feature is ever flagged at a time.
+// Feature-state helper — shared tracker; at most one feature per
+// (source, state) pair is ever flagged.
 // ---------------------------------------------------------------------------
 
 type StateSource = "routes" | "segments";
 type StateName = "hover" | "selected";
 
-const prevFeatureIds: Record<StateSource, Record<StateName, string | null>> = {
-  routes: { hover: null, selected: null },
-  segments: { hover: null, selected: null },
-};
+const setFeatureStateRaw = createFeatureStateSetter(() => ({ map, geoModule }));
 
 function setState(source: StateSource, id: string | number | null, state: StateName): void {
-  if (!map || !geoModule) return;
-  const sourceID = geoModule.sourceAndLayerIDs[source].sourceID;
-  const prev = prevFeatureIds[source][state];
-  if (prev !== null) {
-    map.mapLibreMap.removeFeatureState({ source: sourceID, id: prev }, state);
-  }
-  const next = id !== null ? String(id) : null;
-  if (next !== null) {
-    map.mapLibreMap.setFeatureState({ source: sourceID, id: next }, { [state]: true });
-  }
-  prevFeatureIds[source][state] = next;
+  setFeatureStateRaw(source, id, state);
 }
 
 // ---------------------------------------------------------------------------

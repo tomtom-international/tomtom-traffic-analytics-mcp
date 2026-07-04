@@ -11,6 +11,7 @@ import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { el, hideWaiting, escapeHtml, clearAndHide } from "@shared/dom";
+import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -168,15 +169,11 @@ let currentMode: "search" | "live" | null = null;
 // Search mode state
 let searchJunctions: JunctionDefinition[] = [];
 let selectedJunctionId: string | null = null;
-let prevSelectedJunctionFeatureId: string | null = null;
 
 // Live mode state
 let liveJunctions: JunctionLiveData[] = [];
 let selectedLiveJunctionId: string | null = null;
 let selectedApproachId: number | null = null;
-let prevSelectedApproachFeatureId: string | null = null;
-let prevHoverApproachFeatureId: string | null = null;
-let prevHoverExitFeatureId: string | null = null;
 let currentLiveById = new Map<number, ApproachLiveData>();
 let currentExits: Exit[] = [];
 let currentExitById = new Map<number, Exit>();
@@ -267,60 +264,27 @@ function hasGeometry(feature: { geometry: { coordinates: unknown[] } }): boolean
 }
 
 // ---------------------------------------------------------------------------
-// Feature-state helpers
+// Feature-state helpers — shared tracker; at most one feature per
+// (source, state) pair is ever flagged.
 // ---------------------------------------------------------------------------
 
+const setState = createFeatureStateSetter(() => ({ map, geoModule }));
+
 function setJunctionSelected(id: string | null): void {
-  if (!map || !geoModule) return;
-  const sourceID = geoModule.sourceAndLayerIDs.junctions.sourceID;
-  if (prevSelectedJunctionFeatureId !== null) {
-    map.mapLibreMap.removeFeatureState({ source: sourceID, id: prevSelectedJunctionFeatureId });
-  }
-  if (id !== null) {
-    map.mapLibreMap.setFeatureState({ source: sourceID, id }, { selected: true });
-  }
-  prevSelectedJunctionFeatureId = id;
+  setState("junctions", id, "selected");
 }
 
 function setApproachSelected(id: number | null): void {
-  if (!map || !geoModule) return;
-  const sourceID = geoModule.sourceAndLayerIDs.approaches.sourceID;
-  if (prevSelectedApproachFeatureId !== null) {
-    map.mapLibreMap.removeFeatureState({ source: sourceID, id: prevSelectedApproachFeatureId });
-  }
-  const featureId = id !== null ? "a-" + id : null;
-  if (featureId !== null) {
-    map.mapLibreMap.setFeatureState({ source: sourceID, id: featureId }, { selected: true });
-  }
-  prevSelectedApproachFeatureId = featureId;
+  setState("approaches", id !== null ? "a-" + id : null, "selected");
 }
 
 function setApproachHover(id: number | null): void {
-  if (map && geoModule) {
-    const sourceID = geoModule.sourceAndLayerIDs.approaches.sourceID;
-    if (prevHoverApproachFeatureId !== null) {
-      map.mapLibreMap.removeFeatureState({ source: sourceID, id: prevHoverApproachFeatureId }, "hover");
-    }
-    const featureId = id !== null ? "a-" + id : null;
-    if (featureId !== null) {
-      map.mapLibreMap.setFeatureState({ source: sourceID, id: featureId }, { hover: true });
-    }
-    prevHoverApproachFeatureId = featureId;
-  }
+  setState("approaches", id !== null ? "a-" + id : null, "hover");
   syncApproachCardHover(id);
 }
 
 function setExitHover(exitId: number | null): void {
-  if (!map || !geoModule) return;
-  const sourceID = geoModule.sourceAndLayerIDs.exits.sourceID;
-  if (prevHoverExitFeatureId !== null) {
-    map.mapLibreMap.removeFeatureState({ source: sourceID, id: prevHoverExitFeatureId }, "hover");
-  }
-  const featureId = exitId !== null ? "x-" + exitId : null;
-  if (featureId !== null) {
-    map.mapLibreMap.setFeatureState({ source: sourceID, id: featureId }, { hover: true });
-  }
-  prevHoverExitFeatureId = featureId;
+  setState("exits", exitId !== null ? "x-" + exitId : null, "hover");
 }
 
 function parseApproachFeatureId(id: string | number | undefined): number | null {
@@ -739,12 +703,8 @@ async function resetPanelState(): Promise<void> {
   searchJunctions = [];
   liveJunctions = [];
   selectedJunctionId = null;
-  prevSelectedJunctionFeatureId = null;
   selectedLiveJunctionId = null;
   selectedApproachId = null;
-  prevSelectedApproachFeatureId = null;
-  prevHoverApproachFeatureId = null;
-  prevHoverExitFeatureId = null;
   currentLiveById = new Map();
   currentExits = [];
   currentExitById = new Map();
