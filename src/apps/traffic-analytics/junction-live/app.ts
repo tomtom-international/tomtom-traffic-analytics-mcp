@@ -10,6 +10,7 @@ import { polygonRingCentroid } from "@shared/geo";
 import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
+import { el, hideWaiting, escapeHtml, clearAndHide } from "@shared/dom";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -184,14 +185,6 @@ let currentExitById = new Map<number, Exit>();
 // DOM helpers
 // ---------------------------------------------------------------------------
 
-function el<T extends HTMLElement = HTMLElement>(id: string): T | null {
-  return document.getElementById(id) as T | null;
-}
-
-function hideWaiting(): void {
-  el("waiting-state")?.classList.add("hidden");
-}
-
 function setPanelVisible(visible: boolean): void {
   el("junction-panel")?.classList.toggle("hidden", !visible);
 }
@@ -200,19 +193,6 @@ function hideDetailCard(): void {
   const card = el("junction-detail-card");
   card?.classList.add("hidden");
   if (card) card.innerHTML = "";
-}
-
-function clearAndHide(id: string): void {
-  const node = el(id);
-  if (!node) return;
-  node.innerHTML = "";
-  node.classList.add("hidden");
-}
-
-const _escapeDiv = document.createElement("div");
-function escapeHtml(text: string): string {
-  _escapeDiv.textContent = text;
-  return _escapeDiv.innerHTML;
 }
 
 // ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { normalizeAreaResponse } from "@shared/geo";
 import { computeBarLayout } from "@shared/chart-layout";
+import { el, hideWaiting } from "@shared/dom";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -79,14 +80,6 @@ let availableMetrics: AreaAnalyticsMetricKey[] = [];
 // ---------------------------------------------------------------------------
 // DOM helpers
 // ---------------------------------------------------------------------------
-
-function el<T extends HTMLElement = HTMLElement>(id: string): T | null {
-  return document.getElementById(id) as T | null;
-}
-
-function hideWaiting(): void {
-  el("waiting-state")?.classList.add("hidden");
-}
 
 function setPanelVisible(visible: boolean): void {
   el("analytics-panel")?.classList.toggle("hidden", !visible);

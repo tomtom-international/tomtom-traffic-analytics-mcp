@@ -11,6 +11,7 @@ import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
 import { formatDuration, formatConfidence } from "@shared/format";
+import { el, hideWaiting, escapeHtml, clearAndHide } from "@shared/dom";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -166,29 +167,8 @@ let selectedRouteId: number | null = null;
 // DOM helpers
 // ---------------------------------------------------------------------------
 
-function el<T extends HTMLElement = HTMLElement>(id: string): T | null {
-  return document.getElementById(id) as T | null;
-}
-
-function hideWaiting(): void {
-  el("waiting-state")?.classList.add("hidden");
-}
-
 function setPanelVisible(visible: boolean): void {
   el("route-panel")?.classList.toggle("hidden", !visible);
-}
-
-function clearAndHide(id: string): void {
-  const node = el(id);
-  if (!node) return;
-  node.innerHTML = "";
-  node.classList.add("hidden");
-}
-
-const _escapeDiv = document.createElement("div");
-function escapeHtml(text: string): string {
-  _escapeDiv.textContent = text;
-  return _escapeDiv.innerHTML;
 }
 
 // ---------------------------------------------------------------------------
