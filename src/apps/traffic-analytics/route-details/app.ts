@@ -3,15 +3,12 @@
  * Licensed under the Apache License, Version 2.0
  */
 
-import { App } from "@modelcontextprotocol/ext-apps";
 import { TomTomMap, CustomGeoJSONModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromGeoJSON } from "@tomtom-org/maps-sdk/core";
-import { ensureTomTomConfigured } from "@shared/sdk-config";
-import { extractFullData } from "@shared/viz-data";
-import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
+import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
 import { formatDuration, formatConfidence } from "@shared/format";
-import { el, hideWaiting, escapeHtml, clearAndHide } from "@shared/dom";
+import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -137,8 +134,6 @@ function formatKm(meters: number): string {
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-
-const app = new App({ name: "tta-route-details", version: "1.0.0" });
 
 let map: TomTomMap | undefined;
 let geoModule: CustomGeoJSONModule | undefined;
@@ -623,205 +618,153 @@ async function resetPanelState(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// MCP App lifecycle — register hooks before connect() (ext-apps 1.7 rule)
+// MCP App lifecycle — shared bootstrap owns parse/gates/map creation.
 // ---------------------------------------------------------------------------
 
-app.ontoolinput = async (): Promise<void> => {
-  hideWaiting();
-};
-
-app.ontoolresult = async (result): Promise<void> => {
-  hideWaiting();
-
-  if (result.isError) {
-    setPanelVisible(false);
-    showErrorUI("Failed to fetch route data");
-    return;
-  }
-
-  const rawText = (result.content?.[0] as { text?: string } | undefined)?.text ?? "{}";
-  const parsedResp = JSON.parse(rawText);
-
-  if (!shouldShowUI(parsedResp)) {
-    setPanelVisible(false);
-    hideMapUI();
-    return;
-  }
-
-  if (!(await ensureTomTomConfigured(app))) {
-    setPanelVisible(false);
-    showErrorUI("TOMTOM_API_KEY not configured — map unavailable");
-    return;
-  }
-
-  const viz = (await extractFullData(app, parsedResp)) as VizPayload;
-
+bootstrapVizApp<VizPayload>({
+  name: "tta-route-details",
+  panelId: "route-panel",
+  errorMessage: "Failed to fetch route data",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
-  if (!Array.isArray((viz as any)?.routes)) {
-    setPanelVisible(false);
-    showErrorUI("Visualization data expired — re-run the tool");
-    return;
-  }
+  validate: (viz): viz is VizPayload => Array.isArray((viz as any)?.routes),
+  render: async ({ map: m, viz }) => {
+    map = m;
 
-  showMapUI();
-
-  map ??= new TomTomMap({
-    style: "standardLight",
-    mapLibre: { container: "sdk-map", center: [0, 0], zoom: 2 },
-  });
-
-  // E2E hook — routes/segments are canvas-rendered, not DOM.
-  if (!(window as unknown as { __e2e_ml?: unknown }).__e2e_ml) {
-    (window as unknown as { __e2e_ml: unknown }).__e2e_ml = map.mapLibreMap;
-  }
-
-  geoModule ??= await CustomGeoJSONModule.get(map, {
-    sources: {
-      routes: {
-        layers: [
-          {
-            id: "route-details-routes-casing",
-            type: "line",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color": "#ffffff",
-              "line-width": [
-                "case",
-                ["boolean", ["feature-state", "selected"], false],
-                9,
-                ["boolean", ["feature-state", "hover"], false],
-                8,
-                7,
-              ],
+    geoModule ??= await CustomGeoJSONModule.get(map, {
+      sources: {
+        routes: {
+          layers: [
+            {
+              id: "route-details-routes-casing",
+              type: "line",
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": "#ffffff",
+                "line-width": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  9,
+                  ["boolean", ["feature-state", "hover"], false],
+                  8,
+                  7,
+                ],
+              },
             },
-          },
-          {
-            id: "route-details-routes-line",
-            type: "line",
-            filter: ["!=", ["get", "impassable"], true],
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color": ["get", "color"],
-              "line-width": [
-                "case",
-                ["boolean", ["feature-state", "selected"], false],
-                6,
-                ["boolean", ["feature-state", "hover"], false],
-                5,
-                4,
-              ],
+            {
+              id: "route-details-routes-line",
+              type: "line",
+              filter: ["!=", ["get", "impassable"], true],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": ["get", "color"],
+                "line-width": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  6,
+                  ["boolean", ["feature-state", "hover"], false],
+                  5,
+                  4,
+                ],
+              },
             },
-          },
-          {
-            id: "route-details-routes-impassable",
-            type: "line",
-            filter: ["==", ["get", "impassable"], true],
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "#e03030", "line-width": 4, "line-dasharray": [2, 1.5] },
-          },
-        ],
+            {
+              id: "route-details-routes-impassable",
+              type: "line",
+              filter: ["==", ["get", "impassable"], true],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": "#e03030", "line-width": 4, "line-dasharray": [2, 1.5] },
+            },
+          ],
+        },
+        segments: {
+          layers: [
+            {
+              id: "route-details-segments-casing",
+              type: "line",
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": "#ffffff",
+                "line-width": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  10,
+                  ["boolean", ["feature-state", "hover"], false],
+                  9,
+                  7,
+                ],
+              },
+            },
+            {
+              id: "route-details-segments-line",
+              type: "line",
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": ["get", "color"],
+                "line-width": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  7,
+                  ["boolean", ["feature-state", "hover"], false],
+                  6,
+                  4.5,
+                ],
+              },
+            },
+          ],
+        },
       },
-      segments: {
-        layers: [
-          {
-            id: "route-details-segments-casing",
-            type: "line",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color": "#ffffff",
-              "line-width": [
-                "case",
-                ["boolean", ["feature-state", "selected"], false],
-                10,
-                ["boolean", ["feature-state", "hover"], false],
-                9,
-                7,
-              ],
-            },
-          },
-          {
-            id: "route-details-segments-line",
-            type: "line",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color": ["get", "color"],
-              "line-width": [
-                "case",
-                ["boolean", ["feature-state", "selected"], false],
-                7,
-                ["boolean", ["feature-state", "hover"], false],
-                6,
-                4.5,
-              ],
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  if (!routesClickBound) {
-    geoModule.events.routes.on("click", (f) => {
-      const routeId = parseRouteFeatureId(f.id);
-      if (routeId === null) return;
-      if (currentMode === "search") {
-        selectSearchRoute(routeId);
-      } else if (currentMode === "details") {
-        selectDetailsRoute(routeId);
-      }
     });
-    routesClickBound = true;
-  }
-  if (!routesHoverBound) {
-    geoModule.events.routes.on("hover", (f) => {
-      const routeId = parseRouteFeatureId(f?.id);
-      setState("routes", routeId, "hover");
-      if (currentMode === "search") syncRouteItemHover(routeId);
-    });
-    routesHoverBound = true;
-  }
-  if (!segmentsClickBound) {
-    geoModule.events.segments.on("click", (f) => {
-      if (currentMode !== "details") return;
-      const parsed = parseSegmentFeatureId(f.id);
-      if (parsed) selectSegment(parsed.routeId, parsed.segmentId);
-    });
-    segmentsClickBound = true;
-  }
-  if (!segmentsHoverBound) {
-    geoModule.events.segments.on("hover", (f) => {
-      if (currentMode !== "details") return;
-      const parsed = parseSegmentFeatureId(f?.id);
-      setState("segments", parsed ? `${parsed.routeId}:${parsed.segmentId}` : null, "hover");
-      syncSegmentRowHover(parsed ? parsed.segmentId : null);
-    });
-    segmentsHoverBound = true;
-  }
 
-  await resetPanelState();
-  setPanelVisible(true);
+    if (!routesClickBound) {
+      geoModule.events.routes.on("click", (f) => {
+        const routeId = parseRouteFeatureId(f.id);
+        if (routeId === null) return;
+        if (currentMode === "search") {
+          selectSearchRoute(routeId);
+        } else if (currentMode === "details") {
+          selectDetailsRoute(routeId);
+        }
+      });
+      routesClickBound = true;
+    }
+    if (!routesHoverBound) {
+      geoModule.events.routes.on("hover", (f) => {
+        const routeId = parseRouteFeatureId(f?.id);
+        setState("routes", routeId, "hover");
+        if (currentMode === "search") syncRouteItemHover(routeId);
+      });
+      routesHoverBound = true;
+    }
+    if (!segmentsClickBound) {
+      geoModule.events.segments.on("click", (f) => {
+        if (currentMode !== "details") return;
+        const parsed = parseSegmentFeatureId(f.id);
+        if (parsed) selectSegment(parsed.routeId, parsed.segmentId);
+      });
+      segmentsClickBound = true;
+    }
+    if (!segmentsHoverBound) {
+      geoModule.events.segments.on("hover", (f) => {
+        if (currentMode !== "details") return;
+        const parsed = parseSegmentFeatureId(f?.id);
+        setState("segments", parsed ? `${parsed.routeId}:${parsed.segmentId}` : null, "hover");
+        syncSegmentRowHover(parsed ? parsed.segmentId : null);
+      });
+      segmentsHoverBound = true;
+    }
 
-  const mode = viz.tool === "tomtom-route-monitoring-details" ? "details" : "search";
-  currentMode = mode;
-  if (mode === "details") {
-    renderDetailsMode(viz.routes as RouteDetailedInfo[]);
-  } else {
-    renderSearchMode(viz.routes as RouteBasicInfo[]);
-  }
-};
+    await resetPanelState();
+    setPanelVisible(true);
 
-app.onteardown = async (): Promise<Record<string, never>> => {
-  geoModule?.setVisible(false);
-  return {};
-};
-
-async function connectApp(): Promise<void> {
-  try {
-    await app.connect();
-  } catch (error) {
-    // Expected when opened standalone (no MCP host) — e.g. local smoke testing.
-    console.warn("[route-details] Failed to connect to MCP host:", error);
-  }
-}
-
-void connectApp();
+    const mode = viz.tool === "tomtom-route-monitoring-details" ? "details" : "search";
+    currentMode = mode;
+    if (mode === "details") {
+      renderDetailsMode(viz.routes as RouteDetailedInfo[]);
+    } else {
+      renderSearchMode(viz.routes as RouteBasicInfo[]);
+    }
+  },
+  teardown: () => {
+    geoModule?.setVisible(false);
+  },
+});

@@ -3,14 +3,11 @@
  * Licensed under the Apache License, Version 2.0
  */
 
-import { App } from "@modelcontextprotocol/ext-apps";
 import { TomTomMap, CustomGeoJSONModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromGeoJSON } from "@tomtom-org/maps-sdk/core";
 import { polygonRingCentroid } from "@shared/geo";
-import { ensureTomTomConfigured } from "@shared/sdk-config";
-import { extractFullData } from "@shared/viz-data";
-import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
-import { el, hideWaiting, escapeHtml, clearAndHide } from "@shared/dom";
+import { bootstrapVizApp } from "@shared/app-bootstrap";
+import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -151,8 +148,6 @@ const STATUS_LABEL: Record<JunctionStatus, { label: string; className: string }>
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-
-const app = new App({ name: "tta-junction-live", version: "1.0.0" });
 
 let map: TomTomMap | undefined;
 let geoModule: CustomGeoJSONModule | undefined;
@@ -352,7 +347,10 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
 
   const approachList = model?.approaches.length
     ? `<ul class="detail-approach-list">${model.approaches
-        .map((a) => `<li>${escapeHtml(a.roadName)} · ${escapeHtml(a.direction)} · FRC ${Number(a.frc)}</li>`)
+        .map(
+          (a) =>
+            `<li>${escapeHtml(a.roadName)} · ${escapeHtml(a.direction)} · FRC ${Number(a.frc)}</li>`
+        )
         .join("")}</ul>`
     : "";
 
@@ -398,7 +396,10 @@ function selectJunction(id: string): void {
       .filter(hasGeometry);
     const exitFeatures = junction.junctionModel.exits.map(buildExitFeature).filter(hasGeometry);
 
-    void geoModule?.show({ type: "FeatureCollection" as const, features: approachFeatures }, "approaches");
+    void geoModule?.show(
+      { type: "FeatureCollection" as const, features: approachFeatures },
+      "approaches"
+    );
     void geoModule?.show({ type: "FeatureCollection" as const, features: exitFeatures }, "exits");
   } else {
     void geoModule?.clear("approaches");
@@ -411,7 +412,9 @@ function selectJunction(id: string): void {
 function renderSearchMode(junctions: JunctionDefinition[]): void {
   searchJunctions = junctions;
 
-  const junctionFeatures = junctions.map(buildJunctionFeature).filter((f): f is NonNullable<typeof f> => f !== null);
+  const junctionFeatures = junctions
+    .map(buildJunctionFeature)
+    .filter((f): f is NonNullable<typeof f> => f !== null);
   const fc = { type: "FeatureCollection" as const, features: junctionFeatures };
   void geoModule?.show(fc, "junctions");
 
@@ -545,10 +548,14 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
     bodyRows.push(
       `<div class="approach-card-row">Travel time ${Math.round(live.travelTimeSec)} s (free-flow ${Math.round(live.freeFlowTravelTimeSec)} s)</div>`
     );
-    bodyRows.push(`<div class="approach-card-row">Queue ${Math.round(live.queueLengthMeters)} m</div>`);
+    bodyRows.push(
+      `<div class="approach-card-row">Queue ${Math.round(live.queueLengthMeters)} m</div>`
+    );
     bodyRows.push(`<div class="approach-card-row">Stops ${Number(live.stops)}</div>`);
     if (live.volumePerHour !== undefined) {
-      bodyRows.push(`<div class="approach-card-row">Volume ${Math.round(live.volumePerHour)} veh/h</div>`);
+      bodyRows.push(
+        `<div class="approach-card-row">Volume ${Math.round(live.volumePerHour)} veh/h</div>`
+      );
     }
   }
 
@@ -620,12 +627,19 @@ function selectLiveJunction(junction: JunctionLiveData): void {
     const approachFeatures = model.approaches
       .map((a) => {
         const live = currentLiveById.get(a.id);
-        return buildApproachFeature(a, losFor(live?.delaySec)?.color ?? NEUTRAL_APPROACH, live?.isClosed === true);
+        return buildApproachFeature(
+          a,
+          losFor(live?.delaySec)?.color ?? NEUTRAL_APPROACH,
+          live?.isClosed === true
+        );
       })
       .filter(hasGeometry);
     const exitFeatures = model.exits.map(buildExitFeature).filter(hasGeometry);
 
-    void geoModule?.show({ type: "FeatureCollection" as const, features: approachFeatures }, "approaches");
+    void geoModule?.show(
+      { type: "FeatureCollection" as const, features: approachFeatures },
+      "approaches"
+    );
     void geoModule?.show({ type: "FeatureCollection" as const, features: exitFeatures }, "exits");
 
     const unionFeatures = [...approachFeatures, ...exitFeatures];
@@ -711,195 +725,140 @@ async function resetPanelState(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// MCP App lifecycle — register hooks before connect() (ext-apps 1.7 rule)
+// MCP App lifecycle — shared bootstrap owns parse/gates/map creation.
 // ---------------------------------------------------------------------------
 
-app.ontoolinput = async (): Promise<void> => {
-  hideWaiting();
-};
-
-app.ontoolresult = async (result): Promise<void> => {
-  hideWaiting();
-
-  if (result.isError) {
-    setPanelVisible(false);
-    hideDetailCard();
-    showErrorUI("Failed to fetch junction data");
-    return;
-  }
-
-  const rawText = (result.content?.[0] as { text?: string } | undefined)?.text ?? "{}";
-  const parsedResp = JSON.parse(rawText);
-
-  if (!shouldShowUI(parsedResp)) {
-    setPanelVisible(false);
-    hideDetailCard();
-    hideMapUI();
-    return;
-  }
-
-  if (!(await ensureTomTomConfigured(app))) {
-    setPanelVisible(false);
-    hideDetailCard();
-    showErrorUI("TOMTOM_API_KEY not configured — map unavailable");
-    return;
-  }
-
-  const viz = (await extractFullData(app, parsedResp)) as VizPayload;
-
+bootstrapVizApp<VizPayload>({
+  name: "tta-junction-live",
+  panelId: "junction-panel",
+  errorMessage: "Failed to fetch junction data",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
-  if (!Array.isArray((viz as any)?.junctions)) {
-    setPanelVisible(false);
-    hideDetailCard();
-    showErrorUI("Visualization data expired — re-run the tool");
-    return;
-  }
+  validate: (viz): viz is VizPayload => Array.isArray((viz as any)?.junctions),
+  resetUI: hideDetailCard,
+  render: async ({ map: m, viz }) => {
+    map = m;
 
-  showMapUI();
-
-  map ??= new TomTomMap({
-    style: "standardLight",
-    mapLibre: { container: "sdk-map", center: [0, 0], zoom: 2 },
-  });
-
-  // E2E hook — junctions/approaches/exits are canvas-rendered, not DOM.
-  if (!(window as unknown as { __e2e_ml?: unknown }).__e2e_ml) {
-    (window as unknown as { __e2e_ml: unknown }).__e2e_ml = map.mapLibreMap;
-  }
-
-  geoModule ??= await CustomGeoJSONModule.get(map, {
-    sources: {
-      junctions: {
-        layers: [
-          {
-            id: "junction-live-junctions-circle",
-            type: "circle",
-            paint: {
-              "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 8, 6],
-              "circle-color": "#0a3653",
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
+    geoModule ??= await CustomGeoJSONModule.get(map, {
+      sources: {
+        junctions: {
+          layers: [
+            {
+              id: "junction-live-junctions-circle",
+              type: "circle",
+              paint: {
+                "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 8, 6],
+                "circle-color": "#0a3653",
+                "circle-stroke-width": 2,
+                "circle-stroke-color": "#ffffff",
+              },
             },
-          },
-          {
-            id: "junction-live-junctions-label",
-            type: "symbol",
-            layout: {
-              "text-field": ["get", "name"],
-              "text-size": 12,
-              "text-anchor": "top",
-              "text-offset": [0, 1.1],
+            {
+              id: "junction-live-junctions-label",
+              type: "symbol",
+              layout: {
+                "text-field": ["get", "name"],
+                "text-size": 12,
+                "text-anchor": "top",
+                "text-offset": [0, 1.1],
+              },
+              paint: { "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
             },
-            paint: { "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
-          },
-        ],
+          ],
+        },
+        approaches: {
+          layers: [
+            {
+              id: "junction-live-approaches-casing",
+              type: "line",
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": "#ffffff",
+                "line-width": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  11,
+                  ["boolean", ["feature-state", "hover"], false],
+                  9,
+                  7,
+                ],
+              },
+            },
+            {
+              id: "junction-live-approaches-line",
+              type: "line",
+              filter: ["!=", ["get", "closed"], true],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": ["get", "color"],
+                "line-width": [
+                  "case",
+                  ["boolean", ["feature-state", "selected"], false],
+                  7,
+                  ["boolean", ["feature-state", "hover"], false],
+                  5.5,
+                  4,
+                ],
+              },
+            },
+            {
+              id: "junction-live-approaches-closed",
+              type: "line",
+              filter: ["==", ["get", "closed"], true],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": "#e03030", "line-width": 4, "line-dasharray": [2, 1.5] },
+            },
+          ],
+        },
+        exits: {
+          layers: [
+            {
+              id: "junction-live-exits-line",
+              type: "line",
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": NEUTRAL_EXIT,
+                "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 5, 2.5],
+              },
+            },
+          ],
+        },
       },
-      approaches: {
-        layers: [
-          {
-            id: "junction-live-approaches-casing",
-            type: "line",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color": "#ffffff",
-              "line-width": [
-                "case",
-                ["boolean", ["feature-state", "selected"], false],
-                11,
-                ["boolean", ["feature-state", "hover"], false],
-                9,
-                7,
-              ],
-            },
-          },
-          {
-            id: "junction-live-approaches-line",
-            type: "line",
-            filter: ["!=", ["get", "closed"], true],
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color": ["get", "color"],
-              "line-width": [
-                "case",
-                ["boolean", ["feature-state", "selected"], false],
-                7,
-                ["boolean", ["feature-state", "hover"], false],
-                5.5,
-                4,
-              ],
-            },
-          },
-          {
-            id: "junction-live-approaches-closed",
-            type: "line",
-            filter: ["==", ["get", "closed"], true],
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "#e03030", "line-width": 4, "line-dasharray": [2, 1.5] },
-          },
-        ],
-      },
-      exits: {
-        layers: [
-          {
-            id: "junction-live-exits-line",
-            type: "line",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: {
-              "line-color": NEUTRAL_EXIT,
-              "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 5, 2.5],
-            },
-          },
-        ],
-      },
-    },
-  });
-
-  if (!junctionsClickBound) {
-    geoModule.events.junctions.on("click", (f) => selectJunction(String(f.id)));
-    junctionsClickBound = true;
-  }
-  if (!approachesClickBound) {
-    geoModule.events.approaches.on("click", (f) => {
-      // Search mode renders display-only neutral approach lines onto the same
-      // source — ignore clicks there so they don't trigger live-mode selection.
-      if (currentMode !== "live") return;
-      const id = parseApproachFeatureId(f.id);
-      if (id !== null) selectApproach(id);
     });
-    approachesClickBound = true;
-  }
-  if (!approachesHoverBound) {
-    geoModule.events.approaches.on("hover", (f) => {
-      if (currentMode !== "live") return;
-      setApproachHover(parseApproachFeatureId(f?.id));
-    });
-    approachesHoverBound = true;
-  }
 
-  await resetPanelState();
-  setPanelVisible(true);
+    if (!junctionsClickBound) {
+      geoModule.events.junctions.on("click", (f) => selectJunction(String(f.id)));
+      junctionsClickBound = true;
+    }
+    if (!approachesClickBound) {
+      geoModule.events.approaches.on("click", (f) => {
+        // Search mode renders display-only neutral approach lines onto the same
+        // source — ignore clicks there so they don't trigger live-mode selection.
+        if (currentMode !== "live") return;
+        const id = parseApproachFeatureId(f.id);
+        if (id !== null) selectApproach(id);
+      });
+      approachesClickBound = true;
+    }
+    if (!approachesHoverBound) {
+      geoModule.events.approaches.on("hover", (f) => {
+        if (currentMode !== "live") return;
+        setApproachHover(parseApproachFeatureId(f?.id));
+      });
+      approachesHoverBound = true;
+    }
 
-  const mode = viz.tool === "tomtom-junction-live-data" ? "live" : "search";
-  currentMode = mode;
-  if (mode === "live") {
-    renderLiveMode(viz.junctions as JunctionLiveData[]);
-  } else {
-    renderSearchMode(viz.junctions as JunctionDefinition[]);
-  }
-};
+    await resetPanelState();
+    setPanelVisible(true);
 
-app.onteardown = async (): Promise<Record<string, never>> => {
-  geoModule?.setVisible(false);
-  return {};
-};
-
-async function connectApp(): Promise<void> {
-  try {
-    await app.connect();
-  } catch (error) {
-    // Expected when opened standalone (no MCP host) — e.g. local smoke testing.
-    console.warn("[junction-live] Failed to connect to MCP host:", error);
-  }
-}
-
-void connectApp();
+    const mode = viz.tool === "tomtom-junction-live-data" ? "live" : "search";
+    currentMode = mode;
+    if (mode === "live") {
+      renderLiveMode(viz.junctions as JunctionLiveData[]);
+    } else {
+      renderSearchMode(viz.junctions as JunctionDefinition[]);
+    }
+  },
+  teardown: () => {
+    geoModule?.setVisible(false);
+  },
+});

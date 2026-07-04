@@ -3,7 +3,6 @@
  * Licensed under the Apache License, Version 2.0
  */
 
-import { App } from "@modelcontextprotocol/ext-apps";
 import { TomTomMap, TrafficIncidentOverlayModule } from "@tomtom-org/maps-sdk/map";
 import { customizeService } from "@tomtom-org/maps-sdk/services";
 import type {
@@ -11,12 +10,10 @@ import type {
   TrafficIncidentDetails,
   TrafficIncidentProperties,
 } from "@tomtom-org/maps-sdk/core";
-import { ensureTomTomConfigured } from "@shared/sdk-config";
-import { extractFullData } from "@shared/viz-data";
-import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
+import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { bboxUnion, type Bbox } from "@shared/geo";
 import { dedupeBy } from "@shared/collections";
-import { el, hideWaiting, escapeHtml } from "@shared/dom";
+import { el, escapeHtml } from "@shared/dom";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -50,8 +47,6 @@ type IncidentFeature = TrafficIncident & {
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-
-const app = new App({ name: "tta-traffic-incidents", version: "1.0.0" });
 
 let map: TomTomMap | undefined;
 let overlay: TrafficIncidentOverlayModule | undefined;
@@ -331,109 +326,53 @@ async function selectAreaFilter(name: string | null): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// MCP App lifecycle — register hooks before connect() (ext-apps 1.7 rule)
+// MCP App lifecycle — shared bootstrap owns parse/gates/map creation.
 // ---------------------------------------------------------------------------
 
-app.ontoolinput = async (): Promise<void> => {
-  hideWaiting();
-};
-
-app.ontoolresult = async (result): Promise<void> => {
-  hideWaiting();
-
-  if (result.isError) {
-    setPanelVisible(false);
-    hideDetailCard();
-    showErrorUI("Failed to fetch traffic incidents");
-    return;
-  }
-
-  const rawText = (result.content?.[0] as { text?: string } | undefined)?.text ?? "{}";
-  const parsedResp = JSON.parse(rawText);
-
-  if (!shouldShowUI(parsedResp)) {
-    setPanelVisible(false);
-    hideDetailCard();
-    hideMapUI();
-    return;
-  }
-
-  if (!(await ensureTomTomConfigured(app))) {
-    setPanelVisible(false);
-    hideDetailCard();
-    showErrorUI("TOMTOM_API_KEY not configured — map unavailable");
-    return;
-  }
-
-  const viz = (await extractFullData(app, parsedResp)) as VizPayload;
-
+bootstrapVizApp<VizPayload>({
+  name: "tta-traffic-incidents",
+  panelId: "incident-panel",
+  errorMessage: "Failed to fetch traffic incidents",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
-  if (!Array.isArray((viz as any)?.areas)) {
-    setPanelVisible(false);
-    hideDetailCard();
-    showErrorUI("Visualization data expired — re-run the tool");
-    return;
-  }
+  validate: (viz): viz is VizPayload => Array.isArray((viz as any)?.areas),
+  resetUI: hideDetailCard,
+  render: async ({ map: m, viz }) => {
+    map = m;
 
-  showMapUI();
+    if (!overlay) {
+      overlay = await TrafficIncidentOverlayModule.get(map);
+    }
+    if (!overlayClickBound && overlay) {
+      overlay.events.on("click", handleOverlayClick);
+      overlayClickBound = true;
+    }
 
-  map ??= new TomTomMap({
-    style: "standardLight",
-    mapLibre: { container: "sdk-map", center: [0, 0], zoom: 2 },
-  });
+    areaNames = viz.areas.map((a) => a.name);
+    activeAreaFilter = null;
+    clearFocus();
 
-  // E2E hook — markers are canvas-rendered, not DOM. Only set once (map-controls
-  // convention); createMapControls is not used by this app, so no double-set risk.
-  if (!(window as unknown as { __e2e_ml?: unknown }).__e2e_ml) {
-    (window as unknown as { __e2e_ml: unknown }).__e2e_ml = map.mapLibreMap;
-  }
+    // The same incident can be returned by two overlapping bboxes — dedupe by
+    // the TomTom-global incident id (first area wins) so MapLibre feature ids
+    // stay unique and the list shows each incident once.
+    allFeatures = dedupeBy(
+      viz.areas.flatMap((area) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API shape, validated by the SDK parser
+        const parsed = parseTrafficIncidentDetailsResponse(area.incidents as any);
+        return parsed.features.map((f) => ({
+          ...f,
+          properties: { ...f.properties, areaName: area.name },
+        })) as IncidentFeature[];
+      }),
+      (f) => f.properties.id
+    );
+    featuresById = new Map(allFeatures.map((f) => [f.properties.id, f]));
 
-  if (!overlay) {
-    overlay = await TrafficIncidentOverlayModule.get(map);
-  }
-  if (!overlayClickBound && overlay) {
-    overlay.events.on("click", handleOverlayClick);
-    overlayClickBound = true;
-  }
-
-  areaNames = viz.areas.map((a) => a.name);
-  activeAreaFilter = null;
-  clearFocus();
-
-  // The same incident can be returned by two overlapping bboxes — dedupe by
-  // the TomTom-global incident id (first area wins) so MapLibre feature ids
-  // stay unique and the list shows each incident once.
-  allFeatures = dedupeBy(
-    viz.areas.flatMap((area) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- raw API shape, validated by the SDK parser
-      const parsed = parseTrafficIncidentDetailsResponse(area.incidents as any);
-      return parsed.features.map((f) => ({
-        ...f,
-        properties: { ...f.properties, areaName: area.name },
-      })) as IncidentFeature[];
-    }),
-    (f) => f.properties.id
-  );
-  featuresById = new Map(allFeatures.map((f) => [f.properties.id, f]));
-
-  setPanelVisible(true);
-  renderAreaFilters(areaNames);
-  await applyFilter();
-  fitMapToAreas(viz.areas);
-};
-
-app.onteardown = async (): Promise<Record<string, never>> => {
-  overlay?.setVisible(false);
-  return {};
-};
-
-async function connectApp(): Promise<void> {
-  try {
-    await app.connect();
-  } catch (error) {
-    // Expected when opened standalone (no MCP host) — e.g. local smoke testing.
-    console.warn("[traffic-incidents] Failed to connect to MCP host:", error);
-  }
-}
-
-void connectApp();
+    setPanelVisible(true);
+    renderAreaFilters(areaNames);
+    await applyFilter();
+    fitMapToAreas(viz.areas);
+  },
+  teardown: () => {
+    overlay?.setVisible(false);
+  },
+});
