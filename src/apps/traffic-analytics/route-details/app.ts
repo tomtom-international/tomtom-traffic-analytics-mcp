@@ -10,6 +10,7 @@ import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
+import { formatDuration, formatConfidence } from "@shared/format";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -127,27 +128,8 @@ function routeRatio(r: { travelTime?: number; typicalTravelTime?: number }): num
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Formats a duration in seconds as "3 min 20 s" / "45 s" / "3 min".
- *
- * This is a local helper, not the SDK's `formatDuration` (which only reports
- * minute-level granularity and returns `undefined` under 30 seconds) — the
- * stat grid and route rows need second-level precision for short delays.
- */
-function formatDuration(totalSeconds: number): string {
-  const secs = Math.max(0, Math.round(totalSeconds));
-  const mins = Math.floor(secs / 60);
-  const rem = secs % 60;
-  if (mins === 0) return `${rem} s`;
-  return `${mins} min ${rem} s`;
-}
-
 function formatKm(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`;
-}
-
-function formatConfidence(value: number): string {
-  return `${Math.round(value)}%`;
 }
 
 // ---------------------------------------------------------------------------

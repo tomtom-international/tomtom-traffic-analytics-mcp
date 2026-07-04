@@ -10,6 +10,7 @@ import { ensureTomTomConfigured } from "@shared/sdk-config";
 import { extractFullData } from "@shared/viz-data";
 import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visibility";
 import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
+import { formatDuration, formatConfidence, formatSpeed } from "@shared/format";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -86,30 +87,6 @@ function setPanelVisible(visible: boolean): void {
 }
 
 // ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Formats a duration in seconds as "3 min 20 s" / "45 s" / "3 min".
- *
- * This is a local helper, not the SDK's `formatDuration` (which only reports
- * minute-level granularity and returns `undefined` under 30 seconds) — the
- * stat card needs second-level precision for short segments and delays.
- */
-function formatDuration(totalSeconds: number): string {
-  const secs = Math.max(0, Math.round(totalSeconds));
-  const mins = Math.floor(secs / 60);
-  const rem = secs % 60;
-  if (mins === 0) return `${rem} s`;
-  return rem === 0 ? `${mins} min` : `${mins} min ${rem} s`;
-}
-
-function formatConfidence(confidence: number): string {
-  const pct = confidence <= 1 ? Math.round(confidence * 100) : Math.round(confidence);
-  return `${pct}%`;
-}
-
-// ---------------------------------------------------------------------------
 // Stat card
 // ---------------------------------------------------------------------------
 
@@ -127,13 +104,15 @@ function renderStats(viz: VizPayload): void {
 
   grid.innerHTML = "";
 
-  const delaySeconds = seg.currentTravelTime - seg.freeFlowTravelTime;
+  const hasTimes =
+    Number.isFinite(seg.currentTravelTime) && Number.isFinite(seg.freeFlowTravelTime);
+  const delaySeconds = hasTimes ? seg.currentTravelTime - seg.freeFlowTravelTime : undefined;
   const rows: Array<[string, string]> = [
-    ["Current speed", `${Math.round(seg.currentSpeed)} ${unitLabel}`],
-    ["Free-flow speed", `${Math.round(seg.freeFlowSpeed)} ${unitLabel}`],
+    ["Current speed", formatSpeed(seg.currentSpeed, unitLabel)],
+    ["Free-flow speed", formatSpeed(seg.freeFlowSpeed, unitLabel)],
     ["Current travel time", formatDuration(seg.currentTravelTime)],
     ["Free-flow travel time", formatDuration(seg.freeFlowTravelTime)],
-    ["Delay", delaySeconds > 0 ? formatDuration(delaySeconds) : "None"],
+    ["Delay", delaySeconds !== undefined && delaySeconds > 0 ? formatDuration(delaySeconds) : delaySeconds === undefined ? "—" : "None"],
     ["Confidence", formatConfidence(seg.confidence)],
   ];
 
