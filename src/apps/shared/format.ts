@@ -25,14 +25,15 @@ export function formatDuration(totalSeconds: number | undefined | null): string 
 }
 
 /**
- * Formats a confidence value as a percentage. Accepts either a 0–1 fraction
- * (Flow Segment API) or a 0–100 percent (Route Monitoring API) — values <= 1
- * are treated as fractions. Returns {@link NO_VALUE} for non-finite input.
+ * Formats a percent-scale (0–100) confidence value as "83%". Callers whose
+ * API reports a 0–1 fraction (e.g. Flow Segment `confidence`) must convert
+ * with `* 100` at the call site — a value-range heuristic here would
+ * misrender a legitimate 1% as 100%. Returns {@link NO_VALUE} for
+ * non-finite input.
  */
-export function formatConfidence(value: number | undefined | null): string {
-  if (value == null || !Number.isFinite(value)) return NO_VALUE;
-  const pct = value <= 1 ? Math.round(value * 100) : Math.round(value);
-  return `${pct}%`;
+export function formatConfidence(pct: number | undefined | null): string {
+  if (pct == null || !Number.isFinite(pct)) return NO_VALUE;
+  return `${Math.round(pct)}%`;
 }
 
 /** Formats a speed with its unit label, or {@link NO_VALUE} for non-finite input. */

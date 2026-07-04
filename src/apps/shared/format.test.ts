@@ -23,16 +23,17 @@ describe("formatDuration", () => {
 });
 
 describe("formatConfidence", () => {
-  it("treats values <= 1 as fractions", () => {
-    expect(formatConfidence(0.83)).toBe("83%");
-    expect(formatConfidence(1)).toBe("100%");
-  });
-  it("treats values > 1 as percentages", () => {
+  it("formats percent-scale values", () => {
     expect(formatConfidence(83)).toBe("83%");
     expect(formatConfidence(99.6)).toBe("100%");
   });
+  it("does NOT misread a legitimate 1% as a fraction", () => {
+    expect(formatConfidence(1)).toBe("1%");
+    expect(formatConfidence(0.4)).toBe("0%");
+  });
   it("returns em dash for non-finite input", () => {
     expect(formatConfidence(undefined)).toBe("—");
+    expect(formatConfidence(null)).toBe("—");
     expect(formatConfidence(Number.NaN)).toBe("—");
   });
 });

@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Produces: `formatDuration(totalSeconds: number | undefined | null): string` — `"—"` for non-finite; `"45 s"`, `"3 min"` (whole minutes), `"3 min 20 s"`.
-- Produces: `formatConfidence(value: number | undefined | null): string` — `"—"` for non-finite; values `<= 1` treated as fraction, `> 1` as percent; returns `"83%"`.
+- Produces: `formatConfidence(pct: number | undefined | null): string` — `"—"` for non-finite; percent-scale (0–100) only, fraction-scale callers convert at the call site; returns `"83%"`.
 - Produces: `formatSpeed(value: number | undefined | null, unitLabel: string): string` — `"—"` for non-finite; `"52 km/h"`.
 
 - [ ] **Step 1: Write the failing test**
@@ -66,16 +66,17 @@ describe("formatDuration", () => {
 });
 
 describe("formatConfidence", () => {
-  it("treats values <= 1 as fractions", () => {
-    expect(formatConfidence(0.83)).toBe("83%");
-    expect(formatConfidence(1)).toBe("100%");
-  });
-  it("treats values > 1 as percentages", () => {
+  it("formats percent-scale values", () => {
     expect(formatConfidence(83)).toBe("83%");
     expect(formatConfidence(99.6)).toBe("100%");
   });
+  it("does NOT misread a legitimate 1% as a fraction", () => {
+    expect(formatConfidence(1)).toBe("1%");
+    expect(formatConfidence(0.4)).toBe("0%");
+  });
   it("returns em dash for non-finite input", () => {
     expect(formatConfidence(undefined)).toBe("—");
+    expect(formatConfidence(null)).toBe("—");
     expect(formatConfidence(Number.NaN)).toBe("—");
   });
 });
@@ -128,14 +129,15 @@ export function formatDuration(totalSeconds: number | undefined | null): string 
 }
 
 /**
- * Formats a confidence value as a percentage. Accepts either a 0–1 fraction
- * (Flow Segment API) or a 0–100 percent (Route Monitoring API) — values <= 1
- * are treated as fractions. Returns {@link NO_VALUE} for non-finite input.
+ * Formats a percent-scale (0–100) confidence value as "83%". Callers whose
+ * API reports a 0–1 fraction (e.g. Flow Segment `confidence`) must convert
+ * with `* 100` at the call site — a value-range heuristic here would
+ * misrender a legitimate 1% as 100%. Returns {@link NO_VALUE} for
+ * non-finite input.
  */
-export function formatConfidence(value: number | undefined | null): string {
-  if (value == null || !Number.isFinite(value)) return NO_VALUE;
-  const pct = value <= 1 ? Math.round(value * 100) : Math.round(value);
-  return `${pct}%`;
+export function formatConfidence(pct: number | undefined | null): string {
+  if (pct == null || !Number.isFinite(pct)) return NO_VALUE;
+  return `${Math.round(pct)}%`;
 }
 
 /** Formats a speed with its unit label, or {@link NO_VALUE} for non-finite input. */
@@ -162,13 +164,17 @@ In `src/apps/traffic-analytics/traffic-flow/app.ts`:
   const hasTimes =
     Number.isFinite(seg.currentTravelTime) && Number.isFinite(seg.freeFlowTravelTime);
   const delaySeconds = hasTimes ? seg.currentTravelTime - seg.freeFlowTravelTime : undefined;
+  const hasTimes =
+    Number.isFinite(seg.currentTravelTime) && Number.isFinite(seg.freeFlowTravelTime);
+  const delaySeconds = hasTimes ? seg.currentTravelTime - seg.freeFlowTravelTime : undefined;
   const rows: Array<[string, string]> = [
     ["Current speed", formatSpeed(seg.currentSpeed, unitLabel)],
     ["Free-flow speed", formatSpeed(seg.freeFlowSpeed, unitLabel)],
     ["Current travel time", formatDuration(seg.currentTravelTime)],
     ["Free-flow travel time", formatDuration(seg.freeFlowTravelTime)],
     ["Delay", delaySeconds !== undefined && delaySeconds > 0 ? formatDuration(delaySeconds) : delaySeconds === undefined ? "—" : "None"],
-    ["Confidence", formatConfidence(seg.confidence)],
+    // Flow Segment confidence is a 0–1 fraction — shared formatter is percent-scale.
+    ["Confidence", formatConfidence(seg.confidence * 100)],
   ];
 ```
 
