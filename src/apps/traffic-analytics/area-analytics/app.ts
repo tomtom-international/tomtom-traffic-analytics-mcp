@@ -24,6 +24,7 @@ import { shouldShowUI, showMapUI, hideMapUI, showErrorUI } from "@shared/ui-visi
 import { normalizeAreaResponse } from "@shared/geo";
 import { computeBarLayout } from "@shared/chart-layout";
 import { el, hideWaiting } from "@shared/dom";
+import { gradientCss } from "@shared/speed-colors";
 import "@shared/controls";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
@@ -204,12 +205,7 @@ function renderLegend(): void {
   // valueType implies (0–100 for the *PCT variants, raw metric units for "raw"). Normalizing
   // by the stop array's own min/max — instead of assuming a fixed 0–1 scale — keeps the
   // gradient correct regardless of which shape resolveColorStops() handed back.
-  const stopValues = stops.map((s) => s.value);
-  const stopMin = Math.min(...stopValues);
-  const stopSpan = Math.max(...stopValues) - stopMin || 1;
-  const gradient = stops
-    .map((s) => `${s.color} ${(((s.value - stopMin) / stopSpan) * 100).toFixed(1)}%`)
-    .join(", ");
+  const gradient = gradientCss(stops);
 
   legend.innerHTML = `
     <div class="legend-title">${METRIC_LABEL[activeMetric] ?? activeMetric}</div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ratioToColor, NO_DATA_COLOR, RATIO_STOPS } from "./speed-colors";
+import { ratioToColor, NO_DATA_COLOR, RATIO_STOPS, gradientCss } from "./speed-colors";
 
 describe("ratioToColor", () => {
   it("returns exact stop colors at stop values", () => {
@@ -23,5 +23,25 @@ describe("ratioToColor", () => {
     expect(ratioToColor(null)).toBe(NO_DATA_COLOR);
     expect(ratioToColor(undefined)).toBe(NO_DATA_COLOR);
     expect(ratioToColor(Number.NaN)).toBe(NO_DATA_COLOR);
+  });
+});
+
+describe("gradientCss", () => {
+  it("normalizes stop positions by the stops' own min/max", () => {
+    expect(
+      gradientCss([
+        { value: 0.4, color: "#e03030" },
+        { value: 0.7, color: "#f5a623" },
+        { value: 0.9, color: "#2dc653" },
+      ])
+    ).toBe("#e03030 0.0%, #f5a623 60.0%, #2dc653 100.0%");
+  });
+  it("guards a zero span (all stops equal)", () => {
+    expect(gradientCss([{ value: 5, color: "#111111" }, { value: 5, color: "#222222" }])).toBe(
+      "#111111 0.0%, #222222 0.0%"
+    );
+  });
+  it("returns empty string for no stops", () => {
+    expect(gradientCss([])).toBe("");
   });
 });

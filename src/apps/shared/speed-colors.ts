@@ -38,13 +38,27 @@ export function ratioToColor(ratio: number | null | undefined): string {
   return last[1];
 }
 
+/**
+ * Builds the color-stop list of a `linear-gradient()` from value/color stops,
+ * normalizing positions by the stop values' own min/max (the stop domain
+ * varies: 0–1 fractions for ratio ramps, 0–100 or raw units for analytics
+ * metric configs). Zero-span stop lists collapse to position 0%.
+ */
+export function gradientCss(
+  stops: ReadonlyArray<{ value: number; color: string }>
+): string {
+  if (stops.length === 0) return "";
+  const values = stops.map((s) => s.value);
+  const min = Math.min(...values);
+  const span = Math.max(...values) - min || 1;
+  return stops
+    .map((s) => `${s.color} ${(((s.value - min) / span) * 100).toFixed(1)}%`)
+    .join(", ");
+}
+
 /** Renders the shared green→amber→red ramp legend. `label` must be a static string. */
 export function renderRampLegend(container: HTMLElement, label: string): void {
-  const min = RATIO_STOPS[0][0];
-  const max = RATIO_STOPS[RATIO_STOPS.length - 1][0];
-  const gradient = RATIO_STOPS.map(
-    ([v, c]) => `${c} ${(((v - min) / (max - min)) * 100).toFixed(1)}%`
-  ).join(", ");
+  const gradient = gradientCss(RATIO_STOPS.map(([value, color]) => ({ value, color })));
   container.innerHTML = `
     <div class="ramp-legend-label">${label}</div>
     <div class="ramp-legend-bar" style="background: linear-gradient(to right, ${gradient})"></div>
