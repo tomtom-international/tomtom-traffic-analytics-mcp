@@ -164,9 +164,6 @@ In `src/apps/traffic-analytics/traffic-flow/app.ts`:
   const hasTimes =
     Number.isFinite(seg.currentTravelTime) && Number.isFinite(seg.freeFlowTravelTime);
   const delaySeconds = hasTimes ? seg.currentTravelTime - seg.freeFlowTravelTime : undefined;
-  const hasTimes =
-    Number.isFinite(seg.currentTravelTime) && Number.isFinite(seg.freeFlowTravelTime);
-  const delaySeconds = hasTimes ? seg.currentTravelTime - seg.freeFlowTravelTime : undefined;
   const rows: Array<[string, string]> = [
     ["Current speed", formatSpeed(seg.currentSpeed, unitLabel)],
     ["Free-flow speed", formatSpeed(seg.freeFlowSpeed, unitLabel)],
