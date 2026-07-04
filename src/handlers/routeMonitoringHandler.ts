@@ -15,7 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
-import { storeVizData } from "../services/cache/vizCache";
+import { buildVizMeta } from "./helpers/vizMeta";
 import { getRoutes, getRouteDetails } from "../services/route-monitoring/routeMonitoringService";
 import {
   SqlFilterEngine,
@@ -81,21 +81,10 @@ function createRouteSearchHandler() {
       const rowCounts = sqlEngine.getTableRowCounts();
 
       // 6. Cache the raw route list for the MCP App to render, unless disabled
-      let vizMeta: { show_ui: boolean; viz_id?: string };
-      if (show_ui !== false) {
-        try {
-          const vizId = storeVizData({
-            tool: "tomtom-route-search",
-            routes: allRoutes,
-          });
-          vizMeta = { show_ui: true, viz_id: vizId };
-        } catch (error: any) {
-          logger.error(`Failed to cache route search viz payload: ${error.message}`);
-          vizMeta = { show_ui: false };
-        }
-      } else {
-        vizMeta = { show_ui: false };
-      }
+      const vizMeta = buildVizMeta(show_ui, "route search", () => ({
+        tool: "tomtom-route-search",
+        routes: allRoutes,
+      }));
 
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
@@ -115,7 +104,7 @@ function createRouteSearchHandler() {
       logger.info(
         `Route search completed: ${allRoutes.length} routes (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`Route search failed: ${error.message}`);
       return {
@@ -191,8 +180,12 @@ function createGetRouteDetailsHandler() {
       for (const rawResult of rawResults) {
         const flattened = flattenRouteMonitoringDetails(rawResult);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
@@ -208,21 +201,10 @@ function createGetRouteDetailsHandler() {
       const rowCounts = sqlEngine.getTableRowCounts();
 
       // 6. Cache the raw route details for the MCP App to render, unless disabled
-      let vizMeta: { show_ui: boolean; viz_id?: string };
-      if (show_ui !== false) {
-        try {
-          const vizId = storeVizData({
-            tool: "tomtom-route-monitoring-details",
-            routes: rawResults,
-          });
-          vizMeta = { show_ui: true, viz_id: vizId };
-        } catch (error: any) {
-          logger.error(`Failed to cache route details viz payload: ${error.message}`);
-          vizMeta = { show_ui: false };
-        }
-      } else {
-        vizMeta = { show_ui: false };
-      }
+      const vizMeta = buildVizMeta(show_ui, "route details", () => ({
+        tool: "tomtom-route-monitoring-details",
+        routes: rawResults,
+      }));
 
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
@@ -243,7 +225,7 @@ function createGetRouteDetailsHandler() {
       logger.info(
         `✅ Route details processed with SQL filtering: ${ids.length} routes (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`❌ Failed to fetch route details: ${error.message}`);
       return {

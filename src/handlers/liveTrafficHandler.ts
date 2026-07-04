@@ -15,7 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
-import { storeVizData } from "../services/cache/vizCache";
+import { buildVizMeta } from "./helpers/vizMeta";
 import {
   getFlowSegmentData,
   getTrafficIncidents,
@@ -75,27 +75,16 @@ export function getFlowSegmentDataHandler() {
       const rowCounts = sqlEngine.getTableRowCounts();
 
       // 6. Cache the raw segment for the MCP App to render, unless disabled
-      let vizMeta: { show_ui: boolean; viz_id?: string };
-      if (show_ui !== false) {
-        try {
-          const vizId = storeVizData({
-            tool: "tomtom-traffic-flow-segment",
-            request: {
-              point: request.point,
-              style: request.style,
-              zoom: request.zoom,
-              unit: request.unit,
-            },
-            segment: rawResult,
-          });
-          vizMeta = { show_ui: true, viz_id: vizId };
-        } catch (error: any) {
-          logger.error(`Failed to cache traffic flow viz payload: ${error.message}`);
-          vizMeta = { show_ui: false };
-        }
-      } else {
-        vizMeta = { show_ui: false };
-      }
+      const vizMeta = buildVizMeta(show_ui, "traffic flow", () => ({
+        tool: "tomtom-traffic-flow-segment",
+        request: {
+          point: request.point,
+          style: request.style,
+          zoom: request.zoom,
+          unit: request.unit,
+        },
+        segment: rawResult,
+      }));
 
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
@@ -118,7 +107,7 @@ export function getFlowSegmentDataHandler() {
         `✅ Flow segment data processed with SQL filtering (${Object.keys(sql_queries).length} queries)`
       );
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(response) }],
       };
     } catch (error: any) {
       logger.error(`Error getting live traffic data: ${error.message}`);
@@ -223,8 +212,12 @@ export function createTrafficIncidentsHandler() {
       for (const { areaName, data } of rawResults) {
         const flattened = flattenTrafficIncidents(data, areaName);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
@@ -240,25 +233,14 @@ export function createTrafficIncidentsHandler() {
       const rowCounts = sqlEngine.getTableRowCounts();
 
       // 6. Cache the raw per-area results for the MCP App to render, unless disabled
-      let vizMeta: { show_ui: boolean; viz_id?: string };
-      if (show_ui !== false) {
-        try {
-          const vizId = storeVizData({
-            tool: "tomtom-traffic-incidents",
-            areas: rawResults.map(({ areaName, bbox, data }) => ({
-              name: areaName,
-              bbox,
-              incidents: data,
-            })),
-          });
-          vizMeta = { show_ui: true, viz_id: vizId };
-        } catch (error: any) {
-          logger.error(`Failed to cache traffic incidents viz payload: ${error.message}`);
-          vizMeta = { show_ui: false };
-        }
-      } else {
-        vizMeta = { show_ui: false };
-      }
+      const vizMeta = buildVizMeta(show_ui, "traffic incidents", () => ({
+        tool: "tomtom-traffic-incidents",
+        areas: rawResults.map(({ areaName, bbox, data }) => ({
+          name: areaName,
+          bbox,
+          incidents: data,
+        })),
+      }));
 
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
@@ -280,10 +262,10 @@ export function createTrafficIncidentsHandler() {
         `✅ Traffic incidents processed with SQL filtering: ${areas.length} areas (${Object.keys(sql_queries).length} queries)`
       );
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(response) }],
       };
     } catch (error: any) {
-      logger.error(JSON.stringify(error.message, null, 2));
+      logger.error(JSON.stringify(error.message));
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: error.message }) }],
         isError: true,

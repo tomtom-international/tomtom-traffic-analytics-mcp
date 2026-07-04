@@ -15,7 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
-import { storeVizData } from "../services/cache/vizCache";
+import { buildVizMeta } from "./helpers/vizMeta";
 import {
   getJunctionLiveData,
   getJunctionArchive,
@@ -86,21 +86,10 @@ export function getJunctionSearchHandler() {
       const rowCounts = sqlEngine.getTableRowCounts();
 
       // 7. Cache the raw junction catalog for the MCP App to render, unless disabled
-      let vizMeta: { show_ui: boolean; viz_id?: string };
-      if (show_ui !== false) {
-        try {
-          const vizId = storeVizData({
-            tool: "tomtom-junction-search",
-            junctions: allJunctions,
-          });
-          vizMeta = { show_ui: true, viz_id: vizId };
-        } catch (error: any) {
-          logger.error(`Failed to cache junction search viz payload: ${error.message}`);
-          vizMeta = { show_ui: false };
-        }
-      } else {
-        vizMeta = { show_ui: false };
-      }
+      const vizMeta = buildVizMeta(show_ui, "junction search", () => ({
+        tool: "tomtom-junction-search",
+        junctions: allJunctions,
+      }));
 
       // 8. Build filtered response
       const response: SqlFilteredResponse = {
@@ -121,7 +110,7 @@ export function getJunctionSearchHandler() {
       logger.info(
         `Junction search completed: ${allJunctions.length} junctions (${Object.keys(sql_queries).length} queries, view: ${view})`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`Junction search failed: ${error.message}`);
       return {
@@ -203,8 +192,12 @@ export function getJunctionLiveDataDetailsHandler() {
       for (const rawResult of sqlResults) {
         const flattened = flattenJunctionLiveData(rawResult);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
@@ -220,21 +213,10 @@ export function getJunctionLiveDataDetailsHandler() {
       const rowCounts = sqlEngine.getTableRowCounts();
 
       // 6. Cache the raw (unstripped) junctions for the MCP App to render, unless disabled
-      let vizMeta: { show_ui: boolean; viz_id?: string };
-      if (show_ui !== false) {
-        try {
-          const vizId = storeVizData({
-            tool: "tomtom-junction-live-data",
-            junctions: rawResults,
-          });
-          vizMeta = { show_ui: true, viz_id: vizId };
-        } catch (error: any) {
-          logger.error(`Failed to cache junction live data viz payload: ${error.message}`);
-          vizMeta = { show_ui: false };
-        }
-      } else {
-        vizMeta = { show_ui: false };
-      }
+      const vizMeta = buildVizMeta(show_ui, "junction live data", () => ({
+        tool: "tomtom-junction-live-data",
+        junctions: rawResults,
+      }));
 
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
@@ -256,7 +238,7 @@ export function getJunctionLiveDataDetailsHandler() {
       logger.info(
         `✅ Junction live data processed with SQL filtering: ${ids.length} junctions (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`❌ Failed to retrieve junction live data: ${error.message}`);
       return {
@@ -369,7 +351,7 @@ export function getJunctionArchiveHandler() {
       logger.info(
         `✅ Junction archive processed with SQL filtering: ${ids.length} junctions (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`❌ Failed to retrieve junction archive: ${error.message}`);
       return {

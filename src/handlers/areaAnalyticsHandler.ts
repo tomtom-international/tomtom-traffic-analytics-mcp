@@ -15,7 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
-import { storeVizData } from "../services/cache/vizCache";
+import { buildVizMeta } from "./helpers/vizMeta";
 import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsService";
 import { AreaAnalyticsStatsRequest } from "../services/area-analytics/types";
 import {
@@ -47,7 +47,7 @@ export function getAreaAnalyticsStatsHandler() {
         'Example: {"congestion_trend": "SELECT time, AVG(congestion_level) as avg_congestion FROM timed_data WHERE aggregation_type = \'daily\' GROUP BY time"}';
       logger.error(`❌ Area Analytics stats request rejected: ${errorMsg}`);
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
         isError: true,
       };
     }
@@ -72,29 +72,18 @@ export function getAreaAnalyticsStatsHandler() {
       const rowCounts = sqlEngine.getTableRowCounts();
 
       // 6. Cache the raw report for the MCP App to render, unless disabled
-      let vizMeta: { show_ui: boolean; viz_id?: string };
-      if (show_ui !== false) {
-        try {
-          const vizId = storeVizData({
-            tool: "tomtom-area-analytics-stats",
-            request: {
-              name: request.name,
-              startDate: request.startDate,
-              endDate: request.endDate,
-              dataTypes: request.dataTypes,
-              hours: request.hours,
-              frcs: request.frcs,
-            },
-            report: rawResult,
-          });
-          vizMeta = { show_ui: true, viz_id: vizId };
-        } catch (error: any) {
-          logger.error(`Failed to cache Area Analytics viz payload: ${error.message}`);
-          vizMeta = { show_ui: false };
-        }
-      } else {
-        vizMeta = { show_ui: false };
-      }
+      const vizMeta = buildVizMeta(show_ui, "Area Analytics", () => ({
+        tool: "tomtom-area-analytics-stats",
+        request: {
+          name: request.name,
+          startDate: request.startDate,
+          endDate: request.endDate,
+          dataTypes: request.dataTypes,
+          hours: request.hours,
+          frcs: request.frcs,
+        },
+        report: rawResult,
+      }));
 
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
@@ -117,13 +106,13 @@ export function getAreaAnalyticsStatsHandler() {
         `✅ Area Analytics stats processed with SQL filtering (${Object.keys(sql_queries).length} queries)`
       );
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(response) }],
       };
     } catch (error: any) {
       logger.error(`Error getting Area Analytics stats: ${error.message}`);
       return {
         content: [
-          { type: "text" as const, text: JSON.stringify({ error: error.message }, null, 2) },
+          { type: "text" as const, text: JSON.stringify({ error: error.message }) },
         ],
         isError: true,
       };
