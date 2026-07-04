@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 const mockReadFile = vi.fn();
+const mockStat = vi.fn();
 
 type ResourceResult = {
   contents: { uri: string; mimeType: string; text: string; _meta?: Record<string, unknown> }[];
@@ -36,7 +37,7 @@ const mockRegisterAppResource = vi.fn(
 );
 
 vi.mock("node:fs/promises", () => ({
-  default: { readFile: mockReadFile },
+  default: { readFile: mockReadFile, stat: mockStat },
 }));
 
 vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
@@ -50,6 +51,7 @@ describe("registerAppResourceFromPath", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedResourceHandler = null;
+    mockStat.mockResolvedValue({ mtimeMs: 1000 });
   });
 
   it("registers synchronously (returns void, no promise) and passes the URI + mime type", () => {
@@ -105,48 +107,59 @@ describe("registerAppResourceFromPath", () => {
     });
   });
 
-  it("memoizes successfully-read file content: fs.readFile is called once across two reads", async () => {
+  it("memoizes by mtime: unchanged file is read once, changed file is re-read", async () => {
     const mockServer = {} as McpServer;
     const resourceUri = "ui://test/memo.html";
-    mockReadFile.mockResolvedValue("<html>memoized</html>");
+    mockStat.mockResolvedValue({ mtimeMs: 1000 });
+    mockReadFile.mockResolvedValue("<html>v1</html>");
 
     registerAppResourceFromPath(mockServer, resourceUri, "search", "memo-app");
 
     const first = await capturedResourceHandler!();
     const second = await capturedResourceHandler!();
-
     expect(mockReadFile).toHaveBeenCalledTimes(1);
-    expect(first.contents[0].text).toBe("<html>memoized</html>");
-    expect(second.contents[0].text).toBe("<html>memoized</html>");
+    expect(first.contents[0].text).toBe("<html>v1</html>");
+    expect(second.contents[0].text).toBe("<html>v1</html>");
+
+    // A rebuild bumps the mtime — the next read must serve the new HTML
+    mockStat.mockResolvedValue({ mtimeMs: 2000 });
+    mockReadFile.mockResolvedValue("<html>v2</html>");
+    const third = await capturedResourceHandler!();
+    expect(third.contents[0].text).toBe("<html>v2</html>");
+    expect(mockReadFile).toHaveBeenCalledTimes(2);
   });
 
   it("returns fallback HTML when the file is missing, without throwing", async () => {
     const mockServer = {} as McpServer;
     const resourceUri = "ui://test/missing.html";
+    mockStat.mockRejectedValue(new Error("ENOENT"));
     mockReadFile.mockRejectedValue(new Error("ENOENT"));
 
     registerAppResourceFromPath(mockServer, resourceUri, "search", "missing-app");
 
     const result = await capturedResourceHandler!();
 
-    expect(result.contents[0].text).toContain("App not found");
+    expect(result.contents[0].text).toContain("App UI not available");
     expect(result.contents[0].text).toContain("npm run build:apps");
+    expect(result.contents[0].text).not.toContain("dist");
+    expect(result.contents[0].text).not.toMatch(/[A-Za-z]:\\|\/home\//);
   });
 
   it("does not memoize the fallback: a subsequent successful read is served fresh", async () => {
     const mockServer = {} as McpServer;
     const resourceUri = "ui://test/retry.html";
-    mockReadFile.mockRejectedValueOnce(new Error("ENOENT"));
+    mockStat.mockRejectedValueOnce(new Error("ENOENT"));
 
     registerAppResourceFromPath(mockServer, resourceUri, "search", "retry-app");
 
     const failedResult = await capturedResourceHandler!();
-    expect(failedResult.contents[0].text).toContain("App not found");
+    expect(failedResult.contents[0].text).toContain("App UI not available");
 
+    mockStat.mockResolvedValue({ mtimeMs: 1000 });
     mockReadFile.mockResolvedValueOnce("<html>rebuilt</html>");
     const successResult = await capturedResourceHandler!();
 
     expect(successResult.contents[0].text).toBe("<html>rebuilt</html>");
-    expect(mockReadFile).toHaveBeenCalledTimes(2);
+    expect(mockReadFile).toHaveBeenCalledTimes(1);
   });
 });

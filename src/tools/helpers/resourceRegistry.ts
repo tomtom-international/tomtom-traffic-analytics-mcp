@@ -22,10 +22,12 @@
  *    HTTP request, so there is no benefit to an async wrapper around a
  *    synchronous `registerAppResource` call.
  *  - Successfully-read HTML is memoized in a module-level Map keyed by
- *    resource URI, so repeated `resources/read` calls (one per request)
- *    do not re-read the same file from disk. Failed reads are NOT
- *    memoized, so a later `npm run build:apps` is picked up without a
- *    server restart.
+ *    resource URI, but the cache entry is validated against the file's
+ *    mtime on every read (one cheap `fs.stat` instead of a full read)
+ *    before it is served. This avoids re-reading the file from disk on
+ *    every `resources/read` call while still picking up a later
+ *    `npm run build:apps` without a server restart. Failed reads are not
+ *    cached either.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -81,9 +83,11 @@ const APP_RESOURCE_CSP = {
 
 /**
  * Module-level memoization of successfully-read app HTML, keyed by resource
- * URI. Avoids a disk read on every `resources/read` call.
+ * URI. Each entry also stores the source file's `mtimeMs` so it can be
+ * validated with a cheap `fs.stat` before being served, avoiding a full
+ * disk read on every `resources/read` call while still detecting rebuilds.
  */
-const htmlCache = new Map<string, string>();
+const htmlCache = new Map<string, { html: string; mtimeMs: number }>();
 
 /**
  * Register an MCP App resource from the dist-apps directory.
@@ -107,15 +111,14 @@ export function registerAppResourceFromPath(
     resourceUri,
     { mimeType: RESOURCE_MIME_TYPE },
     async (): Promise<ReadResourceResult> => {
-      const cached = htmlCache.get(resourceUri);
-
-      if (cached !== undefined) {
-        return buildResult(resourceUri, cached);
-      }
-
       try {
+        const stat = await fs.stat(htmlPath);
+        const cached = htmlCache.get(resourceUri);
+        if (cached && cached.mtimeMs === stat.mtimeMs) {
+          return buildResult(resourceUri, cached.html);
+        }
         const html = await fs.readFile(htmlPath, "utf-8");
-        htmlCache.set(resourceUri, html);
+        htmlCache.set(resourceUri, { html, mtimeMs: stat.mtimeMs });
         return buildResult(resourceUri, html);
       } catch (error) {
         logger.warn(
@@ -126,7 +129,7 @@ export function registerAppResourceFromPath(
             {
               uri: resourceUri,
               mimeType: RESOURCE_MIME_TYPE,
-              text: `<!DOCTYPE html><html><head><title>Error</title></head><body><p>App not found. Run <code>npm run build:apps</code></p><p>Path: ${htmlPath}</p></body></html>`,
+              text: `<!DOCTYPE html><html><head><title>Error</title></head><body><p>App UI not available. Run <code>npm run build:apps</code> and retry.</p></body></html>`,
             },
           ],
         };
