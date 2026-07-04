@@ -102,7 +102,8 @@ function renderStats(viz: VizPayload): void {
     ["Free-flow travel time", formatDuration(seg.freeFlowTravelTime)],
     ["Delay", delaySeconds !== undefined && delaySeconds > 0 ? formatDuration(delaySeconds) : delaySeconds === undefined ? "—" : "None"],
     // Flow Segment confidence is a 0–1 fraction — shared formatter is percent-scale.
-    ["Confidence", formatConfidence(seg.confidence * 100)],
+    // Null-check before converting: `null * 100 === 0` would bypass the "—" guard.
+    ["Confidence", formatConfidence(seg.confidence == null ? undefined : seg.confidence * 100)],
   ];
 
   for (const [label, value] of rows) {
