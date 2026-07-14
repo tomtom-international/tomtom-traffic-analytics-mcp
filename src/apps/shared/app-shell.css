@@ -191,3 +191,72 @@ html.ui-hidden #app-root {
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   BP-B — de-collision wrapper for the OVERLAY shell's floating corner chrome
+   (area-analytics: `.analytics-header` + `.control-bar` top, `.legend` +
+   `.timeseries-wrap` bottom; traffic-flow: `.stat-card` + `.control-bar` top).
+   Each pair is wrapped in `<div class="overlay-top">`/`<div
+   class="overlay-bottom">` in the app's `app.html`. At wide widths the
+   wrapper is transparent to layout (`display: contents`), so children keep
+   their existing absolute corner positions untouched. Below 780px it becomes
+   the positioned box instead and stacks its children into one column so the
+   two widgets no longer float over each other.
+   --------------------------------------------------------------------------- */
+
+.overlay-top,
+.overlay-bottom {
+  display: contents;
+}
+
+/* `display: contents` removes the wrapper's own box, so the per-app
+   `#analytics-panel > *` / `#flow-panel > *` pointer-events rule no longer
+   matches the header/control-bar/legend once they're nested one level
+   deeper — restore `pointer-events: auto` directly on the wrapped children,
+   at every width (not just inside the BP-B media query below). */
+.overlay-top > *,
+.overlay-bottom > * {
+  pointer-events: auto;
+}
+
+@media (max-width: 779.98px) {
+  /* BP-B — overlay chrome de-collision */
+  .overlay-top,
+  .overlay-bottom {
+    display: block;
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    z-index: 900;
+  }
+
+  .overlay-top {
+    top: 16px;
+  }
+
+  .overlay-bottom {
+    bottom: 16px;
+  }
+
+  .overlay-top > *,
+  .overlay-bottom > * {
+    position: static;
+    inset: auto;
+    max-width: none;
+    width: auto;
+    margin-bottom: 8px;
+    pointer-events: auto;
+  }
+
+  .overlay-top > *:last-child,
+  .overlay-bottom > *:last-child {
+    margin-bottom: 0;
+  }
+
+  /* area-analytics only: `.timeseries-wrap` right-aligns its toggle/panel
+     internally (wide-width bottom-right corner) — re-align left so it reads
+     as one left-aligned column under the now full-width `.legend` above it. */
+  .overlay-bottom .timeseries-wrap {
+    align-items: flex-start;
+  }
+}

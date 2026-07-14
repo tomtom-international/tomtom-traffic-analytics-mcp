@@ -18,49 +18,53 @@
       <div id="sdk-map"></div>
 
       <div id="analytics-panel" class="hidden">
-        <header id="analytics-header" class="analytics-header tta-panel">
-          <div id="header-title" class="header-title"></div>
-          <div id="header-meta" class="header-meta"></div>
-        </header>
+        <div class="overlay-top">
+          <header id="analytics-header" class="analytics-header tta-panel">
+            <div id="header-title" class="header-title"></div>
+            <div id="header-meta" class="header-meta"></div>
+          </header>
 
-        <div id="control-bar" class="control-bar tta-panel tta-control-bar">
-          <label class="control-field tta-field">
-            <span>Mode</span>
-            <select id="mode-select" class="tta-select">
-              <option value="hexgrid-3d">Hex grid (3D)</option>
-              <option value="hexgrid-2d">Hex grid (2D)</option>
-              <option value="square-3d">Square (3D)</option>
-              <option value="square-2d">Square (2D)</option>
-              <option value="heatmap">Heatmap</option>
-            </select>
-          </label>
+          <div id="control-bar" class="control-bar tta-panel tta-control-bar">
+            <label class="control-field tta-field">
+              <span>Mode</span>
+              <select id="mode-select" class="tta-select">
+                <option value="hexgrid-3d">Hex grid (3D)</option>
+                <option value="hexgrid-2d">Hex grid (2D)</option>
+                <option value="square-3d">Square (3D)</option>
+                <option value="square-2d">Square (2D)</option>
+                <option value="heatmap">Heatmap</option>
+              </select>
+            </label>
 
-          <label class="control-field tta-field">
-            <span>Metric</span>
-            <select id="metric-select" class="tta-select"></select>
-          </label>
+            <label class="control-field tta-field">
+              <span>Metric</span>
+              <select id="metric-select" class="tta-select"></select>
+            </label>
 
-          <label class="control-field tta-field range-field">
-            <span>Min</span>
-            <input id="range-min" class="tta-input tta-input-narrow" type="number" inputmode="decimal" placeholder="min" />
-          </label>
+            <label class="control-field tta-field range-field">
+              <span>Min</span>
+              <input id="range-min" class="tta-input tta-input-narrow" type="number" inputmode="decimal" placeholder="min" />
+            </label>
 
-          <label class="control-field tta-field range-field">
-            <span>Max</span>
-            <input id="range-max" class="tta-input tta-input-narrow" type="number" inputmode="decimal" placeholder="max" />
-          </label>
+            <label class="control-field tta-field range-field">
+              <span>Max</span>
+              <input id="range-max" class="tta-input tta-input-narrow" type="number" inputmode="decimal" placeholder="max" />
+            </label>
 
-          <button id="range-clear" type="button" class="control-btn tta-btn">Clear filter</button>
+            <button id="range-clear" type="button" class="control-btn tta-btn">Clear filter</button>
+          </div>
         </div>
 
-        <div id="legend" class="legend tta-panel hidden"></div>
+        <div class="overlay-bottom">
+          <div id="legend" class="legend tta-panel hidden"></div>
 
-        <div class="timeseries-wrap">
-          <button id="timeseries-toggle" type="button" class="timeseries-toggle tta-btn tta-btn-pill" aria-expanded="false">
-            Time series <span class="chevron">&#9662;</span>
-          </button>
-          <div id="timeseries-panel" class="timeseries-panel tta-panel hidden">
-            <div id="timeseries-chart" class="timeseries-chart"></div>
+          <div class="timeseries-wrap">
+            <button id="timeseries-toggle" type="button" class="timeseries-toggle tta-btn tta-btn-pill" aria-expanded="false">
+              Time series <span class="chevron">&#9662;</span>
+            </button>
+            <div id="timeseries-panel" class="timeseries-panel tta-panel hidden">
+              <div id="timeseries-chart" class="timeseries-chart"></div>
+            </div>
           </div>
         </div>
 
