@@ -79,6 +79,8 @@ export type SqlQueryExecutionResult = SqlQueryResult | SqlQueryErrorResult;
 export interface SqlFilterMetadata {
   tool: string;
   parameters: Record<string, unknown>;
+  /** Deterministic id directory injected by tomtom-route-search (capped). */
+  route_ids?: { route_id: number; route_name: string }[];
   raw_row_counts: Record<string, number>;
   queries_executed: number;
   warnings?: string[];

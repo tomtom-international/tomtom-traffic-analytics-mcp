@@ -32,7 +32,10 @@ vi.mock("../sql", () => ({
 }));
 
 vi.mock("../services/route-monitoring/routeMonitoringService", () => ({
-  getRoutes: vi.fn().mockResolvedValue([{ routeId: "r1" }, { routeId: "r2" }]),
+  getRoutes: vi.fn().mockResolvedValue([
+    { routeId: 1, routeName: "Route A" },
+    { routeId: 2, routeName: "Route B" },
+  ]),
   getRouteDetails: vi.fn().mockResolvedValue({ detailedSegments: [{ segmentId: "s1" }] }),
 }));
 
@@ -94,6 +97,26 @@ describe("routeMonitoringHandler", () => {
       expect(mockSqlEngine.close).toHaveBeenCalled();
     });
 
+    it("injects a route_ids directory into metadata", async () => {
+      const result = await handler({ sql_queries: { q: "SELECT 1" } });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.metadata.route_ids).toEqual([
+        { route_id: 1, route_name: "Route A" },
+        { route_id: 2, route_name: "Route B" },
+      ]);
+      expect(parsed.metadata.parameters.route_ids_note).toBeUndefined();
+    });
+
+    it("caps route_ids at 100 and notes the truncation", async () => {
+      const many = Array.from({ length: 150 }, (_, i) => ({ routeId: i, routeName: `R${i}` }));
+      vi.mocked(getRoutes).mockResolvedValueOnce(many as any);
+      const result = await handler({ sql_queries: { q: "SELECT 1" } });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.metadata.route_ids).toHaveLength(100);
+      expect(parsed.metadata.route_ids[0]).toEqual({ route_id: 0, route_name: "R0" });
+      expect(parsed.metadata.parameters.route_ids_note).toContain("150");
+    });
+
     describe("route search viz cache (show_ui)", () => {
       it("defaults show_ui to true, stores raw viz payload, and includes viz_id", async () => {
         const result = await handler({ sql_queries: { q: "SELECT 1" } });
@@ -101,7 +124,10 @@ describe("routeMonitoringHandler", () => {
         expect(mockStoreVizData).toHaveBeenCalledTimes(1);
         expect(mockStoreVizData).toHaveBeenCalledWith({
           tool: "tomtom-route-search",
-          routes: [{ routeId: "r1" }, { routeId: "r2" }],
+          routes: [
+            { routeId: 1, routeName: "Route A" },
+            { routeId: 2, routeName: "Route B" },
+          ],
         });
 
         const parsed = JSON.parse(result.content[0].text);

@@ -26,6 +26,9 @@ import {
   SqlFilteredResponse,
 } from "../sql";
 
+/** Max entries in the auto-injected metadata.route_ids directory. */
+const ROUTE_DIRECTORY_CAP = 100;
+
 /**
  * Factory function that creates route monitoring handlers
  */
@@ -86,13 +89,23 @@ function createRouteSearchHandler() {
         routes: allRoutes,
       }));
 
+      // Deterministic route-id directory so follow-up
+      // tomtom-route-monitoring-details calls never need a re-query.
+      const routeDirectory = allRoutes
+        .slice(0, ROUTE_DIRECTORY_CAP)
+        .map((r) => ({ route_id: r.routeId, route_name: r.routeName }));
+
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-route-search",
           parameters: {
             totalRoutes: allRoutes.length,
+            ...(allRoutes.length > ROUTE_DIRECTORY_CAP && {
+              route_ids_note: `route_ids lists the first ${ROUTE_DIRECTORY_CAP} of ${allRoutes.length} routes; query the routes table for the rest`,
+            }),
           },
+          route_ids: routeDirectory,
           raw_row_counts: rowCounts,
           queries_executed: Object.keys(sql_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,

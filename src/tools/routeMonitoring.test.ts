@@ -70,6 +70,7 @@ describe("Route Monitoring Tools", () => {
       (call: any) => call[1] === "tomtom-route-search"
     );
     expect(searchToolCall[2].description).toContain("Search and filter");
+    expect(searchToolCall[2].description).toContain("metadata.route_ids");
 
     const detailsToolCall = mockRegisterAppTool.mock.calls.find(
       (call: any) => call[1] === "tomtom-route-monitoring-details"

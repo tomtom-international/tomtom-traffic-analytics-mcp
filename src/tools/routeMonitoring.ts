@@ -47,6 +47,8 @@ export function createRouteMonitoringTools(server: McpServer): void {
     **Table: routes**
     Columns: route_id, route_name, route_status (NEW/ACTIVE/UPDATING/FAILED/ARCHIVED), travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage
 
+    metadata.route_ids in the response always lists {route_id, route_name} for the first 100 routes — no need to re-select ids in every query.
+
     **route_status states:**
     - ACTIVE: live monitoring, data flowing
     - NEW: created, not yet processed
