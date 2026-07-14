@@ -21,6 +21,7 @@ const mockGetEffectiveApiKey = vi.fn();
 const mockGetEffectiveMovePortalKey = vi.fn();
 const mockGetVizData = vi.fn();
 const mockGetJunctionLiveData = vi.fn();
+const mockGetRouteDetails = vi.fn();
 
 type ToolResponse = {
   content: { type: string; text: string }[];
@@ -61,6 +62,10 @@ vi.mock("../services/junction-analytics/junctionAnalyticsService", () => ({
   getJunctionLiveData: mockGetJunctionLiveData,
 }));
 
+vi.mock("../services/route-monitoring/routeMonitoringService", () => ({
+  getRouteDetails: mockGetRouteDetails,
+}));
+
 const { createAppTools } = await import("./appTools");
 
 describe("createAppTools", () => {
@@ -70,14 +75,15 @@ describe("createAppTools", () => {
     registeredCalls.length = 0;
   });
 
-  it("should register exactly 3 app tools with app-only visibility metadata", () => {
+  it("should register exactly 4 app tools with app-only visibility metadata", () => {
     const mockServer = {} as McpServer;
     createAppTools(mockServer);
 
-    expect(mockRegisterAppTool).toHaveBeenCalledTimes(3);
+    expect(mockRegisterAppTool).toHaveBeenCalledTimes(4);
     expect(registeredHandlers["tomtom-get-api-key"]).toBeDefined();
     expect(registeredHandlers["tomtom-get-viz-data"]).toBeDefined();
     expect(registeredHandlers["tomtom-get-junction-live"]).toBeDefined();
+    expect(registeredHandlers["tomtom-get-route-details"]).toBeDefined();
 
     for (const call of mockRegisterAppTool.mock.calls) {
       const options = call[2] as Record<string, unknown>;
@@ -179,6 +185,43 @@ describe("createAppTools", () => {
 
       const response = await registeredHandlers["tomtom-get-junction-live"]({
         junctionIds: ["j1"],
+      });
+
+      expect(response.isError).toBe(true);
+      expect(response.content[0].text).toContain("TOMTOM_MOVE_PORTAL_KEY");
+    });
+  });
+
+  describe("tomtom-get-route-details handler", () => {
+    it("fetches details for each route id and returns the raw JSON", async () => {
+      const mockServer = {} as McpServer;
+      createAppTools(mockServer);
+      mockGetRouteDetails.mockImplementation((id: string) =>
+        Promise.resolve({ routeId: Number(id), detailedSegments: [] })
+      );
+
+      const response = await registeredHandlers["tomtom-get-route-details"]({
+        routeIds: ["1", "2"],
+      });
+
+      expect(mockGetRouteDetails).toHaveBeenCalledTimes(2);
+      expect(mockGetRouteDetails).toHaveBeenCalledWith("1");
+      expect(response.isError).toBe(false);
+      expect(JSON.parse(response.content[0].text)).toEqual({
+        routes: [
+          { routeId: 1, detailedSegments: [] },
+          { routeId: 2, detailedSegments: [] },
+        ],
+      });
+    });
+
+    it("returns isError when the service throws (e.g. missing Move Portal key)", async () => {
+      const mockServer = {} as McpServer;
+      createAppTools(mockServer);
+      mockGetRouteDetails.mockRejectedValue(new Error("TOMTOM_MOVE_PORTAL_KEY is not set"));
+
+      const response = await registeredHandlers["tomtom-get-route-details"]({
+        routeIds: ["1"],
       });
 
       expect(response.isError).toBe(true);

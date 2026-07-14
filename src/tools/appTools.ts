@@ -23,6 +23,7 @@ import { z } from "zod";
 import { getEffectiveApiKey } from "../services/base/tomtomClient";
 import { getVizData } from "../services/cache/vizCache";
 import { getJunctionLiveData } from "../services/junction-analytics/junctionAnalyticsService";
+import { getRouteDetails } from "../services/route-monitoring/routeMonitoringService";
 
 const getApiKeySchema = {};
 
@@ -32,6 +33,10 @@ const getVizDataSchema = {
 
 const getJunctionLiveSchema = {
   junctionIds: z.array(z.string()).min(1).max(20).describe("Junction IDs to fetch live data for"),
+};
+
+const getRouteDetailsSchema = {
+  routeIds: z.array(z.coerce.string()).min(1).max(20).describe("Route IDs to fetch details for"),
 };
 
 /**
@@ -149,6 +154,43 @@ export function createAppTools(server: McpServer): void {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch junction live data";
+        return {
+          content: [{ type: "text" as const, text: message }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
+    "tomtom-get-route-details",
+    {
+      title: "Get Route Details",
+      description: "Internal tool for apps to fetch raw detailed data for routes on demand",
+      inputSchema: getRouteDetailsSchema,
+      annotations: {
+        title: "Get Route Details",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: {
+          visibility: ["app"],
+        },
+      },
+    },
+    async (params: { routeIds: string[] }) => {
+      try {
+        const routes = await Promise.all(params.routeIds.map((id) => getRouteDetails(id)));
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ routes }) }],
+          isError: false,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch route details";
         return {
           content: [{ type: "text" as const, text: message }],
           isError: true,
