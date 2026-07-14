@@ -3,6 +3,7 @@
  * Licensed under the Apache License, Version 2.0
  */
 
+import type { App } from "@modelcontextprotocol/ext-apps";
 import { TomTomMap, CustomGeoJSONModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromGeoJSON } from "@tomtom-org/maps-sdk/core";
 import { bootstrapVizApp } from "@shared/app-bootstrap";
@@ -11,6 +12,7 @@ import { formatDuration, formatConfidence, NO_VALUE } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import { initDrawer, initCollapsibleLegend } from "@shared/drawer";
+import { fetchRouteDetails } from "./fetch-route-details";
 import "@shared/controls";
 import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -138,6 +140,7 @@ function formatKm(meters: number): string {
 // ---------------------------------------------------------------------------
 
 let map: TomTomMap | undefined;
+let appRef: App | undefined;
 let geoModule: CustomGeoJSONModule | undefined;
 let routesClickBound = false;
 let routesHoverBound = false;
@@ -299,8 +302,10 @@ function renderRouteItem(route: RouteBasicInfo): HTMLElement {
       ${delayHtml}
       ${impassableHtml}
     </div>
+    <span class="route-item-status hidden">Loading&hellip;</span>
+    <span class="route-load-error hidden" role="alert"></span>
   `;
-  item.addEventListener("click", () => selectSearchRoute(route.routeId));
+  item.addEventListener("click", () => beginRouteDetailsLoad(route.routeId));
   item.addEventListener("mouseenter", () => setState("routes", route.routeId, "hover"));
   item.addEventListener("mouseleave", () => setState("routes", null, "hover"));
   return item;
@@ -358,6 +363,74 @@ function renderSearchMode(routes: RouteBasicInfo[]): void {
     legendEl.classList.remove("hidden");
     initCollapsibleLegend("legend", legendMql);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Search → details click-through — a row click or a map route-line click both
+// load full details for that one route and switch into details mode.
+// ---------------------------------------------------------------------------
+
+function setBackButtonVisible(visible: boolean): void {
+  el("details-back")?.classList.toggle("hidden", !visible);
+}
+
+// Request-generation counter for loadRouteDetails. Stale resolutions must not
+// mutate UI: if the user picks another route (new beginRouteDetailsLoad call)
+// or a new tool result re-renders the app (resetPanelState) while a fetch is
+// in flight, the old promise still settles — bumping the counter makes it a
+// no-op.
+let routeLoadSeq = 0;
+
+function beginRouteDetailsLoad(routeId: number): void {
+  selectSearchRoute(routeId);
+  const route = searchRoutes.find((r) => r.routeId === routeId);
+  if (!route) return;
+  const item =
+    el("panel-list")?.querySelector<HTMLButtonElement>(`.route-item[data-id="${routeId}"]`) ?? null;
+  void loadRouteDetails(route, item);
+}
+
+async function loadRouteDetails(
+  route: RouteBasicInfo,
+  item: HTMLButtonElement | null
+): Promise<void> {
+  if (!appRef) return;
+  const seq = ++routeLoadSeq;
+  const statusEl = item?.querySelector<HTMLElement>(".route-item-status");
+  const errEl = item?.querySelector<HTMLElement>(".route-load-error");
+  if (item) item.disabled = true;
+  statusEl?.classList.remove("hidden");
+  errEl?.classList.add("hidden");
+  try {
+    const details = (await fetchRouteDetails(appRef, [route.routeId])) as RouteDetailedInfo[];
+    if (seq !== routeLoadSeq) return; // superseded while awaiting — drop silently
+    if (details.length === 0) throw new Error("No route details returned");
+    // The details fetch already returns routePathPoints, but fall back to the
+    // search geometry defensively if it's ever missing.
+    for (const d of details) {
+      if (d.routePathPoints.length === 0) {
+        d.routePathPoints =
+          searchRoutes.find((s) => s.routeId === d.routeId)?.routePathPoints ?? [];
+      }
+    }
+    enterDetailsFromSearch(details);
+  } catch (error) {
+    if (seq !== routeLoadSeq) return; // superseded — the newer UI owns item/statusEl/errEl now
+    console.error("[tta-route-details] Failed to load route details:", error);
+    statusEl?.classList.add("hidden");
+    if (errEl) {
+      errEl.textContent = "Failed to load details — try again.";
+      errEl.classList.remove("hidden");
+    }
+    if (item) item.disabled = false;
+  }
+}
+
+function enterDetailsFromSearch(routes: RouteDetailedInfo[]): void {
+  currentMode = "details";
+  setState("routes", null, "hover"); // clear any search-row hover left over from the click
+  setBackButtonVisible(true);
+  renderDetailsMode(routes);
 }
 
 // ---------------------------------------------------------------------------
@@ -591,6 +664,27 @@ function renderDetailsMode(routes: RouteDetailedInfo[]): void {
   selectDetailsRoute(routes[0].routeId);
 }
 
+// Unwinds the details-mode state/UI set up by enterDetailsFromSearch, mirroring
+// the details slice of resetPanelState — keep the two lists in sync if that
+// state grows.
+function backToSearch(): void {
+  routeLoadSeq++; // invalidate any in-flight loadRouteDetails
+  setBackButtonVisible(false);
+  setState("routes", null, "selected");
+  setState("routes", null, "hover");
+  setState("segments", null, "selected");
+  setState("segments", null, "hover");
+  void geoModule?.clear("segments");
+  clearAndHide("route-chips");
+  clearAndHide("route-stats");
+  detailsRoutes = [];
+  selectedSegmentId = null;
+
+  currentMode = "search";
+  renderSearchMode(searchRoutes);
+  if (selectedRouteId != null) selectSearchRoute(selectedRouteId);
+}
+
 // ---------------------------------------------------------------------------
 // Mode-switch reset — ensures search-mode UI (route list) and details-mode UI
 // (chips/stats/segment table/legend) never bleed into each other across
@@ -622,6 +716,9 @@ async function resetPanelState(): Promise<void> {
   detailsRoutes = [];
   selectedRouteId = null;
   selectedSegmentId = null;
+
+  routeLoadSeq++; // a new render invalidates any in-flight loadRouteDetails
+  setBackButtonVisible(false);
 }
 
 // ---------------------------------------------------------------------------
@@ -634,7 +731,8 @@ bootstrapVizApp<VizPayload>({
   errorMessage: "Failed to fetch route data",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
   validate: (viz): viz is VizPayload => Array.isArray((viz as any)?.routes),
-  render: async ({ map: m, viz }) => {
+  render: async ({ app, map: m, viz }) => {
+    appRef = app;
     map = m;
 
     geoModule ??= await CustomGeoJSONModule.get(map, {
@@ -727,7 +825,7 @@ bootstrapVizApp<VizPayload>({
         const routeId = parseRouteFeatureId(f.id);
         if (routeId === null) return;
         if (currentMode === "search") {
-          selectSearchRoute(routeId);
+          beginRouteDetailsLoad(routeId);
         } else if (currentMode === "details") {
           selectDetailsRoute(routeId);
         }
@@ -775,6 +873,8 @@ bootstrapVizApp<VizPayload>({
     geoModule?.setVisible(false);
   },
 });
+
+el("details-back-btn")?.addEventListener("click", backToSearch);
 
 // renderSearchMode/renderDetailsMode (declared above) close over this — safe:
 // they only ever run from the async `bootstrapVizApp` render callback, which

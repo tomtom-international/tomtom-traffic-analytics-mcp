@@ -2,6 +2,11 @@
    Side panel — route chips + stats + route list / segment table
    --------------------------------------------------------------------------- */
 
+.details-back {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
 .route-chips {
   display: flex;
   flex-wrap: wrap;
@@ -45,6 +50,25 @@
 .route-item.selected {
   background: #eff6ff;
   box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.route-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.route-item-status {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+.route-load-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #dc2626;
 }
 
 .route-item-header {
