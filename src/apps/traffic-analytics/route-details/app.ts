@@ -7,7 +7,7 @@ import { TomTomMap, CustomGeoJSONModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromGeoJSON } from "@tomtom-org/maps-sdk/core";
 import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
-import { formatDuration, formatConfidence } from "@shared/format";
+import { formatDuration, formatConfidence, NO_VALUE } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
@@ -274,25 +274,27 @@ function renderRouteItem(route: RouteBasicInfo): HTMLElement {
   const delay = route.delayTime;
   const delayHtml =
     delay != null && delay > 0
-      ? `<span class="delay-badge ${delayClass(delay)}">+${escapeHtml(formatDuration(delay))}</span>`
+      ? `<span class="metric"><span class="metric-label">Delay</span> <span class="delay-badge ${delayClass(delay)}">+${escapeHtml(formatDuration(delay))}</span></span>`
+      : "";
+  const travelTimeHtml =
+    route.travelTime != null
+      ? `<span class="metric"><span class="metric-label">Travel time</span> ${escapeHtml(formatDuration(route.travelTime))}</span>`
       : "";
   const impassableHtml =
     route.passable === false ? `<span class="impassable-pill">Impassable</span>` : "";
-  const travelTimeHtml =
-    route.travelTime != null ? `<span>${escapeHtml(formatDuration(route.travelTime))}</span>` : "";
 
   item.innerHTML = `
     <div class="route-item-header">
       <span class="route-item-name">${escapeHtml(route.routeName)}</span>
       <span class="status-badge">${escapeHtml(statusLabel(route.routeStatus))}</span>
     </div>
+    <div class="route-item-id">ID ${Number(route.routeId)}</div>
     <div class="route-item-row">
-      <span>${formatKm(route.routeLength)}</span>
+      <span class="metric"><span class="metric-label">Length</span> ${formatKm(route.routeLength)}</span>
       ${travelTimeHtml}
       ${delayHtml}
       ${impassableHtml}
     </div>
-    <div class="detail-hint">Run tomtom-route-monitoring-details for segment-level analysis.</div>
   `;
   item.addEventListener("click", () => selectSearchRoute(route.routeId));
   item.addEventListener("mouseenter", () => setState("routes", route.routeId, "hover"));
@@ -390,17 +392,10 @@ function renderRouteStats(route: RouteDetailedInfo | undefined): void {
   }
   container.classList.remove("hidden");
 
-  const travelPair =
-    route.travelTime != null && route.typicalTravelTime != null
-      ? `${formatDuration(route.travelTime)} / ${formatDuration(route.typicalTravelTime)}`
-      : "—";
-
   const delay = route.delayTime;
   const delayClassName = delay != null && delay > 0 ? delayClass(delay) : "";
-  const delayText = delay == null ? "—" : delay > 0 ? `+${formatDuration(delay)}` : "None";
+  const delayText = delay == null ? NO_VALUE : delay > 0 ? `+${formatDuration(delay)}` : "None";
 
-  const confidenceText =
-    route.routeConfidence != null ? formatConfidence(route.routeConfidence) : "—";
   const passableBadge =
     route.passable === false
       ? `<span class="impassable-pill">Impassable</span>`
@@ -412,11 +407,12 @@ function renderRouteStats(route: RouteDetailedInfo | undefined): void {
       <span class="status-badge">${escapeHtml(statusLabel(route.routeStatus))}</span>
     </div>
     <div class="route-stats-grid">
-      <span class="stats-label">Travel time / typical</span><span>${escapeHtml(travelPair)}</span>
-      <span class="stats-label">Delay</span><span class="delay-text ${delayClassName}">${escapeHtml(delayText)}</span>
+      <span class="stats-label">Travel time now</span><span>${escapeHtml(formatDuration(route.travelTime))}</span>
+      <span class="stats-label">Typical travel time</span><span>${escapeHtml(formatDuration(route.typicalTravelTime))}</span>
+      <span class="stats-label">Delay vs typical</span><span class="delay-text ${delayClassName}">${escapeHtml(delayText)}</span>
       <span class="stats-label">Length</span><span>${formatKm(route.routeLength)}</span>
-      <span class="stats-label">Confidence</span><span>${escapeHtml(confidenceText)}</span>
-      <span class="stats-label">Passable</span>${passableBadge}
+      <span class="stats-label" title="How much of the route is covered by live traffic measurements">Data confidence</span><span>${escapeHtml(formatConfidence(route.routeConfidence))}</span>
+      <span class="stats-label">Status</span>${passableBadge}
     </div>
   `;
 }
@@ -469,7 +465,12 @@ function renderSegmentTable(route: RouteDetailedInfo | undefined): void {
   table.className = "segment-table";
   table.innerHTML = `
     <thead>
-      <tr><th>#</th><th>Length</th><th title="Speed (current / typical)">Speed (cur/typ)</th><th>Ratio</th></tr>
+      <tr>
+        <th title="Segment number along the route">#</th>
+        <th>Length</th>
+        <th title="Current speed / typical speed for this time of day">Speed km/h<br />now / typical</th>
+        <th title="Current speed as a percentage of typical — lower means slower than usual">% of<br />typical</th>
+      </tr>
     </thead>
     <tbody></tbody>
   `;
@@ -482,15 +483,15 @@ function renderSegmentTable(route: RouteDetailedInfo | undefined): void {
     row.setAttribute("data-segment-id", String(seg.segmentId));
 
     const ratio = normalizeRelativeSpeed(seg.relativeSpeed);
-    const ratioText = ratio != null ? `${Math.round(ratio * 100)}%` : "—";
+    const ratioText = ratio != null ? `${Math.round(ratio * 100)}%` : NO_VALUE;
     const dotColor = ratioToColor(ratio);
-    const currentSpeed = seg.currentSpeed != null ? `${Math.round(seg.currentSpeed)}` : "—";
-    const typicalSpeed = seg.typicalSpeed != null ? `${Math.round(seg.typicalSpeed)}` : "—";
+    const currentSpeed = seg.currentSpeed != null ? `${Math.round(seg.currentSpeed)}` : NO_VALUE;
+    const typicalSpeed = seg.typicalSpeed != null ? `${Math.round(seg.typicalSpeed)}` : NO_VALUE;
 
     row.innerHTML = `
       <td>${idx + 1}</td>
       <td>${Math.round(seg.segmentLength)} m</td>
-      <td>${currentSpeed} / ${typicalSpeed} km/h</td>
+      <td>${currentSpeed} / ${typicalSpeed}</td>
       <td><span class="ratio-dot" style="background:${dotColor}"></span>${ratioText}</td>
     `;
 
