@@ -10,6 +10,7 @@ import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
 import { formatDuration, formatConfidence, formatSpeed } from "@shared/format";
 import { el } from "@shared/dom";
 import "@shared/controls";
+import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
 import "maplibre-gl/dist/maplibre-gl.css";

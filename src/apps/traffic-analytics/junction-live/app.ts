@@ -12,6 +12,7 @@ import { formatDuration } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
+import "@shared/app-shell.css";
 import { LOS_BANDS, losFor, losThresholdLabel } from "./los";
 import { loadArrowIcon } from "./arrow-icon";
 import { fetchJunctionLive } from "./live-fetch";

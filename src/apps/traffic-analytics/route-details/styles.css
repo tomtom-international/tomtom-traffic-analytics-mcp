@@ -1,79 +1,6 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html,
-body {
-  width: 100%;
-  height: 100%;
-  min-height: 600px;
-  background: transparent;
-  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-}
-
-.hidden {
-  display: none !important;
-}
-
-#app-root {
-  position: relative;
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-height: 600px;
-}
-
-#sdk-map {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 600px;
-}
-
-/* Collapse app-root in ui-hidden state (show_ui:false, missing API key, etc.) */
-html.ui-hidden #app-root {
-  min-height: 0 !important;
-  display: none;
-}
-
-/* ---------------------------------------------------------------------------
-   Waiting / empty state panels
-   --------------------------------------------------------------------------- */
-
-.state-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  color: var(--color-text-secondary, #6b7280);
-  font-size: var(--font-text-sm-size, 13px);
-  text-align: center;
-}
-
-#waiting-state {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-}
-
 /* ---------------------------------------------------------------------------
    Side panel — route chips + stats + route list / segment table
    --------------------------------------------------------------------------- */
-
-#route-panel {
-  flex: 0 0 320px;
-  width: 320px;
-  height: 100%;
-  min-height: 600px;
-  overflow-y: auto;
-  background: var(--color-background-primary, #ffffff);
-  border-left: var(--border-width-regular, 1px) solid var(--color-border-secondary, #e5e7eb);
-  display: flex;
-  flex-direction: column;
-}
 
 .route-chips {
   display: flex;
@@ -87,8 +14,6 @@ html.ui-hidden #app-root {
    `.tta-chip` class — see `@shared/controls`. */
 
 .panel-list {
-  flex: 1 1 auto;
-  overflow-y: auto;
   padding: 8px 0;
 }
 

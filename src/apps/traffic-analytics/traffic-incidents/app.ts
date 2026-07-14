@@ -15,6 +15,7 @@ import { bboxUnion, type Bbox } from "@shared/geo";
 import { dedupeBy } from "@shared/collections";
 import { el, escapeHtml } from "@shared/dom";
 import "@shared/controls";
+import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
 import "maplibre-gl/dist/maplibre-gl.css";

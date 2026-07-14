@@ -23,6 +23,7 @@ import { computeBarLayout } from "@shared/chart-layout";
 import { el } from "@shared/dom";
 import { gradientCss } from "@shared/speed-colors";
 import "@shared/controls";
+import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
 import "maplibre-gl/dist/maplibre-gl.css";

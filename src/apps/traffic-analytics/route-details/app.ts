@@ -11,6 +11,7 @@ import { formatDuration, formatConfidence, NO_VALUE } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
+import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
 import "maplibre-gl/dist/maplibre-gl.css";

@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body style="background: transparent">
-    <div id="app-root">
+    <div id="app-root" class="shell-split">
       <!-- Shown until the first tool-input/tool-result notification arrives. -->
       <div id="waiting-state" class="state-panel">
         <p>Waiting for tool result&hellip;</p>
@@ -17,7 +17,7 @@
 
       <div id="sdk-map"></div>
 
-      <aside id="route-panel" class="hidden">
+      <aside id="route-panel" class="tta-drawer hidden">
         <div id="route-chips" class="route-chips hidden"></div>
         <div id="route-stats" class="route-stats hidden"></div>
         <div id="panel-list" class="panel-list"></div>

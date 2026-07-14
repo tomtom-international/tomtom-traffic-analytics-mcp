@@ -1,0 +1,121 @@
+/*
+ * Copyright (C) 2025 TomTom Navigation B.V.
+ * Licensed under the Apache License, Version 2.0
+ */
+
+/* ---------------------------------------------------------------------------
+   Shared app shell for the traffic-analytics MCP apps — page reset, the
+   `#app-root`/`#sdk-map` layout skeleton, the `ui-hidden` collapse, the
+   waiting/empty state chrome, and the `.tta-drawer` side-panel base.
+ *
+ * Two shell shapes share this skeleton:
+ *   - OVERLAY (area-analytics, traffic-flow): `#app-root` stays a plain
+ *     positioning context; chrome floats absolutely over the map.
+ *   - SPLIT (traffic-incidents, route-details, junction-live): `#app-root`
+ *     gets `class="shell-split"` so it becomes a flex row with the map and a
+ *     `.tta-drawer` side panel side by side.
+ *
+ * `#app-root` picks its shape from a `shell-overlay`/`shell-split` class set
+ * in each app's `app.html` (never hand-written selectors per app).
+   --------------------------------------------------------------------------- */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  background: transparent;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+.hidden {
+  display: none !important;
+}
+
+#app-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+.shell-split#app-root {
+  display: flex;
+}
+
+#sdk-map {
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+}
+
+.shell-split #sdk-map {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Collapse app-root in ui-hidden state (show_ui:false, missing API key, etc.) */
+html.ui-hidden #app-root {
+  min-height: 0 !important;
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Waiting / empty state panels
+   --------------------------------------------------------------------------- */
+
+.state-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--color-text-secondary, #6b7280);
+  font-size: var(--font-text-sm-size, 13px);
+  text-align: center;
+}
+
+#waiting-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   Side-panel drawer (SPLIT shell only) — the `<aside>` used by
+   traffic-incidents/route-details/junction-live. At wide widths it sizes via
+   flex (`flex: 0 0 320px`); narrow-width drawer behavior lands in Task 3.
+ *
+ * The aside itself does NOT scroll — the inner `.panel-list`/`.incident-list`
+ * is the scroll container. `min-height: 0` overrides the flex-item default
+ * (`min-height: auto`, which lets content grow past the flex line), which is
+ * what was letting a long list stretch the aside — and with `align-items:
+ * stretch` on the flex-row `#app-root`, the map along with it. That's the
+ * list-grows-the-map fix.
+   --------------------------------------------------------------------------- */
+
+.tta-drawer {
+  flex: 0 0 320px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* inner list scrolls, not the aside */
+  background: var(--color-background-primary, #ffffff);
+  border-left: var(--border-width-regular, 1px) solid var(--color-border-secondary, #e5e7eb);
+}
+
+.tta-drawer .panel-list,
+.tta-drawer .incident-list {
+  flex: 1 1 auto;
+  min-height: 0; /* THE list-grows-map fix */
+  overflow-y: auto;
+}
+
+.tta-drawer-handle {
+  display: none; /* only shown at narrow width (Task 3) */
+}
