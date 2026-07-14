@@ -12,6 +12,7 @@ import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
 import { LOS_BANDS, losFor, losThresholdLabel } from "./los";
+import { loadArrowIcon } from "./arrow-icon";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -731,7 +732,12 @@ bootstrapVizApp<VizPayload>({
   render: async ({ map: m, viz }) => {
     map = m;
 
+    const arrowIcon = await loadArrowIcon();
+
     geoModule ??= await CustomGeoJSONModule.get(map, {
+      images: {
+        "approach-arrow": { image: arrowIcon, options: { pixelRatio: 2 } },
+      },
       sources: {
         junctions: {
           layers: [
@@ -799,6 +805,23 @@ bootstrapVizApp<VizPayload>({
               filter: ["==", ["get", "closed"], true],
               layout: { "line-join": "round", "line-cap": "round" },
               paint: { "line-color": "#e03030", "line-width": 4, "line-dasharray": [2, 1.5] },
+            },
+            {
+              id: "junction-live-approaches-arrows",
+              type: "symbol",
+              filter: ["!=", ["get", "closed"], true],
+              layout: {
+                "symbol-placement": "line",
+                "symbol-spacing": 60,
+                "icon-image": "approach-arrow",
+                // Source art points up; +90° clockwise makes it point along the line
+                // direction (approach → junction).
+                "icon-rotate": 90,
+                "icon-rotation-alignment": "map",
+                "icon-pitch-alignment": "map",
+                "icon-allow-overlap": true,
+                "icon-ignore-placement": true,
+              },
             },
           ],
         },
