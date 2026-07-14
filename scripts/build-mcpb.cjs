@@ -261,8 +261,14 @@ async function main() {
     // 4. Copy ONLY the runtime dependencies the bundle actually requires.
     //    Copying the full dev node_modules (~317 MB, deeply nested) breaks
     //    Claude Desktop installs on Windows (MAX_PATH / ENOTEMPTY on cleanup).
-    //    Expected set: @duckdb/node-api, @duckdb/node-bindings, detect-libc,
-    //    and the platform binding for PLATFORM-ARCH.
+    //    Expected closure: the @duckdb family (node-api, node-bindings, the
+    //    platform binding for PLATFORM-ARCH, detect-libc) plus ajv/ajv-formats
+    //    and their deps — the latter are false positives from the require()
+    //    scanner (ajv's rollup-inlined dist code contains literal
+    //    require("ajv/dist/...") strings in its unused standalone-codegen
+    //    path). Deliberately kept: over-inclusion is a few harmless pure-JS
+    //    packages with no nested node_modules; tightening the scanner risks
+    //    silently dropping a real dependency.
     const externalDeps = collectExternalRequires(path.join(appDir, 'index.cjs.js'));
     const depClosure = collectPackageClosure(externalDeps);
     const appModulesDir = path.join(appDir, 'node_modules');
