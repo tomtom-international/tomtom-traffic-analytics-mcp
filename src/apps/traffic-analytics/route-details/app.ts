@@ -10,7 +10,7 @@ import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
 import { formatDuration, formatConfidence, NO_VALUE } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
-import { initDrawer } from "@shared/drawer";
+import { initDrawer, initCollapsibleLegend } from "@shared/drawer";
 import "@shared/controls";
 import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -356,6 +356,7 @@ function renderSearchMode(routes: RouteBasicInfo[]): void {
   if (legendEl) {
     renderRampLegend(legendEl, "Travel time vs typical");
     legendEl.classList.remove("hidden");
+    initCollapsibleLegend("legend", legendMql);
   }
 }
 
@@ -574,6 +575,7 @@ function renderDetailsMode(routes: RouteDetailedInfo[]): void {
   if (legendEl) {
     renderRampLegend(legendEl, "Current vs typical speed");
     legendEl.classList.remove("hidden");
+    initCollapsibleLegend("legend", legendMql);
   }
 
   if (routes.length === 0) {
@@ -774,4 +776,11 @@ bootstrapVizApp<VizPayload>({
   },
 });
 
-initDrawer({ asideId: "route-panel", getMap: () => map, handleLabel: "Routes" });
+// renderSearchMode/renderDetailsMode (declared above) close over this — safe:
+// they only ever run from the async `bootstrapVizApp` render callback, which
+// fires well after this module-scope const has initialized.
+const legendMql = initDrawer({
+  asideId: "route-panel",
+  getMap: () => map,
+  handleLabel: "Routes",
+}).mql;

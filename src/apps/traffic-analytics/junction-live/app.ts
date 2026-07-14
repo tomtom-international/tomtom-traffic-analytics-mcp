@@ -11,7 +11,7 @@ import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { formatDuration } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
-import { initDrawer } from "@shared/drawer";
+import { initDrawer, initCollapsibleLegend } from "@shared/drawer";
 import "@shared/controls";
 import "@shared/app-shell.css";
 import { LOS_BANDS, losFor, losThresholdLabel } from "./los";
@@ -687,6 +687,7 @@ function renderLosLegend(): void {
     <div class="los-scale">${steps}</div>
   `;
   legend.classList.remove("hidden");
+  initCollapsibleLegend("legend", legendMql);
 }
 
 function renderLiveMode(junctions: JunctionLiveData[]): void {
@@ -987,4 +988,11 @@ bootstrapVizApp<VizPayload>({
 
 el("live-back-btn")?.addEventListener("click", backToSearch);
 
-initDrawer({ asideId: "junction-panel", getMap: () => map, handleLabel: "Junctions" });
+// `renderLosLegend` (declared above) closes over this — safe: it only ever
+// runs from the async `bootstrapVizApp` render callback, which fires well
+// after this module-scope const has initialized.
+const legendMql = initDrawer({
+  asideId: "junction-panel",
+  getMap: () => map,
+  handleLabel: "Junctions",
+}).mql;

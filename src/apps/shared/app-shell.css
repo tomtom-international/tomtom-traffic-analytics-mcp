@@ -188,12 +188,53 @@ html.ui-hidden #app-root {
     max-width: none;
     max-height: 40%;
   }
+
+  /* Task 5 — reposition the collapsible legend (junction-live/route-details)
+     top-left, clear of the bottom drawer handle. Scoped under `.shell-split`
+     (0,2,0) for the same beats-the-per-app-rule reason as the detail-card
+     rule above (per-app styles.css sets `.legend { left:16px; bottom:16px }`
+     at 0,1,0). */
+  .shell-split .legend {
+    top: 12px;
+    left: 12px;
+    bottom: auto;
+    width: auto;
+    max-width: 70%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tta-drawer {
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Collapsible legend (Task 5) — the LOS/ramp `.legend` box that floats over
+   the map in junction-live/route-details' focus modes. `initCollapsibleLegend`
+   (drawer.ts) prepends `.tta-legend-toggle` and toggles `collapsed` on the
+   legend itself; per-app styles.css still owns `.legend`'s base
+   position/size at wide width. Applies at every width — the BP-A block above
+   only repositions the (possibly collapsed) box, it doesn't gate collapsing.
+   --------------------------------------------------------------------------- */
+
+.tta-legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend:not(.collapsed) .tta-legend-toggle {
+  margin-bottom: 6px;
+}
+
+.legend.collapsed {
+  width: auto;
+  padding: 6px 12px;
+}
+
+.legend.collapsed > :not(.tta-legend-toggle) {
+  display: none;
 }
 
 /* ---------------------------------------------------------------------------

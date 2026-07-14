@@ -13,6 +13,21 @@ import { el } from "./dom";
  */
 export const NARROW = "(max-width: 639.98px)";
 
+/**
+ * Structural subset of `MediaQueryList` — just the `matches` getter plus a
+ * typed `"change"` listener. Kept structural rather than the DOM lib
+ * `MediaQueryList`/`MediaQueryListEvent` types themselves because the
+ * `src/apps/**` eslint globals allowlist doesn't include them (same pattern
+ * as the MapLibre types in feature-state.ts). `initDrawer` returns its `mql`
+ * typed this way so `initCollapsibleLegend` (Task 5) can share the exact
+ * same `matchMedia` instance instead of each app registering a second one
+ * for the same NARROW breakpoint.
+ */
+export interface NarrowMediaQuery {
+  readonly matches: boolean;
+  addEventListener(type: "change", listener: (query: { matches: boolean }) => void): void;
+}
+
 export interface InitDrawerOptions {
   /** DOM id of the `<aside class="tta-drawer">` side panel. */
   asideId: string;
@@ -27,6 +42,8 @@ export interface DrawerHandle {
   close(): void;
   toggle(): void;
   isNarrow(): boolean;
+  /** Shared NARROW `matchMedia` — pass to `initCollapsibleLegend` so the app registers one listener for the breakpoint, not two. */
+  mql: NarrowMediaQuery;
 }
 
 /**
@@ -89,5 +106,63 @@ export function initDrawer(options: InitDrawerOptions): DrawerHandle {
   mql.addEventListener("change", onNarrowChange);
   onNarrowChange(mql); // set initial state on init
 
-  return { open, close, toggle, isNarrow: () => mql.matches };
+  return { open, close, toggle, isNarrow: () => mql.matches, mql };
+}
+
+/**
+ * Wires the focus-mode "collapsible legend" behavior (Task 5) onto a
+ * `.legend` element in a split-shell app (junction-live's LOS scale,
+ * route-details' speed ramp):
+ * - Prepends a `.tta-legend-toggle` pill (`.tta-btn.tta-btn-pill` chrome,
+ *   see controls.css) that toggles a `collapsed` class on the legend
+ *   element; app-shell.css hides everything else inside `.legend` while
+ *   collapsed.
+ * - Shares the drawer's NARROW `mql` (pass `initDrawer(...).mql`) so the
+ *   legend defaults collapsed exactly when the drawer defaults open — one
+ *   `matchMedia` listener per app, not two.
+ *
+ * Safe to call every time the legend's content is (re-)rendered: the LOS/
+ * ramp legend renderers replace the legend's `innerHTML` wholesale, which
+ * wipes out any previously-prepended toggle. This function only creates a
+ * new toggle when one isn't already present (i.e., after that wipe) and
+ * re-syncs its `aria-expanded` from the `collapsed` class — which lives on
+ * the legend element itself, not its children, so it survives the
+ * `innerHTML` swap. The one-time default (collapsed-if-narrow) and the
+ * `mql` "change" listener are gated on a `data-legend-init` flag (also on
+ * the element itself) so repeat calls never re-decide the default or
+ * double-register the listener.
+ */
+export function initCollapsibleLegend(legendId: string, mql: NarrowMediaQuery): void {
+  const legend = el(legendId);
+  if (!legend) return;
+
+  let toggle = legend.querySelector<HTMLButtonElement>(".tta-legend-toggle");
+  if (!toggle) {
+    toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "tta-btn tta-btn-pill tta-legend-toggle";
+    toggle.textContent = "Legend";
+    toggle.addEventListener("click", () => {
+      const collapsed = legend.classList.toggle("collapsed");
+      toggle?.setAttribute("aria-expanded", String(!collapsed));
+    });
+    legend.prepend(toggle);
+  }
+  toggle.setAttribute("aria-expanded", String(!legend.classList.contains("collapsed")));
+
+  if (legend.dataset.legendInit === "true") return; // default + mql listener wired once
+  legend.dataset.legendInit = "true";
+
+  // Mirrors initDrawer's "default open on narrow entry": force-collapse when
+  // crossing into narrow width; leaving narrow is a no-op (a user's manual
+  // expand/collapse at wide width is left alone across resizes).
+  const applyNarrowDefault = (query: { matches: boolean }): void => {
+    if (!query.matches) return;
+    legend.classList.add("collapsed");
+    legend
+      .querySelector<HTMLButtonElement>(".tta-legend-toggle")
+      ?.setAttribute("aria-expanded", "false");
+  };
+  mql.addEventListener("change", applyNarrowDefault);
+  applyNarrowDefault(mql);
 }
