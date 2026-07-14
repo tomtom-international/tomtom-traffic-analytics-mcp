@@ -3,6 +3,7 @@
  * Licensed under the Apache License, Version 2.0
  */
 
+import type { App } from "@modelcontextprotocol/ext-apps";
 import { TomTomMap, CustomGeoJSONModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromGeoJSON } from "@tomtom-org/maps-sdk/core";
 import { polygonRingCentroid } from "@shared/geo";
@@ -13,6 +14,7 @@ import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
 import { LOS_BANDS, losFor, losThresholdLabel } from "./los";
 import { loadArrowIcon } from "./arrow-icon";
+import { fetchJunctionLive } from "./live-fetch";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -140,6 +142,7 @@ const STATUS_LABEL: Record<JunctionStatus, { label: string; className: string }>
 // ---------------------------------------------------------------------------
 
 let map: TomTomMap | undefined;
+let appRef: App | undefined;
 let geoModule: CustomGeoJSONModule | undefined;
 let junctionsClickBound = false;
 let approachesClickBound = false;
@@ -336,23 +339,30 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
   const status = STATUS_LABEL[junction.status] ?? STATUS_LABEL.PREVIEW;
   const model = junction.junctionModel;
 
-  const approachList = model?.approaches.length
-    ? `<ul class="detail-approach-list">${model.approaches
-        .map(
-          (a) =>
-            `<li>${escapeHtml(a.roadName)} · ${escapeHtml(a.direction)} · FRC ${Number(a.frc)}</li>`
-        )
-        .join("")}</ul>`
+  const approachTable = model?.approaches.length
+    ? `<table class="detail-approach-table">
+        <thead><tr><th>Road</th><th>Direction</th><th>FRC</th></tr></thead>
+        <tbody>${model.approaches
+          .map(
+            (a) =>
+              `<tr><td>${escapeHtml(a.roadName)}</td><td>${escapeHtml(a.direction)}</td><td>${Number(a.frc)}</td></tr>`
+          )
+          .join("")}</tbody>
+      </table>`
     : "";
 
   card.innerHTML = `
     <button type="button" class="detail-close" aria-label="Close">&times;</button>
     <div class="detail-title">${escapeHtml(junction.name)}</div>
     <span class="status-badge ${status.className}"><span class="status-dot"></span>${escapeHtml(status.label)}</span>
-    ${model ? `<div class="detail-row">${escapeHtml(model.countryCode)}</div>` : ""}
-    ${model ? `<div class="detail-row">${model.trafficLights ? "Traffic lights" : "No traffic lights"}</div>` : ""}
-    ${approachList}
-    <div class="detail-hint">Run tomtom-junction-live-data with this junction's ID for live metrics.</div>
+    <div class="detail-grid">
+      <span class="detail-label">Junction ID</span><span class="detail-id">${escapeHtml(junction.id)}</span>
+      ${model ? `<span class="detail-label">Country</span><span>${escapeHtml(model.countryCode)}</span>` : ""}
+      ${model ? `<span class="detail-label">Signals</span><span>${model.trafficLights ? "Traffic lights" : "No traffic lights"}</span>` : ""}
+    </div>
+    ${approachTable}
+    <button type="button" class="tta-btn detail-live-btn">Load live data</button>
+    <div class="detail-live-error hidden"></div>
   `;
   card.classList.remove("hidden");
   card.querySelector(".detail-close")?.addEventListener("click", () => {
@@ -363,6 +373,12 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
     void geoModule?.clear("approaches");
     void geoModule?.clear("exits");
   });
+  card
+    .querySelector<HTMLButtonElement>(".detail-live-btn")
+    ?.addEventListener(
+      "click",
+      (e) => void loadLiveData(junction, e.currentTarget as HTMLButtonElement)
+    );
 }
 
 function selectJunction(id: string): void {
@@ -681,6 +697,68 @@ function renderLiveMode(junctions: JunctionLiveData[]): void {
   selectLiveJunction(junctions[0]);
 }
 
+function setBackButtonVisible(visible: boolean): void {
+  el("live-back")?.classList.toggle("hidden", !visible);
+}
+
+async function loadLiveData(junction: JunctionDefinition, btn: HTMLButtonElement): Promise<void> {
+  if (!appRef) return;
+  const errEl = el("junction-detail-card")?.querySelector<HTMLElement>(".detail-live-error");
+  btn.disabled = true;
+  btn.textContent = "Loading…";
+  errEl?.classList.add("hidden");
+  try {
+    const live = (await fetchJunctionLive(appRef, [junction.id])) as JunctionLiveData[];
+    if (live.length === 0) throw new Error("No live data returned");
+    // The app-only tool omits junctionModel — reuse the geometry search already has.
+    for (const j of live) {
+      j.junctionModel ??= searchJunctions.find((s) => s.id === j.id)?.junctionModel;
+    }
+    enterLiveFromSearch(live);
+  } catch (error) {
+    console.error("[tta-junction-live] Failed to load live data:", error);
+    if (errEl) {
+      errEl.textContent = "Failed to load live data — try again.";
+      errEl.classList.remove("hidden");
+    }
+    btn.disabled = false;
+    btn.textContent = "Load live data";
+  }
+}
+
+function enterLiveFromSearch(junctions: JunctionLiveData[]): void {
+  currentMode = "live";
+  // Keep searchJunctions/selectedJunctionId for the back path; clear search-only UI/map.
+  setJunctionSelected(null);
+  hideDetailCard();
+  void geoModule?.clear("junctions");
+  setBackButtonVisible(true);
+  renderLiveMode(junctions);
+}
+
+// Unwinds the live-mode state/UI set up by enterLiveFromSearch, mirroring the
+// live slice of resetPanelState — keep the two lists in sync if that state grows.
+function backToSearch(): void {
+  setBackButtonVisible(false);
+  setApproachSelected(null);
+  setApproachHover(null);
+  setExitHover(null);
+  void geoModule?.clear("approaches");
+  void geoModule?.clear("exits");
+  clearAndHide("junction-chips");
+  clearAndHide("legend");
+  liveJunctions = [];
+  selectedLiveJunctionId = null;
+  selectedApproachId = null;
+  currentLiveById = new Map();
+  currentExits = [];
+  currentExitById = new Map();
+
+  currentMode = "search";
+  renderSearchMode(searchJunctions);
+  if (selectedJunctionId) selectJunction(selectedJunctionId);
+}
+
 // ---------------------------------------------------------------------------
 // Mode-switch reset — ensures search-mode UI (junction list/detail card) and
 // live-mode UI (chips/approach cards/legend) never bleed into each other
@@ -716,6 +794,8 @@ async function resetPanelState(): Promise<void> {
   currentLiveById = new Map();
   currentExits = [];
   currentExitById = new Map();
+
+  setBackButtonVisible(false);
 }
 
 // ---------------------------------------------------------------------------
@@ -729,7 +809,8 @@ bootstrapVizApp<VizPayload>({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- viz shape is unverified after a cache-miss fallback
   validate: (viz): viz is VizPayload => Array.isArray((viz as any)?.junctions),
   resetUI: hideDetailCard,
-  render: async ({ map: m, viz }) => {
+  render: async ({ app, map: m, viz }) => {
+    appRef = app;
     map = m;
 
     if (!geoModule) {
@@ -885,3 +966,5 @@ bootstrapVizApp<VizPayload>({
     geoModule?.setVisible(false);
   },
 });
+
+el("live-back-btn")?.addEventListener("click", backToSearch);
