@@ -732,114 +732,121 @@ bootstrapVizApp<VizPayload>({
   render: async ({ map: m, viz }) => {
     map = m;
 
-    const arrowIcon = await loadArrowIcon();
+    if (!geoModule) {
+      const arrowIcon = await loadArrowIcon();
 
-    geoModule ??= await CustomGeoJSONModule.get(map, {
-      images: {
-        "approach-arrow": { image: arrowIcon, options: { pixelRatio: 2 } },
-      },
-      sources: {
-        junctions: {
-          layers: [
-            {
-              id: "junction-live-junctions-circle",
-              type: "circle",
-              paint: {
-                "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 8, 6],
-                "circle-color": "#0a3653",
-                "circle-stroke-width": 2,
-                "circle-stroke-color": "#ffffff",
-              },
-            },
-            {
-              id: "junction-live-junctions-label",
-              type: "symbol",
-              layout: {
-                "text-field": ["get", "name"],
-                "text-size": 12,
-                "text-anchor": "top",
-                "text-offset": [0, 1.1],
-              },
-              paint: { "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
-            },
-          ],
+      geoModule = await CustomGeoJSONModule.get(map, {
+        images: {
+          "approach-arrow": { image: arrowIcon, options: { pixelRatio: 2 } },
         },
-        approaches: {
-          layers: [
-            {
-              id: "junction-live-approaches-casing",
-              type: "line",
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: {
-                "line-color": "#ffffff",
-                "line-width": [
-                  "case",
-                  ["boolean", ["feature-state", "selected"], false],
-                  11,
-                  ["boolean", ["feature-state", "hover"], false],
-                  9,
-                  7,
-                ],
+        sources: {
+          junctions: {
+            layers: [
+              {
+                id: "junction-live-junctions-circle",
+                type: "circle",
+                paint: {
+                  "circle-radius": [
+                    "case",
+                    ["boolean", ["feature-state", "selected"], false],
+                    8,
+                    6,
+                  ],
+                  "circle-color": "#0a3653",
+                  "circle-stroke-width": 2,
+                  "circle-stroke-color": "#ffffff",
+                },
               },
-            },
-            {
-              id: "junction-live-approaches-line",
-              type: "line",
-              filter: ["!=", ["get", "closed"], true],
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: {
-                "line-color": ["get", "color"],
-                "line-width": [
-                  "case",
-                  ["boolean", ["feature-state", "selected"], false],
-                  7,
-                  ["boolean", ["feature-state", "hover"], false],
-                  5.5,
-                  4,
-                ],
+              {
+                id: "junction-live-junctions-label",
+                type: "symbol",
+                layout: {
+                  "text-field": ["get", "name"],
+                  "text-size": 12,
+                  "text-anchor": "top",
+                  "text-offset": [0, 1.1],
+                },
+                paint: { "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
               },
-            },
-            {
-              id: "junction-live-approaches-closed",
-              type: "line",
-              filter: ["==", ["get", "closed"], true],
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: { "line-color": "#e03030", "line-width": 4, "line-dasharray": [2, 1.5] },
-            },
-            {
-              id: "junction-live-approaches-arrows",
-              type: "symbol",
-              filter: ["!=", ["get", "closed"], true],
-              layout: {
-                "symbol-placement": "line",
-                "symbol-spacing": 60,
-                "icon-image": "approach-arrow",
-                // Source art points up; +90° clockwise makes it point along the line
-                // direction (approach → junction).
-                "icon-rotate": 90,
-                "icon-rotation-alignment": "map",
-                "icon-pitch-alignment": "map",
-                "icon-allow-overlap": true,
-                "icon-ignore-placement": true,
+            ],
+          },
+          approaches: {
+            layers: [
+              {
+                id: "junction-live-approaches-casing",
+                type: "line",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: {
+                  "line-color": "#ffffff",
+                  "line-width": [
+                    "case",
+                    ["boolean", ["feature-state", "selected"], false],
+                    11,
+                    ["boolean", ["feature-state", "hover"], false],
+                    9,
+                    7,
+                  ],
+                },
               },
-            },
-          ],
+              {
+                id: "junction-live-approaches-line",
+                type: "line",
+                filter: ["!=", ["get", "closed"], true],
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: {
+                  "line-color": ["get", "color"],
+                  "line-width": [
+                    "case",
+                    ["boolean", ["feature-state", "selected"], false],
+                    7,
+                    ["boolean", ["feature-state", "hover"], false],
+                    5.5,
+                    4,
+                  ],
+                },
+              },
+              {
+                id: "junction-live-approaches-closed",
+                type: "line",
+                filter: ["==", ["get", "closed"], true],
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: { "line-color": "#e03030", "line-width": 4, "line-dasharray": [2, 1.5] },
+              },
+              {
+                id: "junction-live-approaches-arrows",
+                type: "symbol",
+                filter: ["!=", ["get", "closed"], true],
+                layout: {
+                  "symbol-placement": "line",
+                  "symbol-spacing": 60,
+                  "icon-image": "approach-arrow",
+                  // Source art points up; +90° clockwise makes it point along the line
+                  // direction (approach → junction).
+                  "icon-rotate": 90,
+                  "icon-rotation-alignment": "map",
+                  "icon-pitch-alignment": "map",
+                  "icon-allow-overlap": true,
+                  "icon-ignore-placement": true,
+                },
+              },
+            ],
+          },
+          exits: {
+            layers: [
+              {
+                id: "junction-live-exits-line",
+                type: "line",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: {
+                  "line-color": NEUTRAL_EXIT,
+                  "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 5, 2.5],
+                },
+              },
+            ],
+          },
         },
-        exits: {
-          layers: [
-            {
-              id: "junction-live-exits-line",
-              type: "line",
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: {
-                "line-color": NEUTRAL_EXIT,
-                "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 5, 2.5],
-              },
-            },
-          ],
-        },
-      },
-    });
+      });
+    }
 
     if (!junctionsClickBound) {
       geoModule.events.junctions.on("click", (f) => selectJunction(String(f.id)));
