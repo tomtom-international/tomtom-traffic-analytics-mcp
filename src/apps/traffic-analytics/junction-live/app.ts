@@ -7,9 +7,11 @@ import { TomTomMap, CustomGeoJSONModule } from "@tomtom-org/maps-sdk/map";
 import { bboxFromGeoJSON } from "@tomtom-org/maps-sdk/core";
 import { polygonRingCentroid } from "@shared/geo";
 import { bootstrapVizApp } from "@shared/app-bootstrap";
+import { formatDuration } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import "@shared/controls";
+import { LOS_BANDS, losFor, losThresholdLabel } from "./los";
 // Bundled so map chrome styling never depends on the CDN link the SDK
 // injects at runtime (see resourceRegistry.ts APP_RESOURCE_CSP comment).
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -122,21 +124,8 @@ interface ApproachRow {
 // LOS bands
 // ---------------------------------------------------------------------------
 
-const LOS_BANDS = [
-  { letter: "A", max: 10, color: "#2dc653" },
-  { letter: "B", max: 20, color: "#8ac926" },
-  { letter: "C", max: 35, color: "#f5a623" },
-  { letter: "D", max: 55, color: "#e07b39" },
-  { letter: "E", max: 80, color: "#e03030" },
-  { letter: "F", max: Infinity, color: "#8b0000" },
-] as const;
 const NEUTRAL_APPROACH = "#64748b";
 const NEUTRAL_EXIT = "#9ca3af";
-
-function losFor(delaySec: number | null | undefined): (typeof LOS_BANDS)[number] | undefined {
-  if (delaySec == null || !Number.isFinite(delaySec)) return undefined;
-  return LOS_BANDS.find((b) => delaySec <= b.max);
-}
 
 const STATUS_LABEL: Record<JunctionStatus, { label: string; className: string }> = {
   ACTIVE: { label: "Active", className: "status-active" },
@@ -314,6 +303,7 @@ function renderJunctionItem(junction: JunctionDefinition): HTMLElement {
       <span class="junction-item-name">${escapeHtml(junction.name)}</span>
       <span class="status-badge ${status.className}"><span class="status-dot"></span>${escapeHtml(status.label)}</span>
     </div>
+    <div class="junction-item-id">${escapeHtml(junction.id)}</div>
   `;
   item.addEventListener("click", () => selectJunction(junction.id));
   return item;
@@ -544,9 +534,12 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
     : `Approach ${Number(row.id)}`;
 
   const bodyRows: string[] = [];
+  if (los) {
+    bodyRows.push(`<div class="approach-card-row los-qualifier">${los.label}</div>`);
+  }
   if (live) {
     bodyRows.push(
-      `<div class="approach-card-row">Travel time ${Math.round(live.travelTimeSec)} s (free-flow ${Math.round(live.freeFlowTravelTimeSec)} s)</div>`
+      `<div class="approach-card-row">Travel time ${formatDuration(live.travelTimeSec)} (free-flow ${formatDuration(live.freeFlowTravelTimeSec)})</div>`
     );
     bodyRows.push(
       `<div class="approach-card-row">Queue ${Math.round(live.queueLengthMeters)} m</div>`
@@ -562,8 +555,8 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
   card.innerHTML = `
     <div class="approach-card-header">
       <span class="approach-card-name">${headerLabel}</span>
-      ${los ? `<span class="los-badge" style="background:${los.color}">${los.letter}</span>` : ""}
-      ${live ? `<span class="approach-card-delay">delay ${Math.round(live.delaySec)} s</span>` : ""}
+      ${los ? `<span class="los-badge" style="background:${los.color}">LOS ${los.letter}</span>` : ""}
+      ${live ? `<span class="approach-card-delay">delay ${formatDuration(live.delaySec)}</span>` : ""}
       ${live?.isClosed ? `<span class="closed-badge">Closed</span>` : ""}
     </div>
     ${bodyRows.length > 0 ? `<div class="approach-card-body">${bodyRows.join("")}</div>` : ""}
@@ -656,18 +649,18 @@ function renderLosLegend(): void {
   const legend = el("legend");
   if (!legend) return;
 
-  const swatches = LOS_BANDS.map(
+  const steps = LOS_BANDS.map(
     (b) => `
-      <div class="los-legend-item">
-        <span class="los-legend-swatch" style="background:${b.color}"></span>
-        <span class="los-legend-letter">${b.letter}</span>
+      <div class="los-scale-step">
+        <span class="los-scale-swatch" style="background:${b.color}"></span>
+        <span class="los-scale-letter">${b.letter}</span>
+        <span class="los-scale-threshold">${losThresholdLabel(b)}</span>
       </div>`
   ).join("");
 
   legend.innerHTML = `
-    <div class="los-legend-title">Level of Service</div>
-    <div class="los-legend-row">${swatches}</div>
-    <div class="los-legend-caption">A &le;10 s &middot; B &le;20 s &middot; C &le;35 s &middot; D &le;55 s &middot; E &le;80 s &middot; F &gt;80 s</div>
+    <div class="los-legend-title">Level of Service (intersection delay)</div>
+    <div class="los-scale">${steps}</div>
   `;
   legend.classList.remove("hidden");
 }
