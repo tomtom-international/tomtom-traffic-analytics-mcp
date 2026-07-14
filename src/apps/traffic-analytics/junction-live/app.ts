@@ -11,6 +11,7 @@ import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { formatDuration } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
+import { initDrawer } from "@shared/drawer";
 import "@shared/controls";
 import "@shared/app-shell.css";
 import { LOS_BANDS, losFor, losThresholdLabel } from "./los";
@@ -985,3 +986,5 @@ bootstrapVizApp<VizPayload>({
 });
 
 el("live-back-btn")?.addEventListener("click", backToSearch);
+
+initDrawer({ asideId: "junction-panel", getMap: () => map, handleLabel: "Junctions" });

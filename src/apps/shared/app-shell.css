@@ -119,3 +119,75 @@ html.ui-hidden #app-root {
 .tta-drawer-handle {
   display: none; /* only shown at narrow width (Task 3) */
 }
+
+/* ---------------------------------------------------------------------------
+   BP-A — bottom-drawer layout for the SPLIT shell below 640px. The aside
+   becomes a full-width bottom sheet, docked via `transform` so only its
+   `.tta-drawer-handle` peeks above the fold until `#app-root.drawer-open` is
+   set (drawer.ts). Keep the `639.98px` literal in sync with drawer.ts NARROW.
+   --------------------------------------------------------------------------- */
+
+@media (max-width: 639.98px) {
+  /* BP-A — keep in sync with drawer.ts NARROW */
+  .tta-drawer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1100;
+    flex: none;
+    width: auto;
+    max-height: 60%;
+    border-left: none;
+    border-top: 1px solid var(--color-border-secondary, #e5e7eb);
+    border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
+    box-shadow: var(--shadow-lg, 0 -4px 16px rgba(0, 0, 0, 0.18));
+    transform: translateY(calc(100% - var(--tta-drawer-handle-h, 44px)));
+    transition: transform 0.25s ease;
+    will-change: transform;
+  }
+
+  #app-root.drawer-open .tta-drawer {
+    transform: translateY(0);
+  }
+
+  .tta-drawer-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: var(--tta-drawer-handle-h, 44px);
+    flex: 0 0 auto;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    color: var(--color-text-secondary, #374151);
+    font-weight: 600;
+  }
+
+  .tta-drawer-handle::before {
+    content: "";
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border-secondary, #d1d5db);
+  }
+
+  .junction-detail-card,
+  .incident-detail-card {
+    /* dock floating cards to top, clear of the drawer */
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    bottom: auto;
+    max-width: none;
+    max-height: 40%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tta-drawer {
+    transition: none;
+  }
+}

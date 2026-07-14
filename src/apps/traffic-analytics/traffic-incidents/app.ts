@@ -14,6 +14,7 @@ import { bootstrapVizApp } from "@shared/app-bootstrap";
 import { bboxUnion, type Bbox } from "@shared/geo";
 import { dedupeBy } from "@shared/collections";
 import { el, escapeHtml } from "@shared/dom";
+import { initDrawer } from "@shared/drawer";
 import "@shared/controls";
 import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -377,3 +378,5 @@ bootstrapVizApp<VizPayload>({
     overlay?.setVisible(false);
   },
 });
+
+initDrawer({ asideId: "incident-panel", getMap: () => map, handleLabel: "Incidents" });

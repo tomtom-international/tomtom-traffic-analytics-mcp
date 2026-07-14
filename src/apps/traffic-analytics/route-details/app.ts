@@ -10,6 +10,7 @@ import { ratioToColor, renderRampLegend } from "@shared/speed-colors";
 import { formatDuration, formatConfidence, NO_VALUE } from "@shared/format";
 import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
+import { initDrawer } from "@shared/drawer";
 import "@shared/controls";
 import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -772,3 +773,5 @@ bootstrapVizApp<VizPayload>({
     geoModule?.setVisible(false);
   },
 });
+
+initDrawer({ asideId: "route-panel", getMap: () => map, handleLabel: "Routes" });
