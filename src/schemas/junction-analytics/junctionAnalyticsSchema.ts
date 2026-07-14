@@ -93,13 +93,6 @@ const junctionSearchSqlQueriesSchema = z
 
 // Junction search schema
 export const junctionSearchSchema = {
-  view: z
-    .enum(["compact", "full"])
-    .optional()
-    .default("compact")
-    .describe(
-      "Table detail level. 'compact' (default): junctions table only. 'full': adds approaches and exits tables for structural search."
-    ),
   show_ui: z
     .boolean()
     .optional()

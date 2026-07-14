@@ -37,7 +37,7 @@ export const JUNCTIONS_TABLE: TableDefinition = {
 };
 
 /**
- * Table schema for junction approach details (full view only)
+ * Table schema for junction approach details
  */
 export const JUNCTION_APPROACHES_TABLE: TableDefinition = {
   name: "approaches",
@@ -56,7 +56,7 @@ export const JUNCTION_APPROACHES_TABLE: TableDefinition = {
 };
 
 /**
- * Table schema for junction exit details (full view only)
+ * Table schema for junction exit details
  */
 export const JUNCTION_EXITS_TABLE: TableDefinition = {
   name: "exits",
@@ -73,14 +73,9 @@ export const JUNCTION_EXITS_TABLE: TableDefinition = {
 };
 
 /**
- * Compact schema for junction search (junctions table only)
+ * Schema for junction search (junctions + approaches + exits)
  */
-export const JUNCTION_DEFINITION_COMPACT_SCHEMA: TableDefinition[] = [JUNCTIONS_TABLE];
-
-/**
- * Full schema for junction search (junctions + approaches + exits)
- */
-export const JUNCTION_DEFINITION_FULL_SCHEMA: TableDefinition[] = [
+export const JUNCTION_DEFINITION_SCHEMA: TableDefinition[] = [
   JUNCTIONS_TABLE,
   JUNCTION_APPROACHES_TABLE,
   JUNCTION_EXITS_TABLE,

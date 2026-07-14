@@ -34,33 +34,6 @@ describe("Junction Analytics Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
-    it("should default view to compact", () => {
-      const validRequest = {
-        sql_queries: { all: "SELECT * FROM junctions" },
-      };
-
-      const schema = z.object(junctionSearchSchema);
-      const result = schema.safeParse(validRequest);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.view).toBe("compact");
-      }
-    });
-
-    it("should accept view full", () => {
-      const validRequest = {
-        view: "full",
-        sql_queries: { roads: "SELECT * FROM approaches" },
-      };
-
-      const schema = z.object(junctionSearchSchema);
-      const result = schema.safeParse(validRequest);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.view).toBe("full");
-      }
-    });
-
     it("should reject empty sql_queries", () => {
       const invalidRequest = {
         sql_queries: {},
@@ -71,15 +44,8 @@ describe("Junction Analytics Schema Validation", () => {
       expect(result.success).toBe(false);
     });
 
-    it("should reject invalid view value", () => {
-      const invalidRequest = {
-        view: "invalid",
-        sql_queries: { test: "SELECT 1" },
-      };
-
-      const schema = z.object(junctionSearchSchema);
-      const result = schema.safeParse(invalidRequest);
-      expect(result.success).toBe(false);
+    it("does not expose a view parameter", () => {
+      expect(junctionSearchSchema).not.toHaveProperty("view");
     });
   });
 

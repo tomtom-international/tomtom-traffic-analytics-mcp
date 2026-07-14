@@ -27,10 +27,10 @@ vi.mock("../sql", () => ({
   flattenJunctionArchive: vi
     .fn()
     .mockReturnValue({ tables: new Map([["approaches", [{ time: "2024-01-01" }]]]) }),
-  JUNCTION_DEFINITION_COMPACT_SCHEMA: [{ name: "junctions", columns: [] }],
-  JUNCTION_DEFINITION_FULL_SCHEMA: [
+  JUNCTION_DEFINITION_SCHEMA: [
     { name: "junctions", columns: [] },
     { name: "approaches", columns: [] },
+    { name: "exits", columns: [] },
   ],
   JUNCTION_LIVE_DATA_SCHEMA: [{ name: "approaches", columns: [] }],
   JUNCTION_ARCHIVE_SCHEMA: [{ name: "approaches", columns: [] }],
@@ -101,7 +101,7 @@ describe("junctionAnalyticsHandler", () => {
     const handler = getJunctionSearchHandler();
 
     it("returns error when sql_queries is missing", async () => {
-      const result = await handler({ view: "compact" });
+      const result = await handler({});
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.error).toContain("sql_queries parameter is REQUIRED");
@@ -112,19 +112,13 @@ describe("junctionAnalyticsHandler", () => {
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.metadata.tool).toBe("tomtom-junction-search");
-      expect(parsed.metadata.parameters.view).toBe("compact");
       expect(parsed.metadata.parameters.totalJunctions).toBe(2);
       expect(parsed.metadata.queries_executed).toBe(1);
     });
 
-    it("defaults view to compact", async () => {
+    it("calls the flattener with the fetched junctions", async () => {
       await handler({ sql_queries: { q: "SELECT 1" } });
-      expect(flattenJunctionDefinitions).toHaveBeenCalledWith(expect.anything(), "compact");
-    });
-
-    it("passes full view to flattener", async () => {
-      await handler({ view: "full", sql_queries: { q: "SELECT 1" } });
-      expect(flattenJunctionDefinitions).toHaveBeenCalledWith(expect.anything(), "full");
+      expect(flattenJunctionDefinitions).toHaveBeenCalledWith([{ id: "j1" }, { id: "j2" }]);
     });
 
     it("returns isError when service throws", async () => {
@@ -174,7 +168,7 @@ describe("junctionAnalyticsHandler", () => {
       });
 
       it("does not call storeVizData on error paths (e.g. missing sql_queries)", async () => {
-        const result = await handler({ view: "compact" });
+        const result = await handler({});
         expect(result.isError).toBe(true);
         expect(mockStoreVizData).not.toHaveBeenCalled();
       });

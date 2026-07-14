@@ -28,8 +28,7 @@ import {
   flattenJunctionLiveData,
   JUNCTION_LIVE_DATA_SCHEMA,
   flattenJunctionDefinitions,
-  JUNCTION_DEFINITION_COMPACT_SCHEMA,
-  JUNCTION_DEFINITION_FULL_SCHEMA,
+  JUNCTION_DEFINITION_SCHEMA,
   SqlFilteredResponse,
 } from "../sql";
 
@@ -43,9 +42,7 @@ import {
  */
 export function getJunctionSearchHandler() {
   return async (params: any) => {
-    const { view = "compact", sql_queries, show_ui } = params;
-
-    logger.info(`Junction search (view: ${view})`);
+    const { sql_queries, show_ui } = params;
 
     // Validate sql_queries is provided (mandatory)
     if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
@@ -69,34 +66,29 @@ export function getJunctionSearchHandler() {
       //    flattener falls back to null/0 for every junction.
       const allJunctions = await getAllJunctionDefinitions({ includeGeometry: true });
 
-      // 2. Flatten into SQL tables based on view
-      const flattenedData = flattenJunctionDefinitions(allJunctions, view);
+      // 2. Flatten into SQL tables
+      const flattenedData = flattenJunctionDefinitions(allJunctions);
 
-      // 3. Select schema based on view
-      const schema =
-        view === "full" ? JUNCTION_DEFINITION_FULL_SCHEMA : JUNCTION_DEFINITION_COMPACT_SCHEMA;
+      // 3. Initialize SQL engine with schema and data
+      const warnings = await sqlEngine.initialize(JUNCTION_DEFINITION_SCHEMA, flattenedData);
 
-      // 4. Initialize SQL engine with schema and data
-      const warnings = await sqlEngine.initialize(schema, flattenedData);
-
-      // 5. Execute SQL queries
+      // 4. Execute SQL queries
       const queryResults = await sqlEngine.executeQueries(sql_queries);
 
-      // 6. Get row counts for metadata
+      // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 7. Cache the raw junction catalog for the MCP App to render, unless disabled
+      // 6. Cache the raw junction catalog for the MCP App to render, unless disabled
       const vizMeta = buildVizMeta(show_ui, "junction search", () => ({
         tool: "tomtom-junction-search",
         junctions: allJunctions,
       }));
 
-      // 8. Build filtered response
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-search",
           parameters: {
-            view,
             totalJunctions: allJunctions.length,
           },
           raw_row_counts: rowCounts,
@@ -108,7 +100,7 @@ export function getJunctionSearchHandler() {
       };
 
       logger.info(
-        `Junction search completed: ${allJunctions.length} junctions (${Object.keys(sql_queries).length} queries, view: ${view})`
+        `Junction search completed: ${allJunctions.length} junctions (${Object.keys(sql_queries).length} queries)`
       );
       return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {

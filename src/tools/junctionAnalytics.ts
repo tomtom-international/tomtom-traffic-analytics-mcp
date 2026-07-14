@@ -47,10 +47,8 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
 
     **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Booleans stored as 0/1 integers (1 = true, 0 = false). FRC scale (Functional Road Class — lower number = more major road): 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor.
 
-    **Compact view (default) - Table: junctions**
-    Columns: junction_id, name, status (ACTIVE/PENDING_UPDATE/ERROR), country_code (ISO 3166-1 alpha-3, e.g. ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1), num_approaches, num_exits, created_at, last_modified_at, time_zone
-
-    **Full view (view="full") - adds tables: approaches, exits**
+    **Tables:**
+    - junctions: junction_id, name, status (ACTIVE/PENDING_UPDATE/ERROR), country_code (ISO 3166-1 alpha-3, e.g. ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1), num_approaches, num_exits, created_at, last_modified_at, time_zone
     - approaches: junction_id, approach_id, name, road_name, direction (NORTH/SOUTH/EAST/WEST), frc (numeric 0-7), length, one_way_road (0/1), excluded (0/1), drivable (0/1)
     - exits: junction_id, exit_id, name, road_name, direction, frc (numeric 0-7), one_way_road (0/1), drivable (0/1)
 
@@ -58,7 +56,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - Find by name: SELECT junction_id, name FROM junctions WHERE name ILIKE '%highway%'
     - Active junctions: SELECT junction_id, name, country_code FROM junctions WHERE status = 'ACTIVE'
     - Count by country: SELECT country_code, COUNT(*) as cnt FROM junctions GROUP BY country_code ORDER BY cnt DESC  -- country_code uses 3-letter codes: ESP, DEU, USA, GBR
-    - Find by road (full view): SELECT j.junction_id, j.name, a.road_name FROM junctions j JOIN approaches a ON j.junction_id = a.junction_id WHERE a.road_name ILIKE '%Main%'`,
+    - Find by road: SELECT j.junction_id, j.name, a.road_name FROM junctions j JOIN approaches a ON j.junction_id = a.junction_id WHERE a.road_name ILIKE '%Main%'`,
       inputSchema: junctionSearchSchema,
       _meta: { [RESOURCE_URI_META_KEY]: junctionLiveUri },
     },
