@@ -579,7 +579,7 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
       <span class="approach-card-name">${headerLabel}</span>
       ${los ? `<span class="los-badge" style="background:${los.color}">LOS ${los.letter}</span>` : ""}
       ${live ? `<span class="tta-tag">delay ${formatDuration(live.delaySec)}</span>` : ""}
-      ${live?.isClosed ? `<span class="tta-tag tta-tag--solid tta-tag--danger">Closed</span>` : ""}
+      ${live?.isClosed ? `<span class="tta-tag tta-tag--solid tta-tag--closed">Closed</span>` : ""}
     </div>
     ${bodyRows.length > 0 ? `<div class="approach-card-body">${bodyRows.join("")}</div>` : ""}
     <div class="turn-ratio-table hidden"></div>

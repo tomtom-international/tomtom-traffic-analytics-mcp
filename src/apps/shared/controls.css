@@ -140,6 +140,7 @@
   display: inline-flex;
   align-items: center;
   font-size: 11px;
+  font-weight: var(--font-weight-semibold, 600);
   line-height: 1;
   white-space: nowrap;
   flex-shrink: 0;
@@ -147,13 +148,15 @@
 }
 
 /* Plain typographic label (e.g. "Delay", "Length") — not a flex container,
-   used standalone (no `.tta-tag` base) since it's inline text, not a pill. */
+   used standalone (no `.tta-tag` base) since it's inline text, not a pill.
+   Normal weight + trailing margin match the original `.metric-label`. */
 .tta-tag--label {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: var(--font-weight-normal, 400);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--color-text-tertiary, #9ca3af);
+  margin-right: 2px;
 }
 
 /* Padded, colored pill — pair with a color modifier below (e.g.
@@ -167,6 +170,12 @@
 
 .tta-tag--solid.tta-tag--danger {
   background: #dc2626;
+}
+
+/* Road/approach closure red — the established `CLOSED_COLOR` (#e03030) used by
+   the closed-line map paint and LOS-E, distinct from `--danger`'s #dc2626. */
+.tta-tag--solid.tta-tag--closed {
+  background: #e03030;
 }
 
 .tta-tag--solid.tta-tag--muted {
