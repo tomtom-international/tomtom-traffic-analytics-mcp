@@ -232,11 +232,20 @@ test.describe("Junction app", () => {
     await expect(frame.locator("#sdk-map")).toHaveClass(/visible/, { timeout: 30_000 });
     await expect(frame.locator("#junction-panel")).not.toHaveClass(/hidden/);
 
+    // Checked before the JSON-result tab switch below (which hides the app
+    // iframe's tab content, and with it any element visibility checks on `frame`).
+    const itemCount = await frame.locator(".junction-item").count();
+    if (itemCount === 0) {
+      await expect(frame.locator("#empty-state")).toBeVisible();
+    } else {
+      await expect(frame.locator(".junction-item-id").first()).toBeVisible();
+      await frame.locator(".junction-item").first().click();
+      await expect(frame.locator("#junction-detail-card .detail-live-btn")).toBeVisible();
+      await expect(frame.locator(".detail-hint")).toHaveCount(0);
+    }
+
     const searchResult = await verifyJsonResult(page);
     const junctionsResult = searchResult?.aggregated_data?.junctions;
-    if (!junctionsResult?.rows?.length) {
-      await expect(frame.locator("#empty-state")).toBeVisible();
-    }
     const junctionId = firstRowValue(junctionsResult, "junction_id");
     test.skip(!junctionId, "No junctions configured in this Move Portal account");
 
@@ -249,11 +258,17 @@ test.describe("Junction app", () => {
     await expect(liveFrame.locator(".approach-card").first()).toBeVisible({ timeout: 30_000 });
 
     const inner = await findInnerAppFrame(page);
-    await inner.waitForFunction(() =>
-      (window as any).__e2e_ml
-        ?.getStyle()
-        .layers.some((l: { id: string }) => l.id.includes("junction-live-approaches")),
-    );
+    await inner.waitForFunction(() => {
+      const layers = (window as any).__e2e_ml?.getStyle()?.layers;
+      if (!layers) return false;
+      return (
+        layers.some((l: { id: string }) => l.id.includes("junction-live-approaches")) &&
+        layers.some((l: { id: string }) => l.id === "junction-live-approaches-arrows")
+      );
+    });
+
+    await expect(liveFrame.locator(".los-scale-step")).toHaveCount(6);
+    await expect(liveFrame.locator(".los-badge").first()).toContainText("LOS");
 
     await verifyJsonResult(page);
   });
@@ -269,11 +284,18 @@ test.describe("Route app", () => {
     await expect(frame.locator("#sdk-map")).toHaveClass(/visible/, { timeout: 30_000 });
     await expect(frame.locator("#route-panel")).not.toHaveClass(/hidden/);
 
+    // Checked before the JSON-result tab switch below (which hides the app
+    // iframe's tab content, and with it any element visibility checks on `frame`).
+    const itemCount = await frame.locator(".route-item").count();
+    if (itemCount === 0) {
+      await expect(frame.locator("#empty-state")).toBeVisible();
+    } else {
+      await expect(frame.locator(".route-item-id").first()).toBeVisible();
+      await expect(frame.locator(".detail-hint")).toHaveCount(0);
+    }
+
     const searchResult = await verifyJsonResult(page);
     const routesResult = searchResult?.aggregated_data?.routes;
-    if (!routesResult?.rows?.length) {
-      await expect(frame.locator("#empty-state")).toBeVisible();
-    }
     const routeId = firstRowValue(routesResult, "route_id");
     test.skip(routeId == null, "No routes configured in this Move Portal account");
 
@@ -284,6 +306,7 @@ test.describe("Route app", () => {
     });
     const detailsFrame = await getAppFrame(page);
     await expect(detailsFrame.locator(".segment-row").first()).toBeVisible({ timeout: 30_000 });
+    await expect(detailsFrame.locator(".segment-table th").nth(2)).toContainText("now / typical");
 
     // Row↔map highlight smoke test: hovering a row must mark it (feature-state
     // side is asserted visually in Task 11).
