@@ -274,23 +274,25 @@ function renderRouteItem(route: RouteBasicInfo): HTMLElement {
   const delay = route.delayTime;
   const delayHtml =
     delay != null && delay > 0
-      ? `<span class="metric"><span class="metric-label">Delay</span> <span class="delay-badge ${delayClass(delay)}">+${escapeHtml(formatDuration(delay))}</span></span>`
+      ? `<span class="metric"><span class="tta-tag--label">Delay</span> <span class="tta-tag tta-tag--${delayClass(delay)}">+${escapeHtml(formatDuration(delay))}</span></span>`
       : "";
   const travelTimeHtml =
     route.travelTime != null
-      ? `<span class="metric"><span class="metric-label">Travel time</span> ${escapeHtml(formatDuration(route.travelTime))}</span>`
+      ? `<span class="metric"><span class="tta-tag--label">Travel time</span> ${escapeHtml(formatDuration(route.travelTime))}</span>`
       : "";
   const impassableHtml =
-    route.passable === false ? `<span class="impassable-pill">Impassable</span>` : "";
+    route.passable === false
+      ? `<span class="tta-tag tta-tag--solid tta-tag--danger">Impassable</span>`
+      : "";
 
   item.innerHTML = `
     <div class="route-item-header">
       <span class="route-item-name">${escapeHtml(route.routeName)}</span>
-      <span class="status-badge">${escapeHtml(statusLabel(route.routeStatus))}</span>
+      <span class="tta-tag tta-tag--dot"><span class="tta-tag__dot"></span>${escapeHtml(statusLabel(route.routeStatus))}</span>
     </div>
     <div class="route-item-id">ID ${Number(route.routeId)}</div>
     <div class="route-item-row">
-      <span class="metric"><span class="metric-label">Length</span> ${formatKm(route.routeLength)}</span>
+      <span class="metric"><span class="tta-tag--label">Length</span> ${formatKm(route.routeLength)}</span>
       ${travelTimeHtml}
       ${delayHtml}
       ${impassableHtml}
@@ -393,23 +395,23 @@ function renderRouteStats(route: RouteDetailedInfo | undefined): void {
   container.classList.remove("hidden");
 
   const delay = route.delayTime;
-  const delayClassName = delay != null && delay > 0 ? delayClass(delay) : "";
+  const delayModifier = delay != null && delay > 0 ? ` tta-tag--${delayClass(delay)}` : "";
   const delayText = delay == null ? NO_VALUE : delay > 0 ? `+${formatDuration(delay)}` : "None";
 
   const passableBadge =
     route.passable === false
-      ? `<span class="impassable-pill">Impassable</span>`
-      : `<span class="passable-pill">Passable</span>`;
+      ? `<span class="tta-tag tta-tag--solid tta-tag--danger">Impassable</span>`
+      : `<span class="tta-tag tta-tag--solid tta-tag--muted">Passable</span>`;
 
   container.innerHTML = `
     <div class="route-stats-header">
       <span class="route-stats-name">${escapeHtml(route.routeName)}</span>
-      <span class="status-badge">${escapeHtml(statusLabel(route.routeStatus))}</span>
+      <span class="tta-tag tta-tag--dot"><span class="tta-tag__dot"></span>${escapeHtml(statusLabel(route.routeStatus))}</span>
     </div>
     <div class="route-stats-grid">
       <span class="stats-label">Travel time now</span><span>${escapeHtml(formatDuration(route.travelTime))}</span>
       <span class="stats-label">Typical travel time</span><span>${escapeHtml(formatDuration(route.typicalTravelTime))}</span>
-      <span class="stats-label">Delay vs typical</span><span class="delay-text ${delayClassName}">${escapeHtml(delayText)}</span>
+      <span class="stats-label">Delay vs typical</span><span class="tta-tag${delayModifier}">${escapeHtml(delayText)}</span>
       <span class="stats-label">Length</span><span>${formatKm(route.routeLength)}</span>
       <span class="stats-label" title="How much of the route is covered by live traffic measurements">Data confidence</span><span>${escapeHtml(formatConfidence(route.routeConfidence))}</span>
       <span class="stats-label">Status</span>${passableBadge}

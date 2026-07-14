@@ -127,3 +127,100 @@
   outline: 2px solid var(--color-ring-primary, #3b82f6);
   outline-offset: 1px;
 }
+
+/* ---------------------------------------------------------------------------
+   Unified pill/badge component — every ad-hoc "metric"/"badge"/"pill" element
+   across the 5 apps (route/junction status, delay text, impassable/passable,
+   magnitude, road-closure) renders as one of these `.tta-tag` variants so
+   mixed rows share a common inline baseline (fixed font-size/line-height)
+   instead of drifting between 10px/11px/12px ad-hoc classes.
+   --------------------------------------------------------------------------- */
+
+.tta-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+/* Plain typographic label (e.g. "Delay", "Length") — not a flex container,
+   used standalone (no `.tta-tag` base) since it's inline text, not a pill. */
+.tta-tag--label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+/* Padded, colored pill — pair with a color modifier below (e.g.
+   `.tta-tag.tta-tag--solid.tta-tag--danger`). Background defaults neutral. */
+.tta-tag--solid {
+  padding: 2px 8px;
+  border-radius: var(--border-radius-full, 999px);
+  color: #ffffff;
+  background: var(--color-text-tertiary, #6b7280);
+}
+
+.tta-tag--solid.tta-tag--danger {
+  background: #dc2626;
+}
+
+.tta-tag--solid.tta-tag--muted {
+  background: #6b7280;
+}
+
+.tta-tag--solid.tta-tag--warn {
+  background: #ca8a04;
+}
+
+.tta-tag--solid.tta-tag--sev-hi {
+  background: #ea580c;
+}
+
+.tta-tag--solid.tta-tag--sev-max {
+  background: #991b1b;
+}
+
+/* Plain-text color modifiers (delay text amber/red bands). */
+.tta-tag--amber {
+  color: #b45309;
+}
+
+.tta-tag--red {
+  color: #dc2626;
+}
+
+/* Dot-prefixed tag (junction/route status). `.tta-tag__dot` defaults to the
+   tag's own text color (neutral) unless a `.status-*` modifier below recolors
+   it — see junction-live's original per-status dot colors. */
+.tta-tag--dot {
+  gap: 5px;
+}
+
+.tta-tag__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+.tta-tag--dot.status-active .tta-tag__dot {
+  background: #2dc653;
+}
+
+.tta-tag--dot.status-preview .tta-tag__dot {
+  background: #9ca3af;
+}
+
+.tta-tag--dot.status-pending .tta-tag__dot {
+  background: #f59e0b;
+}
+
+.tta-tag--dot.status-error .tta-tag__dot {
+  background: #dc2626;
+}

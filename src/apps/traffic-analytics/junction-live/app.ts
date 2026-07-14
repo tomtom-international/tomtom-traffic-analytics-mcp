@@ -305,7 +305,7 @@ function renderJunctionItem(junction: JunctionDefinition): HTMLElement {
   item.innerHTML = `
     <div class="junction-item-header">
       <span class="junction-item-name">${escapeHtml(junction.name)}</span>
-      <span class="status-badge ${status.className}"><span class="status-dot"></span>${escapeHtml(status.label)}</span>
+      <span class="tta-tag tta-tag--dot ${status.className}"><span class="tta-tag__dot"></span>${escapeHtml(status.label)}</span>
     </div>
     <div class="junction-item-id">${escapeHtml(junction.id)}</div>
   `;
@@ -358,7 +358,7 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
   card.innerHTML = `
     <button type="button" class="detail-close" aria-label="Close">&times;</button>
     <div class="detail-title">${escapeHtml(junction.name)}</div>
-    <span class="status-badge ${status.className}"><span class="status-dot"></span>${escapeHtml(status.label)}</span>
+    <span class="tta-tag tta-tag--dot ${status.className}"><span class="tta-tag__dot"></span>${escapeHtml(status.label)}</span>
     <div class="detail-grid">
       <span class="detail-label">Junction ID</span><span class="detail-id">${escapeHtml(junction.id)}</span>
       ${model ? `<span class="detail-label">Country</span><span>${escapeHtml(model.countryCode)}</span>` : ""}
@@ -578,8 +578,8 @@ function renderApproachCard(row: ApproachRow): HTMLElement {
     <div class="approach-card-header">
       <span class="approach-card-name">${headerLabel}</span>
       ${los ? `<span class="los-badge" style="background:${los.color}">LOS ${los.letter}</span>` : ""}
-      ${live ? `<span class="approach-card-delay">delay ${formatDuration(live.delaySec)}</span>` : ""}
-      ${live?.isClosed ? `<span class="closed-badge">Closed</span>` : ""}
+      ${live ? `<span class="tta-tag">delay ${formatDuration(live.delaySec)}</span>` : ""}
+      ${live?.isClosed ? `<span class="tta-tag tta-tag--solid tta-tag--danger">Closed</span>` : ""}
     </div>
     ${bodyRows.length > 0 ? `<div class="approach-card-body">${bodyRows.join("")}</div>` : ""}
     <div class="turn-ratio-table hidden"></div>

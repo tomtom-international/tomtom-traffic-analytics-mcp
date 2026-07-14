@@ -148,53 +148,6 @@ html.ui-hidden #app-root {
   color: var(--color-text-secondary, #6b7280);
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-secondary, #4b5563);
-  white-space: nowrap;
-}
-
-.delay-badge,
-.delay-text {
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.delay-badge.amber,
-.delay-text.amber {
-  color: #b45309;
-}
-
-.delay-badge.red,
-.delay-text.red {
-  color: #dc2626;
-}
-
-.impassable-pill,
-.passable-pill {
-  display: inline-block;
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: var(--border-radius-full, 999px);
-  font-size: 11px;
-  font-weight: 600;
-  color: #ffffff;
-  white-space: nowrap;
-}
-
-.impassable-pill {
-  background: #dc2626;
-}
-
-.passable-pill {
-  background: #6b7280;
-}
-
 .route-item-id {
   margin-top: 2px;
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
@@ -204,14 +157,6 @@ html.ui-hidden #app-root {
 
 .metric {
   white-space: nowrap;
-}
-
-.metric-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-text-tertiary, #9ca3af);
-  margin-right: 2px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -247,8 +192,9 @@ html.ui-hidden #app-root {
   row-gap: 6px;
   align-items: center;
   /* Grid items default to justify-self: stretch, which would blow up the
-     passable/impassable pill (an inline-block with its own background) into
-     a full-width bar. Right-align every value at its natural content width. */
+     passable/impassable pill (a `.tta-tag--solid` badge with its own
+     background) into a full-width bar. Right-align every value at its
+     natural content width. */
   justify-items: end;
 }
 
@@ -257,7 +203,7 @@ html.ui-hidden #app-root {
   color: var(--color-text-secondary, #6b7280);
 }
 
-.route-stats-grid > span:not(.stats-label):not(.passable-pill):not(.impassable-pill) {
+.route-stats-grid > span:not(.stats-label):not(.tta-tag--solid) {
   font-size: 13px;
   font-weight: 600;
   color: #111827;

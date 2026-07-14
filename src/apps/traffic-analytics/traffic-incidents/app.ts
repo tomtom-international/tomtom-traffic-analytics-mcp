@@ -180,7 +180,7 @@ function renderDetailCard(feature: IncidentFeature): void {
   card.innerHTML = `
     <button type="button" class="detail-close" aria-label="Close">&times;</button>
     <div class="detail-title">${escapeHtml(categoryLabel(props.category))}</div>
-    <span class="magnitude-badge ${magnitude.className}">${escapeHtml(magnitude.label)}</span>
+    <span class="tta-tag tta-tag--solid ${magnitude.className}">${escapeHtml(magnitude.label)}</span>
     ${route ? `<div class="detail-row">${escapeHtml(route)}</div>` : ""}
     ${delayText ? `<div class="detail-row">${escapeHtml(delayText)}</div>` : ""}
     ${props.lengthInMeters ? `<div class="detail-row">${Math.round(props.lengthInMeters)} m</div>` : ""}
@@ -231,7 +231,7 @@ function renderIncidentItem(feature: IncidentFeature): HTMLElement {
   item.innerHTML = `
     <div class="incident-item-header">
       <span class="incident-category">${escapeHtml(categoryLabel(props.category))}</span>
-      <span class="magnitude-badge ${magnitude.className}">${escapeHtml(magnitude.label)}</span>
+      <span class="tta-tag tta-tag--solid ${magnitude.className}">${escapeHtml(magnitude.label)}</span>
     </div>
     ${route ? `<div class="incident-route">${escapeHtml(route)}</div>` : ""}
     ${delayText ? `<div class="incident-delay">${escapeHtml(delayText)}</div>` : ""}
