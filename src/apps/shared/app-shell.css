@@ -174,8 +174,12 @@ html.ui-hidden #app-root {
     background: var(--color-border-secondary, #d1d5db);
   }
 
-  .junction-detail-card,
-  .incident-detail-card {
+  /* Scoped under `.shell-split` (0,2,0) so docking the cards clear of the
+     drawer beats the per-app single-class positioning rules unconditionally,
+     not by an equal-specificity source-order tie that depends on CSS emit
+     order. Both cards are descendants of `#app-root.shell-split`. */
+  .shell-split .junction-detail-card,
+  .shell-split .incident-detail-card {
     /* dock floating cards to top, clear of the drawer */
     left: 12px;
     right: 12px;
@@ -238,8 +242,11 @@ html.ui-hidden #app-root {
     bottom: 16px;
   }
 
-  .overlay-top > *,
-  .overlay-bottom > * {
+  /* Scoped under `.shell-overlay` (0,2,0) so the re-stacking beats the
+     per-app single-class corner-position rules unconditionally, not by an
+     equal-specificity source-order tie that depends on CSS emit order. */
+  .shell-overlay .overlay-top > *,
+  .shell-overlay .overlay-bottom > * {
     position: static;
     inset: auto;
     max-width: none;
@@ -248,8 +255,8 @@ html.ui-hidden #app-root {
     pointer-events: auto;
   }
 
-  .overlay-top > *:last-child,
-  .overlay-bottom > *:last-child {
+  .shell-overlay .overlay-top > *:last-child,
+  .shell-overlay .overlay-bottom > *:last-child {
     margin-bottom: 0;
   }
 
