@@ -336,6 +336,10 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
   const card = el("junction-detail-card");
   if (!card) return;
 
+  // A fresh card supersedes any in-flight loadLiveData (its btn/errEl are
+  // detached by the innerHTML swap below; its resolution must not mutate UI).
+  liveLoadSeq++;
+
   const status = STATUS_LABEL[junction.status] ?? STATUS_LABEL.PREVIEW;
   const model = junction.junctionModel;
 
@@ -701,14 +705,22 @@ function setBackButtonVisible(visible: boolean): void {
   el("live-back")?.classList.toggle("hidden", !visible);
 }
 
+// Request-generation counter for loadLiveData. Stale resolutions must not mutate
+// UI: if the user picks another junction (new loadLiveData call) or a new tool
+// result re-renders the app (resetPanelState) while a fetch is in flight, the
+// old promise still settles — bumping the counter makes it a no-op.
+let liveLoadSeq = 0;
+
 async function loadLiveData(junction: JunctionDefinition, btn: HTMLButtonElement): Promise<void> {
   if (!appRef) return;
+  const seq = ++liveLoadSeq;
   const errEl = el("junction-detail-card")?.querySelector<HTMLElement>(".detail-live-error");
   btn.disabled = true;
   btn.textContent = "Loading…";
   errEl?.classList.add("hidden");
   try {
     const live = (await fetchJunctionLive(appRef, [junction.id])) as JunctionLiveData[];
+    if (seq !== liveLoadSeq) return; // superseded while awaiting — drop silently
     if (live.length === 0) throw new Error("No live data returned");
     // The app-only tool omits junctionModel — reuse the geometry search already has.
     for (const j of live) {
@@ -716,6 +728,7 @@ async function loadLiveData(junction: JunctionDefinition, btn: HTMLButtonElement
     }
     enterLiveFromSearch(live);
   } catch (error) {
+    if (seq !== liveLoadSeq) return; // superseded — the newer UI owns btn/errEl now
     console.error("[tta-junction-live] Failed to load live data:", error);
     if (errEl) {
       errEl.textContent = "Failed to load live data — try again.";
@@ -739,6 +752,7 @@ function enterLiveFromSearch(junctions: JunctionLiveData[]): void {
 // Unwinds the live-mode state/UI set up by enterLiveFromSearch, mirroring the
 // live slice of resetPanelState — keep the two lists in sync if that state grows.
 function backToSearch(): void {
+  liveLoadSeq++; // invalidate any in-flight loadLiveData
   setBackButtonVisible(false);
   setApproachSelected(null);
   setApproachHover(null);
@@ -795,6 +809,7 @@ async function resetPanelState(): Promise<void> {
   currentExits = [];
   currentExitById = new Map();
 
+  liveLoadSeq++; // a new render invalidates any in-flight loadLiveData
   setBackButtonVisible(false);
 }
 
