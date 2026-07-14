@@ -366,10 +366,11 @@ function renderJunctionDetailCard(junction: JunctionDefinition): void {
     </div>
     ${approachTable}
     <button type="button" class="tta-btn detail-live-btn">Load live data</button>
-    <div class="detail-live-error hidden"></div>
+    <div class="detail-live-error hidden" role="alert"></div>
   `;
   card.classList.remove("hidden");
   card.querySelector(".detail-close")?.addEventListener("click", () => {
+    liveLoadSeq++; // dismissing the card invalidates any in-flight loadLiveData
     selectedJunctionId = null;
     highlightJunctionItem(null);
     setJunctionSelected(null);
