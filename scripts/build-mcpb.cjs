@@ -42,6 +42,7 @@ const path = require('path');
 const os = require('os');
 const https = require('https');
 const { execSync } = require('child_process');
+const { builtinModules } = require('module');
 
 // Bundled Node version. Pinned for reproducible ABI (Node 24.x = ABI 137,
 // which matches the prebuilt @duckdb/node-bindings-* shipped on npm).
@@ -130,6 +131,48 @@ function copyDir(src, dest) {
   }
 }
 
+/**
+ * Scan the compiled bundle for bare `require('pkg')` specifiers.
+ * Rollup inlines all pure-JS deps; only packages listed as `external`
+ * in rollup.config.js (the @duckdb native family) survive as requires.
+ */
+function collectExternalRequires(bundlePath) {
+  const src = fs.readFileSync(bundlePath, 'utf8');
+  const externals = new Set();
+  for (const match of src.matchAll(/require\((?:'([^']+)'|"([^"]+)")\)/g)) {
+    const id = match[1] || match[2];
+    if (id.startsWith('.') || id.startsWith('node:')) continue;
+    const pkgName = id.startsWith('@') ? id.split('/').slice(0, 2).join('/') : id.split('/')[0];
+    if (builtinModules.includes(pkgName)) continue;
+    externals.add(pkgName);
+  }
+  return externals;
+}
+
+/**
+ * Walk dependencies (and installed optionalDependencies — npm only installs
+ * the platform-matching @duckdb binding) against the host's flat node_modules.
+ */
+function collectPackageClosure(rootPackages) {
+  const closure = new Set();
+  const queue = [...rootPackages];
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (closure.has(name)) continue;
+    const pkgJsonPath = path.join(NODE_MODULES, name, 'package.json');
+    if (!fs.existsSync(pkgJsonPath)) {
+      throw new Error(`Runtime dependency "${name}" missing from node_modules — run npm ci first.`);
+    }
+    closure.add(name);
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+    for (const dep of Object.keys(pkg.dependencies ?? {})) queue.push(dep);
+    for (const dep of Object.keys(pkg.optionalDependencies ?? {})) {
+      if (fs.existsSync(path.join(NODE_MODULES, dep, 'package.json'))) queue.push(dep);
+    }
+  }
+  return closure;
+}
+
 function formatSize(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -215,10 +258,26 @@ async function main() {
       console.warn('  ⚠ dist/apps not found — skipping MCP App resources');
     }
 
-    // 4. Copy node_modules (host already has the right DuckDB platform binding
-    //    via @duckdb/node-api's optionalDependencies for PLATFORM-ARCH).
-    copyDir(NODE_MODULES, path.join(appDir, 'node_modules'));
-    console.log('  ✓ Dependencies');
+    // 4. Copy ONLY the runtime dependencies the bundle actually requires.
+    //    Copying the full dev node_modules (~317 MB, deeply nested) breaks
+    //    Claude Desktop installs on Windows (MAX_PATH / ENOTEMPTY on cleanup).
+    //    Expected set: @duckdb/node-api, @duckdb/node-bindings, detect-libc,
+    //    and the platform binding for PLATFORM-ARCH.
+    const externalDeps = collectExternalRequires(path.join(appDir, 'index.cjs.js'));
+    const depClosure = collectPackageClosure(externalDeps);
+    const appModulesDir = path.join(appDir, 'node_modules');
+    for (const name of depClosure) {
+      copyDir(path.join(NODE_MODULES, name), path.join(appModulesDir, name));
+    }
+    console.log(`  ✓ Dependencies (${depClosure.size}): ${[...depClosure].sort().join(', ')}`);
+
+    // 4b. Smoke-test: the bundled Node runtime must load DuckDB from the
+    //     staged app dir (catches ABI/resolution regressions at build time).
+    execSync(
+      `"${nodeDest}" -e "require('@duckdb/node-api'); process.stdout.write('ok')"`,
+      { cwd: appDir, stdio: 'pipe' }
+    );
+    console.log('  ✓ DuckDB loads under bundled runtime');
 
     // 5. Generate the OS-appropriate launcher
     const binDir = path.join(TEMP_DIR, 'bin');
