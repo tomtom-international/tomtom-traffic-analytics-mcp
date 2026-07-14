@@ -307,4 +307,15 @@ html.ui-hidden #app-root {
   .overlay-bottom .timeseries-wrap {
     align-items: flex-start;
   }
+
+  /* area-analytics only: `.timeseries-panel` is a grandchild of
+     `.overlay-bottom` (nested inside `.timeseries-wrap`), so the
+     `.shell-overlay .overlay-bottom > *` rule above doesn't reach it — its
+     own `width: 340px` (styles.css, single class, 0,1,0) can still overflow
+     a narrow overlay. Scoped under `.shell-overlay` for the same
+     specificity reason as the sibling BP-B overrides (0,3,0 beats 0,1,0). */
+  .shell-overlay .overlay-bottom .timeseries-panel {
+    width: auto;
+    max-width: 100%;
+  }
 }

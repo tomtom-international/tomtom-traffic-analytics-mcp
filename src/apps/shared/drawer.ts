@@ -127,10 +127,10 @@ export function initDrawer(options: InitDrawerOptions): DrawerHandle {
  * new toggle when one isn't already present (i.e., after that wipe) and
  * re-syncs its `aria-expanded` from the `collapsed` class — which lives on
  * the legend element itself, not its children, so it survives the
- * `innerHTML` swap. The one-time default (collapsed-if-narrow) and the
- * `mql` "change" listener are gated on a `data-legend-init` flag (also on
- * the element itself) so repeat calls never re-decide the default or
- * double-register the listener.
+ * `innerHTML` swap. The default-per-breakpoint and the `mql` "change"
+ * listener are gated on a `data-legend-init` flag (also on the element
+ * itself) so repeat calls never re-decide the default or double-register
+ * the listener.
  */
 export function initCollapsibleLegend(legendId: string, mql: NarrowMediaQuery): void {
   const legend = el(legendId);
@@ -153,16 +153,21 @@ export function initCollapsibleLegend(legendId: string, mql: NarrowMediaQuery): 
   if (legend.dataset.legendInit === "true") return; // default + mql listener wired once
   legend.dataset.legendInit = "true";
 
-  // Mirrors initDrawer's "default open on narrow entry": force-collapse when
-  // crossing into narrow width; leaving narrow is a no-op (a user's manual
-  // expand/collapse at wide width is left alone across resizes).
-  const applyNarrowDefault = (query: { matches: boolean }): void => {
-    if (!query.matches) return;
-    legend.classList.add("collapsed");
+  // Unlike the drawer's `drawer-open` (only meaningful under BP-A, so leaving
+  // narrow is a harmless no-op there), `.legend.collapsed` applies at *every*
+  // width by design (app-shell.css) — a wide view must default back to
+  // expanded just as reliably as a narrow view defaults to collapsed. So this
+  // mirrors the drawer's "force the default on a real breakpoint cross"
+  // approach, made symmetric: force-collapse on entering narrow, force-EXPAND
+  // on entering wide. `mql`'s "change" event only fires on an actual
+  // breakpoint crossing (never on a same-width re-render), so a manual
+  // toggle survives repeat `initCollapsibleLegend` calls at a stable width.
+  const applyBreakpointDefault = (query: { matches: boolean }): void => {
+    legend.classList.toggle("collapsed", query.matches);
     legend
       .querySelector<HTMLButtonElement>(".tta-legend-toggle")
-      ?.setAttribute("aria-expanded", "false");
+      ?.setAttribute("aria-expanded", String(!query.matches));
   };
-  mql.addEventListener("change", applyNarrowDefault);
-  applyNarrowDefault(mql);
+  mql.addEventListener("change", applyBreakpointDefault);
+  applyBreakpointDefault(mql);
 }

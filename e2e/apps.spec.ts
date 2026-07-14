@@ -356,6 +356,27 @@ test.describe("Junction app", () => {
     // No leftover ad-hoc pill classes anywhere in the live-mode app either.
     await expect(liveFrame.locator(REMOVED_PILL_CLASSES)).toHaveCount(0);
 
+    // --- Collapsible legend (Task 5): re-expands after narrow→wide resize ---
+    // Regression coverage for the bug where the legend's narrow-width default
+    // (collapsed) never got undone on returning to wide, leaving it stuck as
+    // a collapsed pill forever. Reuses the same setViewportSize + boundingBox
+    // polling approach as the drawer resize check above.
+    const wideLiveBox = await page.getByTestId("app-iframe").boundingBox();
+    expect(wideLiveBox?.width).toBeGreaterThan(640);
+    await expect(liveFrame.locator(".legend")).not.toHaveClass(/collapsed/);
+
+    await page.setViewportSize({ width: 900, height: 800 });
+    await expect
+      .poll(async () => (await page.getByTestId("app-iframe").boundingBox())?.width)
+      .toBeLessThan(640);
+    await expect(liveFrame.locator(".legend")).toHaveClass(/collapsed/);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect
+      .poll(async () => (await page.getByTestId("app-iframe").boundingBox())?.width)
+      .toBeGreaterThan(640);
+    await expect(liveFrame.locator(".legend")).not.toHaveClass(/collapsed/);
+
     await verifyJsonResult(page);
   });
 });
