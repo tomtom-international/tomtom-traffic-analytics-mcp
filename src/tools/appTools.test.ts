@@ -20,6 +20,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 const mockGetEffectiveApiKey = vi.fn();
 const mockGetEffectiveMovePortalKey = vi.fn();
 const mockGetVizData = vi.fn();
+const mockGetJunctionLiveData = vi.fn();
 
 type ToolResponse = {
   content: { type: string; text: string }[];
@@ -56,6 +57,10 @@ vi.mock("../services/cache/vizCache", () => ({
   getVizData: mockGetVizData,
 }));
 
+vi.mock("../services/junction-analytics/junctionAnalyticsService", () => ({
+  getJunctionLiveData: mockGetJunctionLiveData,
+}));
+
 const { createAppTools } = await import("./appTools");
 
 describe("createAppTools", () => {
@@ -65,13 +70,14 @@ describe("createAppTools", () => {
     registeredCalls.length = 0;
   });
 
-  it("should register exactly 2 app tools with app-only visibility metadata", () => {
+  it("should register exactly 3 app tools with app-only visibility metadata", () => {
     const mockServer = {} as McpServer;
     createAppTools(mockServer);
 
-    expect(mockRegisterAppTool).toHaveBeenCalledTimes(2);
+    expect(mockRegisterAppTool).toHaveBeenCalledTimes(3);
     expect(registeredHandlers["tomtom-get-api-key"]).toBeDefined();
     expect(registeredHandlers["tomtom-get-viz-data"]).toBeDefined();
+    expect(registeredHandlers["tomtom-get-junction-live"]).toBeDefined();
 
     for (const call of mockRegisterAppTool.mock.calls) {
       const options = call[2] as Record<string, unknown>;
@@ -140,6 +146,43 @@ describe("createAppTools", () => {
 
       expect(response.isError).toBe(true);
       expect(response.content[0].text).toContain("not found");
+    });
+  });
+
+  describe("tomtom-get-junction-live handler", () => {
+    it("fetches live data for each junction id and returns the raw JSON", async () => {
+      const mockServer = {} as McpServer;
+      createAppTools(mockServer);
+      mockGetJunctionLiveData.mockImplementation((id: string) =>
+        Promise.resolve({ id, approachesLiveData: [] })
+      );
+
+      const response = await registeredHandlers["tomtom-get-junction-live"]({
+        junctionIds: ["j1", "j2"],
+      });
+
+      expect(mockGetJunctionLiveData).toHaveBeenCalledTimes(2);
+      expect(mockGetJunctionLiveData).toHaveBeenCalledWith("j1");
+      expect(response.isError).toBe(false);
+      expect(JSON.parse(response.content[0].text)).toEqual({
+        junctions: [
+          { id: "j1", approachesLiveData: [] },
+          { id: "j2", approachesLiveData: [] },
+        ],
+      });
+    });
+
+    it("returns isError when the service throws (e.g. missing Move Portal key)", async () => {
+      const mockServer = {} as McpServer;
+      createAppTools(mockServer);
+      mockGetJunctionLiveData.mockRejectedValue(new Error("TOMTOM_MOVE_PORTAL_KEY is not set"));
+
+      const response = await registeredHandlers["tomtom-get-junction-live"]({
+        junctionIds: ["j1"],
+      });
+
+      expect(response.isError).toBe(true);
+      expect(response.content[0].text).toContain("TOMTOM_MOVE_PORTAL_KEY");
     });
   });
 });

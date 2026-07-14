@@ -22,11 +22,16 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { z } from "zod";
 import { getEffectiveApiKey } from "../services/base/tomtomClient";
 import { getVizData } from "../services/cache/vizCache";
+import { getJunctionLiveData } from "../services/junction-analytics/junctionAnalyticsService";
 
 const getApiKeySchema = {};
 
 const getVizDataSchema = {
   viz_id: z.string().describe("Unique visualization ID from the tool response _meta"),
+};
+
+const getJunctionLiveSchema = {
+  junctionIds: z.array(z.string()).min(1).max(20).describe("Junction IDs to fetch live data for"),
 };
 
 /**
@@ -109,6 +114,46 @@ export function createAppTools(server: McpServer): void {
         content: [{ type: "text" as const, text: JSON.stringify(data) }],
         isError: false,
       };
+    }
+  );
+
+  registerAppTool(
+    server,
+    "tomtom-get-junction-live",
+    {
+      title: "Get Junction Live Data",
+      description: "Internal tool for apps to fetch raw live data for junctions on demand",
+      inputSchema: getJunctionLiveSchema,
+      annotations: {
+        title: "Get Junction Live Data",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: {
+        ui: {
+          visibility: ["app"],
+        },
+      },
+    },
+    async (params: { junctionIds: string[] }) => {
+      try {
+        const junctions = await Promise.all(
+          params.junctionIds.map((id) => getJunctionLiveData(id))
+        );
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ junctions }) }],
+          isError: false,
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to fetch junction live data";
+        return {
+          content: [{ type: "text" as const, text: message }],
+          isError: true,
+        };
+      }
     }
   );
 }
