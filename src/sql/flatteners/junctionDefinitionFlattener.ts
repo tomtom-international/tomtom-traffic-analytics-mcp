@@ -18,11 +18,6 @@ import { FlattenResult } from "../types";
 import { JunctionDefinition } from "../../services/junction-analytics/types";
 
 /**
- * View mode for junction definition flattening
- */
-export type JunctionViewMode = "compact" | "full";
-
-/**
  * Flattened junction summary row for SQL table
  */
 interface JunctionRow {
@@ -40,7 +35,7 @@ interface JunctionRow {
 }
 
 /**
- * Flattened approach row for SQL table (full view only)
+ * Flattened approach row for SQL table
  */
 interface ApproachRow {
   junction_id: string;
@@ -56,7 +51,7 @@ interface ApproachRow {
 }
 
 /**
- * Flattened exit row for SQL table (full view only)
+ * Flattened exit row for SQL table
  */
 interface ExitRow {
   junction_id: string;
@@ -72,17 +67,12 @@ interface ExitRow {
 /**
  * Flatten junction definitions into SQL-queryable tables
  *
- * Compact view (default): junctions table only — summary info for ID discovery
- * Full view: adds approaches and exits tables for structural search
+ * Always produces junctions, approaches, and exits tables.
  *
  * @param junctions - Array of junction definitions from the API
- * @param view - "compact" (default) or "full"
- * @returns FlattenResult with tables based on view mode
+ * @returns FlattenResult with junctions, approaches, and exits tables
  */
-export function flattenJunctionDefinitions(
-  junctions: JunctionDefinition[],
-  view: JunctionViewMode = "compact"
-): FlattenResult {
+export function flattenJunctionDefinitions(junctions: JunctionDefinition[]): FlattenResult {
   const tables = new Map<string, Record<string, unknown>[]>();
 
   // Always produce the junctions summary table
@@ -103,45 +93,42 @@ export function flattenJunctionDefinitions(
   }));
   tables.set("junctions", junctionRows as unknown as Record<string, unknown>[]);
 
-  // Full view adds approaches and exits tables
-  if (view === "full") {
-    const approachRows: ApproachRow[] = [];
-    const exitRows: ExitRow[] = [];
+  const approachRows: ApproachRow[] = [];
+  const exitRows: ExitRow[] = [];
 
-    for (const j of junctions) {
-      if (j.junctionModel) {
-        for (const a of j.junctionModel.approaches) {
-          approachRows.push({
-            junction_id: j.id,
-            approach_id: a.id,
-            name: a.name ?? null,
-            road_name: a.roadName ?? null,
-            direction: a.direction ?? null,
-            frc: a.frc ?? null,
-            length: a.length ?? null,
-            one_way_road: a.oneWayRoad !== undefined ? (a.oneWayRoad ? 1 : 0) : null,
-            excluded: a.excluded !== undefined ? (a.excluded ? 1 : 0) : null,
-            drivable: a.drivable !== undefined ? (a.drivable ? 1 : 0) : null,
-          });
-        }
-        for (const e of j.junctionModel.exits) {
-          exitRows.push({
-            junction_id: j.id,
-            exit_id: e.id,
-            name: e.name ?? null,
-            road_name: e.roadName ?? null,
-            direction: e.direction ?? null,
-            frc: e.frc ?? null,
-            one_way_road: e.oneWayRoad !== undefined ? (e.oneWayRoad ? 1 : 0) : null,
-            drivable: e.drivable !== undefined ? (e.drivable ? 1 : 0) : null,
-          });
-        }
+  for (const j of junctions) {
+    if (j.junctionModel) {
+      for (const a of j.junctionModel.approaches) {
+        approachRows.push({
+          junction_id: j.id,
+          approach_id: a.id,
+          name: a.name ?? null,
+          road_name: a.roadName ?? null,
+          direction: a.direction ?? null,
+          frc: a.frc ?? null,
+          length: a.length ?? null,
+          one_way_road: a.oneWayRoad !== undefined ? (a.oneWayRoad ? 1 : 0) : null,
+          excluded: a.excluded !== undefined ? (a.excluded ? 1 : 0) : null,
+          drivable: a.drivable !== undefined ? (a.drivable ? 1 : 0) : null,
+        });
+      }
+      for (const e of j.junctionModel.exits) {
+        exitRows.push({
+          junction_id: j.id,
+          exit_id: e.id,
+          name: e.name ?? null,
+          road_name: e.roadName ?? null,
+          direction: e.direction ?? null,
+          frc: e.frc ?? null,
+          one_way_road: e.oneWayRoad !== undefined ? (e.oneWayRoad ? 1 : 0) : null,
+          drivable: e.drivable !== undefined ? (e.drivable ? 1 : 0) : null,
+        });
       }
     }
-
-    tables.set("approaches", approachRows as unknown as Record<string, unknown>[]);
-    tables.set("exits", exitRows as unknown as Record<string, unknown>[]);
   }
+
+  tables.set("approaches", approachRows as unknown as Record<string, unknown>[]);
+  tables.set("exits", exitRows as unknown as Record<string, unknown>[]);
 
   return { tables };
 }

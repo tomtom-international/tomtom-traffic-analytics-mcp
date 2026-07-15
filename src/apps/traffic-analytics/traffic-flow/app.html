@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en" style="background: transparent">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
+    <title>TomTom Traffic Flow</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body style="background: transparent">
+    <div id="app-root" class="shell-overlay">
+      <!-- Shown until the first tool-input/tool-result notification arrives. -->
+      <div id="waiting-state" class="state-panel">
+        <p>Waiting for tool result&hellip;</p>
+      </div>
+
+      <div id="sdk-map"></div>
+
+      <div id="flow-panel" class="hidden">
+        <div class="overlay-top">
+          <div id="stat-card" class="stat-card tta-panel">
+            <header class="stat-card-header">
+              <h1 id="road-class"></h1>
+              <span id="closure-badge" class="tta-tag tta-tag--solid tta-tag--closed hidden">Road closed</span>
+            </header>
+            <dl id="stat-grid" class="stat-grid"></dl>
+          </div>
+
+          <div id="control-bar" class="control-bar">
+            <button id="backdrop-toggle" class="tta-chip" aria-pressed="false">Traffic backdrop</button>
+          </div>
+        </div>
+
+        <div id="legend" class="legend tta-panel"></div>
+      </div>
+    </div>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>

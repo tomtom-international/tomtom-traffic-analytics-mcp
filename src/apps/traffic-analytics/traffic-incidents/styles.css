@@ -1,0 +1,159 @@
+/* ---------------------------------------------------------------------------
+   Side panel — area filters + incident list
+   --------------------------------------------------------------------------- */
+
+.area-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Chip chrome (colors, pill shape, active/hover states) comes from the shared
+   `.tta-chip` class — see `@shared/controls`. */
+
+.incident-list {
+  padding: 8px 0;
+}
+
+.area-heading {
+  margin: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+}
+
+.incident-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #ffffff;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.incident-item:hover {
+  background: #f9fafb;
+}
+
+.incident-item.active {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.incident-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.incident-category {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.incident-route {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.incident-delay {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+#empty-state {
+  flex: 1 1 auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Magnitude badges
+   --------------------------------------------------------------------------- */
+
+/* Pill shape/size comes from the shared `.tta-tag`/`.tta-tag--solid` classes —
+   see `@shared/controls`; these classes stay background-color-only. */
+
+.magnitude-unknown {
+  background: #6b7280;
+}
+
+.magnitude-minor {
+  background: #ca8a04;
+}
+
+.magnitude-moderate {
+  background: #ea580c;
+}
+
+.magnitude-major {
+  background: #dc2626;
+}
+
+.magnitude-indefinite {
+  background: #991b1b;
+}
+
+/* ---------------------------------------------------------------------------
+   Incident detail card — floats over the map
+   --------------------------------------------------------------------------- */
+
+.incident-detail-card {
+  /* Card chrome (background, radius, shadow) comes from the shared `.tta-panel`
+     class — see `@shared/controls`; only positioning and type live here. */
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  max-width: 300px;
+  padding: 16px 20px 14px;
+  font-size: var(--font-text-sm-size, 13px);
+  color: var(--color-text-secondary, #374151);
+}
+
+.detail-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+}
+
+.detail-close:hover {
+  color: #374151;
+}
+
+.detail-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+  margin-right: 20px;
+}
+
+.detail-row {
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.detail-events {
+  color: #6b7280;
+  font-size: 12px;
+}

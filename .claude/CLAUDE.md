@@ -7,12 +7,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Task | Command |
 |------|---------|
 | Build | `npm run build` |
+| Build apps only | `npm run build:apps` (Vite single-file bundles → `dist/apps`; also runs as part of `npm run build`) |
 | Dev (no build) | `npm run dev` |
+| Local app host | `npm run ui` (ext-apps-capable React host at `localhost:8080` + MCP HTTP server; needs `.env`) |
 | Unit tests + coverage | `npm test` |
 | Single test file | `npx vitest src/path/to/file.test.ts` |
 | Single test by name | `npx vitest -t "test name pattern"` |
 | Watch mode | `npm run test:watch` |
 | Integration tests | `npm run test:comprehensive` (requires API keys in `.env`) |
+| E2E tests (MCP Apps) | `npm run test:e2e` (Playwright; run `npm run test:e2e:setup` once first; auto-skips without API keys) |
+| E2E debug mode | `npm run test:e2e:debug` |
 | All tests | `npm run test:all` |
 | Token metrics only | `node tests/test-comprehensive.js --metrics-only` |
 | Lint | `npm run lint` |
@@ -37,6 +41,10 @@ Every tool follows: **Tool → Handler → Service → SQL Engine**
 4. **SQL Layer** (`src/sql/`) — `SqlFilterEngine` creates an in-memory DuckDB instance, loads flattened data into tables, and executes user-provided SQL queries.
    - **Flatteners** (`src/sql/flatteners/`) convert nested API JSON → flat relational rows
    - **Schemas** (`src/sql/schemas/`) define table structures (`TableDefinition[]`)
+
+### Apps Layer (`src/apps/`)
+
+Seven tools (`tomtom-traffic-incidents`, `tomtom-traffic-flow-segment`, `tomtom-area-analytics-stats`, `tomtom-junction-search`, `tomtom-junction-live-data`, `tomtom-route-search`, `tomtom-route-monitoring-details`) are registered via `registerAppTool` (from `@modelcontextprotocol/ext-apps/server`) instead of plain `server.registerTool`, and bind a `ui://` resource so ext-apps-capable hosts render an interactive map. Five apps back them under `src/apps/traffic-analytics/<app-name>/` (junction-search + junction-live-data share `junction-live`; route-search + route-monitoring-details share `route-details`). Resource URIs are derived from the app name by `registerTrafficAnalyticsApp` (`src/tools/helpers/resourceRegistry.ts`) — never hand-write a `ui://` string. Handler responses add `_meta: { show_ui, viz_id }` via `buildVizMeta` (`src/handlers/helpers/vizMeta.ts`); the app fetches the full raw payload from the app-only tool `tomtom-get-viz-data` (5-minute in-memory cache bounded to 50 entries, `src/services/cache/vizCache.ts`) and the TomTom API key from `tomtom-get-api-key` (`src/tools/appTools.ts`) — both hidden from the LLM via `_meta.ui.visibility: ["app"]`. Each app is a renderer plugged into `bootstrapVizApp` (`src/apps/shared/app-bootstrap.ts`), which owns the tool-result parse, show_ui/API-key/payload gates, standard error states, and lazy map creation. Other cross-app helpers live in `src/apps/shared/` (dom, format, geo, collections, chart-layout, feature-state, speed-colors, viz-data, map controls). **`src/apps/**` is excluded from `tsc` (built separately by Vite via `npm run build:apps`) and from vitest coverage** — but `*.test.ts` files under `src/apps/` still run as part of `npm test`.
 
 ### Server Initialization
 
@@ -71,7 +79,7 @@ Zod schemas are exported as plain objects (not wrapped in `z.object()`). The too
 
 Configured via `.env` (see `.env.example`):
 - `TOMTOM_MOVE_PORTAL_KEY` — Required for most tools (Move Portal APIs)
-- `TOMTOM_API_KEY` — Required for live traffic tools (public Traffic API)
+- `TOMTOM_API_KEY` — Required for live traffic tools (public Traffic API), and also required for the map apps to render tiles (including for `tomtom-area-analytics-stats`, whose data comes via `TOMTOM_MOVE_PORTAL_KEY`). Missing it degrades the app to an in-app "map unavailable" state; text/SQL results are unaffected.
 
 ## Testing Notes
 
@@ -80,6 +88,7 @@ Configured via `.env` (see `.env.example`):
 - Service tests mock `trafficAPIClient`/`movePortalAPIClient` and `logger`
 - Tool tests mock handler modules and verify `server.registerTool()` was called with correct names/schemas
 - Integration tests (`tests/test-comprehensive.js`) hit real APIs — need `.env` keys
+- E2E tests (`e2e/`, Playwright) drive the two MCP Apps end-to-end via the local `npm run ui` host; `e2e/fixtures/servers.ts` skips the whole suite gracefully when `TOMTOM_API_KEY` / `TOMTOM_MOVE_PORTAL_KEY` are unset. Run `npm run test:e2e:setup` once (builds + installs the Chromium browser) before `npm run test:e2e`
 
 ## Build
 

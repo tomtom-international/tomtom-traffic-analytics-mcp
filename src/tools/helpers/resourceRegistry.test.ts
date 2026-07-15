@@ -1,0 +1,156 @@
+/*
+ * Copyright (C) 2025 TomTom NV
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+const mockReadFile = vi.fn();
+const mockStat = vi.fn();
+
+type ResourceResult = {
+  contents: { uri: string; mimeType: string; text: string; _meta?: Record<string, unknown> }[];
+};
+let capturedResourceHandler: (() => Promise<ResourceResult>) | null = null;
+const mockRegisterAppResource = vi.fn(
+  (
+    _server: unknown,
+    _uri: string,
+    _name: string,
+    _opts: unknown,
+    handler: () => Promise<ResourceResult>
+  ) => {
+    capturedResourceHandler = handler;
+  }
+);
+
+vi.mock("node:fs/promises", () => ({
+  default: { readFile: mockReadFile, stat: mockStat },
+}));
+
+vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
+  registerAppResource: mockRegisterAppResource,
+  RESOURCE_MIME_TYPE: "text/html",
+}));
+
+const { registerTrafficAnalyticsApp } = await import("./resourceRegistry");
+
+describe("registerTrafficAnalyticsApp", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    capturedResourceHandler = null;
+    mockStat.mockResolvedValue({ mtimeMs: 1000 });
+  });
+
+  it("registers synchronously and returns the derived URI + mime type", () => {
+    const mockServer = {} as McpServer;
+
+    const result = registerTrafficAnalyticsApp(mockServer, "geocode");
+
+    expect(result).toBe("ui://tomtom-traffic-analytics/geocode/app.html");
+    expect(mockRegisterAppResource).toHaveBeenCalledOnce();
+    expect(mockRegisterAppResource).toHaveBeenCalledWith(
+      mockServer,
+      "ui://tomtom-traffic-analytics/geocode/app.html",
+      expect.any(String),
+      { mimeType: "text/html" },
+      expect.any(Function)
+    );
+  });
+
+  it("serves HTML content with the exact CSP domain lists on read", async () => {
+    const mockServer = {} as McpServer;
+    mockReadFile.mockResolvedValue("<html><body>Test App</body></html>");
+
+    const uri = registerTrafficAnalyticsApp(mockServer, "geocode");
+    const result = await capturedResourceHandler!();
+
+    expect(result.contents[0].uri).toBe(uri);
+    expect(result.contents[0].mimeType).toBe("text/html");
+    expect(result.contents[0].text).toBe("<html><body>Test App</body></html>");
+    expect(result.contents[0]._meta).toEqual({
+      ui: {
+        csp: {
+          connectDomains: [
+            "https://api.tomtom.com",
+            "https://*.api.tomtom.com",
+            "https://unpkg.com",
+            "blob:",
+          ],
+          resourceDomains: [
+            "https://api.tomtom.com",
+            "https://*.api.tomtom.com",
+            "https://unpkg.com",
+            "blob:",
+            "data:",
+          ],
+        },
+      },
+    });
+  });
+
+  it("memoizes by mtime: unchanged file is read once, changed file is re-read", async () => {
+    const mockServer = {} as McpServer;
+    mockStat.mockResolvedValue({ mtimeMs: 1000 });
+    mockReadFile.mockResolvedValue("<html>v1</html>");
+
+    registerTrafficAnalyticsApp(mockServer, "memo-app");
+
+    const first = await capturedResourceHandler!();
+    const second = await capturedResourceHandler!();
+    expect(mockReadFile).toHaveBeenCalledTimes(1);
+    expect(first.contents[0].text).toBe("<html>v1</html>");
+    expect(second.contents[0].text).toBe("<html>v1</html>");
+
+    // A rebuild bumps the mtime — the next read must serve the new HTML
+    mockStat.mockResolvedValue({ mtimeMs: 2000 });
+    mockReadFile.mockResolvedValue("<html>v2</html>");
+    const third = await capturedResourceHandler!();
+    expect(third.contents[0].text).toBe("<html>v2</html>");
+    expect(mockReadFile).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns fallback HTML when the file is missing, without throwing", async () => {
+    const mockServer = {} as McpServer;
+    mockStat.mockRejectedValue(new Error("ENOENT"));
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
+
+    registerTrafficAnalyticsApp(mockServer, "missing-app");
+
+    const result = await capturedResourceHandler!();
+
+    expect(result.contents[0].text).toContain("App UI not available");
+    expect(result.contents[0].text).toContain("npm run build:apps");
+    expect(result.contents[0].text).not.toContain("dist");
+    expect(result.contents[0].text).not.toMatch(/[A-Za-z]:\\|\/home\//);
+  });
+
+  it("does not memoize the fallback: a subsequent successful read is served fresh", async () => {
+    const mockServer = {} as McpServer;
+    mockStat.mockRejectedValueOnce(new Error("ENOENT"));
+
+    registerTrafficAnalyticsApp(mockServer, "retry-app");
+
+    const failedResult = await capturedResourceHandler!();
+    expect(failedResult.contents[0].text).toContain("App UI not available");
+
+    mockStat.mockResolvedValue({ mtimeMs: 1000 });
+    mockReadFile.mockResolvedValueOnce("<html>rebuilt</html>");
+    const successResult = await capturedResourceHandler!();
+
+    expect(successResult.contents[0].text).toBe("<html>rebuilt</html>");
+    expect(mockReadFile).toHaveBeenCalledTimes(1);
+  });
+});

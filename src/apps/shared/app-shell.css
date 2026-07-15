@@ -1,0 +1,343 @@
+/*
+ * Copyright (C) 2025 TomTom Navigation B.V.
+ * Licensed under the Apache License, Version 2.0
+ */
+
+/* ---------------------------------------------------------------------------
+   Shared app shell for the traffic-analytics MCP apps — page reset, the
+   `#app-root`/`#sdk-map` layout skeleton, the `ui-hidden` collapse, the
+   waiting/empty state chrome, and the `.tta-drawer` side-panel base.
+ *
+ * Two shell shapes share this skeleton:
+ *   - OVERLAY (area-analytics, traffic-flow): `#app-root` stays a plain
+ *     positioning context; chrome floats absolutely over the map.
+ *   - SPLIT (traffic-incidents, route-details, junction-live): `#app-root`
+ *     gets `class="shell-split"` so it becomes a flex row with the map and a
+ *     `.tta-drawer` side panel side by side.
+ *
+ * `#app-root` picks its shape from a `shell-overlay`/`shell-split` class set
+ * in each app's `app.html` (never hand-written selectors per app).
+   --------------------------------------------------------------------------- */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  background: transparent;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* The ext-apps SDK auto-resizes the host iframe to the reported CONTENT
+   height (it measures `<html>` at `max-content`) — a percentage height here
+   would collapse to `auto` and let a long `.tta-drawer` list drive
+   `#app-root`'s height, which then stretches `#sdk-map` via `align-items:
+   stretch` on the flex row. A DEFINITE height keeps the reported content
+   height stable, so `.tta-drawer .panel-list { min-height:0;
+   overflow-y:auto }` below can scroll internally instead of growing this box. */
+#app-root {
+  position: relative;
+  width: 100%;
+  height: 600px;
+}
+
+.shell-split#app-root {
+  display: flex;
+  /* Clip the bottom-drawer's docked-below-the-fold portion. At BP-A the drawer
+     is absolutely positioned and `transform: translateY(...)` docks it past the
+     bottom edge so only its handle peeks. Without clipping, that transformed
+     overflow is counted by the SDK's content-height measurement and grows the
+     widget downward instead of letting the drawer collapse. */
+  overflow: hidden;
+}
+
+#sdk-map {
+  width: 100%;
+  height: 100%;
+}
+
+.shell-split #sdk-map {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Collapse app-root in ui-hidden state (show_ui:false, missing API key, etc.) */
+html.ui-hidden #app-root {
+  height: 0;
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Waiting / empty state panels
+   --------------------------------------------------------------------------- */
+
+.state-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--color-text-secondary, #6b7280);
+  font-size: var(--font-text-sm-size, 13px);
+  text-align: center;
+}
+
+#waiting-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   Side-panel drawer (SPLIT shell only) — the `<aside>` used by
+   traffic-incidents/route-details/junction-live. At wide widths it sizes via
+   flex (`flex: 0 0 320px`); narrow-width drawer behavior lands in Task 3.
+ *
+ * The aside itself does NOT scroll — the inner `.panel-list`/`.incident-list`
+ * is the scroll container. `min-height: 0` overrides the flex-item default
+ * (`min-height: auto`, which lets content grow past the flex line), which is
+ * what was letting a long list stretch the aside — and with `align-items:
+ * stretch` on the flex-row `#app-root`, the map along with it. That's the
+ * list-grows-the-map fix.
+   --------------------------------------------------------------------------- */
+
+.tta-drawer {
+  flex: 0 0 320px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* inner list scrolls, not the aside */
+  background: var(--color-background-primary, #ffffff);
+  border-left: var(--border-width-regular, 1px) solid var(--color-border-secondary, #e5e7eb);
+}
+
+.tta-drawer .panel-list,
+.tta-drawer .incident-list {
+  flex: 1 1 auto;
+  min-height: 0; /* THE list-grows-map fix */
+  overflow-y: auto;
+}
+
+.tta-drawer-handle {
+  display: none; /* only shown at narrow width (Task 3) */
+}
+
+/* ---------------------------------------------------------------------------
+   BP-A — bottom-drawer layout for the SPLIT shell below 640px. The aside
+   becomes a full-width bottom sheet, docked via `transform` so only its
+   `.tta-drawer-handle` peeks above the fold until `#app-root.drawer-open` is
+   set (drawer.ts). Keep the `639.98px` literal in sync with drawer.ts NARROW.
+   --------------------------------------------------------------------------- */
+
+@media (max-width: 639.98px) {
+  /* BP-A — keep in sync with drawer.ts NARROW */
+  .tta-drawer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1100;
+    flex: none;
+    width: auto;
+    max-height: 45%;
+    border-left: none;
+    border-top: 1px solid var(--color-border-secondary, #e5e7eb);
+    border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
+    box-shadow: var(--shadow-lg, 0 -4px 16px rgba(0, 0, 0, 0.18));
+    transform: translateY(calc(100% - var(--tta-drawer-handle-h, 44px)));
+    transition: transform 0.25s ease;
+    will-change: transform;
+  }
+
+  #app-root.drawer-open .tta-drawer {
+    transform: translateY(0);
+  }
+
+  .tta-drawer-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: var(--tta-drawer-handle-h, 44px);
+    flex: 0 0 auto;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    color: var(--color-text-secondary, #374151);
+    font-weight: 600;
+  }
+
+  .tta-drawer-handle::before {
+    content: "";
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border-secondary, #d1d5db);
+  }
+
+  /* Scoped under `.shell-split` (0,2,0) so docking the cards clear of the
+     drawer beats the per-app single-class positioning rules unconditionally,
+     not by an equal-specificity source-order tie that depends on CSS emit
+     order. Both cards are descendants of `#app-root.shell-split`. */
+  .shell-split .junction-detail-card,
+  .shell-split .incident-detail-card {
+    /* dock floating cards to top, clear of the drawer */
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    bottom: auto;
+    max-width: none;
+    max-height: 40%;
+  }
+
+  /* Task 5 — reposition the collapsible legend (junction-live/route-details)
+     top-left, clear of the bottom drawer handle. Scoped under `.shell-split`
+     (0,2,0) for the same beats-the-per-app-rule reason as the detail-card
+     rule above (per-app styles.css sets `.legend { left:16px; bottom:16px }`
+     at 0,1,0). */
+  .shell-split .legend {
+    top: 12px;
+    left: 12px;
+    bottom: auto;
+    width: auto;
+    max-width: 70%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tta-drawer {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Collapsible legend (Task 5) — the LOS/ramp `.legend` box that floats over
+   the map in junction-live/route-details' focus modes. `initCollapsibleLegend`
+   (drawer.ts) prepends `.tta-legend-toggle` and toggles `collapsed` on the
+   legend itself; per-app styles.css still owns `.legend`'s base
+   position/size at wide width. Applies at every width — the BP-A block above
+   only repositions the (possibly collapsed) box, it doesn't gate collapsing.
+   --------------------------------------------------------------------------- */
+
+.tta-legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend:not(.collapsed) .tta-legend-toggle {
+  margin-bottom: 6px;
+}
+
+.legend.collapsed {
+  width: auto;
+  padding: 6px 12px;
+}
+
+.legend.collapsed > :not(.tta-legend-toggle) {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   BP-B — de-collision wrapper for the OVERLAY shell's floating corner chrome
+   (area-analytics: `.analytics-header` + `.control-bar` top, `.legend` +
+   `.timeseries-wrap` bottom; traffic-flow: `.stat-card` + `.control-bar` top).
+   Each pair is wrapped in `<div class="overlay-top">`/`<div
+   class="overlay-bottom">` in the app's `app.html`. At wide widths the
+   wrapper is transparent to layout (`display: contents`), so children keep
+   their existing absolute corner positions untouched. Below 780px it becomes
+   the positioned box instead and stacks its children into one column so the
+   two widgets no longer float over each other.
+   --------------------------------------------------------------------------- */
+
+.overlay-top,
+.overlay-bottom {
+  display: contents;
+}
+
+/* `display: contents` removes the wrapper's own box, so the per-app
+   `#analytics-panel > *` / `#flow-panel > *` pointer-events rule no longer
+   matches the header/control-bar/legend once they're nested one level
+   deeper — restore `pointer-events: auto` directly on the wrapped children,
+   at every width (not just inside the BP-B media query below). */
+.overlay-top > *,
+.overlay-bottom > * {
+  pointer-events: auto;
+}
+
+@media (max-width: 779.98px) {
+  /* BP-B — overlay chrome de-collision */
+  .overlay-top,
+  .overlay-bottom {
+    display: block;
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    z-index: 900;
+  }
+
+  .overlay-top {
+    top: 16px;
+  }
+
+  .overlay-bottom {
+    bottom: 16px;
+  }
+
+  /* Scoped under `.shell-overlay` (0,2,0) so the re-stacking beats the
+     per-app single-class corner-position rules unconditionally, not by an
+     equal-specificity source-order tie that depends on CSS emit order. */
+  .shell-overlay .overlay-top > *,
+  .shell-overlay .overlay-bottom > * {
+    position: static;
+    inset: auto;
+    margin-bottom: 8px;
+    pointer-events: auto;
+  }
+
+  /* Only the TOP widgets (analytics-header/control-bar, stat-card/control-bar)
+     stretch to fill the stacked column. The bottom `.legend` deliberately keeps
+     its natural fixed width (styles.css) — stretching it to full width reads as
+     a heavy bar over the map. Clamp it only so it can't overflow a tiny panel. */
+  .shell-overlay .overlay-top > * {
+    max-width: none;
+    width: auto;
+  }
+
+  .shell-overlay .overlay-bottom .legend {
+    max-width: 100%;
+  }
+
+  .shell-overlay .overlay-top > *:last-child,
+  .shell-overlay .overlay-bottom > *:last-child {
+    margin-bottom: 0;
+  }
+
+  /* area-analytics only: `.timeseries-wrap` right-aligns its toggle/panel
+     internally (wide-width bottom-right corner) — re-align left so it reads
+     as one left-aligned column under the now full-width `.legend` above it. */
+  .overlay-bottom .timeseries-wrap {
+    align-items: flex-start;
+  }
+
+  /* area-analytics only: `.timeseries-panel` is a grandchild of
+     `.overlay-bottom` (nested inside `.timeseries-wrap`), so the
+     `.shell-overlay .overlay-bottom > *` rule above doesn't reach it — its
+     own `width: 340px` (styles.css, single class, 0,1,0) can still overflow
+     a narrow overlay. Scoped under `.shell-overlay` for the same
+     specificity reason as the sibling BP-B overrides (0,3,0 beats 0,1,0). */
+  .shell-overlay .overlay-bottom .timeseries-panel {
+    width: auto;
+    max-width: 100%;
+  }
+}

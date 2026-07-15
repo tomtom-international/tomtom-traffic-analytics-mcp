@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" style="background: transparent">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
+    <title>TomTom Route Details</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body style="background: transparent">
+    <div id="app-root" class="shell-split">
+      <!-- Shown until the first tool-input/tool-result notification arrives. -->
+      <div id="waiting-state" class="state-panel">
+        <p>Waiting for tool result&hellip;</p>
+      </div>
+
+      <div id="sdk-map"></div>
+
+      <aside id="route-panel" class="tta-drawer hidden">
+        <div id="details-back" class="details-back hidden">
+          <button type="button" id="details-back-btn" class="tta-btn">
+            &larr; Back to search results
+          </button>
+        </div>
+        <div id="route-chips" class="route-chips hidden"></div>
+        <div id="route-stats" class="route-stats hidden"></div>
+        <div id="panel-list" class="panel-list"></div>
+        <div id="empty-state" class="state-panel hidden">No routes found</div>
+      </aside>
+
+      <div id="legend" class="legend tta-panel hidden"></div>
+    </div>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>

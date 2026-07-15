@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { buildVizMeta } from "./helpers/vizMeta";
 import {
   getFlowSegmentData,
   getTrafficIncidents,
@@ -39,7 +40,7 @@ export function getFlowSegmentDataHandler() {
   return async (params: any) => {
     logger.info("Processing flow segment data request");
 
-    const { sql_queries, ...requestParams } = params;
+    const { sql_queries, show_ui, ...requestParams } = params;
     const request = requestParams as TrafficFlowSegmentRequest;
 
     // Validate sql_queries is provided (mandatory)
@@ -73,7 +74,19 @@ export function getFlowSegmentDataHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw segment for the MCP App to render, unless disabled
+      const vizMeta = buildVizMeta(show_ui, "traffic flow", () => ({
+        tool: "tomtom-traffic-flow-segment",
+        request: {
+          point: request.point,
+          style: request.style,
+          zoom: request.zoom,
+          unit: request.unit,
+        },
+        segment: rawResult,
+      }));
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-traffic-flow-segment",
@@ -87,13 +100,14 @@ export function getFlowSegmentDataHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
         `✅ Flow segment data processed with SQL filtering (${Object.keys(sql_queries).length} queries)`
       );
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(response) }],
       };
     } catch (error: any) {
       logger.error(`Error getting live traffic data: ${error.message}`);
@@ -135,7 +149,7 @@ async function getTrafficByBbox(bbox?: string, options: any = {}) {
  */
 export function createTrafficIncidentsHandler() {
   return async (params: any) => {
-    const { sql_queries, bboxes, ...requestParams } = params;
+    const { sql_queries, bboxes, show_ui, ...requestParams } = params;
 
     const areas: Array<{ name: string; bbox: string }> = bboxes;
 
@@ -178,6 +192,7 @@ export function createTrafficIncidentsHandler() {
       const rawResults = await Promise.all(
         areas.map(async (area) => ({
           areaName: area.name,
+          bbox: area.bbox,
           data: await getTrafficByBbox(area.bbox, options),
         }))
       );
@@ -197,8 +212,12 @@ export function createTrafficIncidentsHandler() {
       for (const { areaName, data } of rawResults) {
         const flattened = flattenTrafficIncidents(data, areaName);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
@@ -213,7 +232,17 @@ export function createTrafficIncidentsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw per-area results for the MCP App to render, unless disabled
+      const vizMeta = buildVizMeta(show_ui, "traffic incidents", () => ({
+        tool: "tomtom-traffic-incidents",
+        areas: rawResults.map(({ areaName, bbox, data }) => ({
+          name: areaName,
+          bbox,
+          incidents: data,
+        })),
+      }));
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-traffic-incidents",
@@ -226,16 +255,17 @@ export function createTrafficIncidentsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
         `✅ Traffic incidents processed with SQL filtering: ${areas.length} areas (${Object.keys(sql_queries).length} queries)`
       );
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(response) }],
       };
     } catch (error: any) {
-      logger.error(JSON.stringify(error.message, null, 2));
+      logger.error(JSON.stringify(error.message));
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: error.message }) }],
         isError: true,

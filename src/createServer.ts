@@ -21,6 +21,7 @@ import { createJunctionAnalyticsTools } from "./tools/junctionAnalytics";
 import { createRouteMonitoringTools } from "./tools/routeMonitoring";
 import { createAreaAnalyticsTools } from "./tools/areaAnalytics";
 import { createLiveTrafficTools } from "./tools/liveTraffic";
+import { createAppTools } from "./tools/appTools";
 import { VERSION } from "./version";
 
 const SERVER_INSTRUCTIONS = `TomTom traffic analytics over TomTom Traffic and Move Portal APIs. Eight tools across four domains:
@@ -91,4 +92,7 @@ function registerTools(server: McpServer): void {
 
   // Register Traffic API tools (flow, incidents, etc.)
   createLiveTrafficTools(server);
+
+  // Register app-only tools (internal helpers for MCP Apps, hidden from the LLM)
+  createAppTools(server);
 }

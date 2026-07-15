@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { buildVizMeta } from "./helpers/vizMeta";
 import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsService";
 import { AreaAnalyticsStatsRequest } from "../services/area-analytics/types";
 import {
@@ -34,8 +35,9 @@ export function getAreaAnalyticsStatsHandler() {
   return async (params: any) => {
     logger.info("Processing Area Analytics stats request");
 
-    const { sql_queries, ...request } = params as AreaAnalyticsStatsRequest & {
+    const { sql_queries, show_ui, ...request } = params as AreaAnalyticsStatsRequest & {
       sql_queries?: Record<string, string>;
+      show_ui?: boolean;
     };
 
     // Validate sql_queries is provided (mandatory)
@@ -45,7 +47,7 @@ export function getAreaAnalyticsStatsHandler() {
         'Example: {"congestion_trend": "SELECT time, AVG(congestion_level) as avg_congestion FROM timed_data WHERE aggregation_type = \'daily\' GROUP BY time"}';
       logger.error(`❌ Area Analytics stats request rejected: ${errorMsg}`);
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
         isError: true,
       };
     }
@@ -69,7 +71,21 @@ export function getAreaAnalyticsStatsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw report for the MCP App to render, unless disabled
+      const vizMeta = buildVizMeta(show_ui, "Area Analytics", () => ({
+        tool: "tomtom-area-analytics-stats",
+        request: {
+          name: request.name,
+          startDate: request.startDate,
+          endDate: request.endDate,
+          dataTypes: request.dataTypes,
+          hours: request.hours,
+          frcs: request.frcs,
+        },
+        report: rawResult,
+      }));
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-area-analytics-stats",
@@ -83,20 +99,19 @@ export function getAreaAnalyticsStatsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
         `✅ Area Analytics stats processed with SQL filtering (${Object.keys(sql_queries).length} queries)`
       );
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(response) }],
       };
     } catch (error: any) {
       logger.error(`Error getting Area Analytics stats: ${error.message}`);
       return {
-        content: [
-          { type: "text" as const, text: JSON.stringify({ error: error.message }, null, 2) },
-        ],
+        content: [{ type: "text" as const, text: JSON.stringify({ error: error.message }) }],
         isError: true,
       };
     } finally {

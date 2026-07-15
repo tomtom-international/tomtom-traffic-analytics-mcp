@@ -86,6 +86,12 @@ export const trafficFlowDataSchema = {
   unit: z.enum(["kmph", "mph"]).optional().default("kmph"),
   thickness: z.number().int().min(1).max(20).optional().default(10),
   openLr: z.boolean().optional().default(false).describe("Include OpenLR code in response"),
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive flow segment map app (default true). Set false for text-only analysis."
+    ),
   sql_queries: flowSegmentSqlQueriesSchema,
 };
 
@@ -131,6 +137,13 @@ export const trafficIncidentsSchema = {
     .optional()
     .describe(
       "Time validity filter: 'present' (current), 'future' (upcoming). Default: 'present'."
+    ),
+
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive incidents map app (default true). Set false for text-only analysis."
     ),
 
   sql_queries: incidentsSqlQueriesSchema,

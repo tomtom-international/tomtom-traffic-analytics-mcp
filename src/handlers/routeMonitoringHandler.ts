@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { buildVizMeta } from "./helpers/vizMeta";
 import { getRoutes, getRouteDetails } from "../services/route-monitoring/routeMonitoringService";
 import {
   SqlFilterEngine,
@@ -24,6 +25,9 @@ import {
   ROUTE_LIST_SCHEMA,
   SqlFilteredResponse,
 } from "../sql";
+
+/** Max entries in the auto-injected metadata.route_ids directory. */
+const ROUTE_DIRECTORY_CAP = 100;
 
 /**
  * Factory function that creates route monitoring handlers
@@ -44,8 +48,8 @@ export function createRouteMonitoringHandlers() {
  * Requires sql_queries parameter.
  */
 function createRouteSearchHandler() {
-  return async (params: { sql_queries?: Record<string, string> }) => {
-    const { sql_queries } = params;
+  return async (params: { sql_queries?: Record<string, string>; show_ui?: boolean }) => {
+    const { sql_queries, show_ui } = params;
 
     logger.info("Route search");
 
@@ -79,24 +83,41 @@ function createRouteSearchHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw route list for the MCP App to render, unless disabled
+      const vizMeta = buildVizMeta(show_ui, "route search", () => ({
+        tool: "tomtom-route-search",
+        routes: allRoutes,
+      }));
+
+      // Deterministic route-id directory so follow-up
+      // tomtom-route-monitoring-details calls never need a re-query.
+      const routeDirectory = allRoutes
+        .slice(0, ROUTE_DIRECTORY_CAP)
+        .map((r) => ({ route_id: r.routeId, route_name: r.routeName }));
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-route-search",
           parameters: {
             totalRoutes: allRoutes.length,
+            ...(allRoutes.length > ROUTE_DIRECTORY_CAP && {
+              route_ids_note: `route_ids lists the first ${ROUTE_DIRECTORY_CAP} of ${allRoutes.length} routes; query the routes table for the rest`,
+            }),
           },
+          route_ids: routeDirectory,
           raw_row_counts: rowCounts,
           queries_executed: Object.keys(sql_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
         `Route search completed: ${allRoutes.length} routes (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`Route search failed: ${error.message}`);
       return {
@@ -119,8 +140,12 @@ function createRouteSearchHandler() {
  * This prevents context window overflow when working with LLM agents.
  */
 function createGetRouteDetailsHandler() {
-  return async (params: { routeIds: string[]; sql_queries?: Record<string, string> }) => {
-    const { routeIds, sql_queries } = params;
+  return async (params: {
+    routeIds: string[];
+    sql_queries?: Record<string, string>;
+    show_ui?: boolean;
+  }) => {
+    const { routeIds, sql_queries, show_ui } = params;
 
     const ids: string[] = routeIds;
 
@@ -168,8 +193,12 @@ function createGetRouteDetailsHandler() {
       for (const rawResult of rawResults) {
         const flattened = flattenRouteMonitoringDetails(rawResult);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
@@ -184,7 +213,13 @@ function createGetRouteDetailsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw route details for the MCP App to render, unless disabled
+      const vizMeta = buildVizMeta(show_ui, "route details", () => ({
+        tool: "tomtom-route-monitoring-details",
+        routes: rawResults,
+      }));
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-route-monitoring-details",
@@ -197,12 +232,13 @@ function createGetRouteDetailsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
         `✅ Route details processed with SQL filtering: ${ids.length} routes (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`❌ Failed to fetch route details: ${error.message}`);
       return {

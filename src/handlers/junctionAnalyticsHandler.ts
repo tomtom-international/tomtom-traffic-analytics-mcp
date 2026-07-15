@@ -15,6 +15,7 @@
  */
 
 import { logger } from "../utils/logger";
+import { buildVizMeta } from "./helpers/vizMeta";
 import {
   getJunctionLiveData,
   getJunctionArchive,
@@ -27,8 +28,7 @@ import {
   flattenJunctionLiveData,
   JUNCTION_LIVE_DATA_SCHEMA,
   flattenJunctionDefinitions,
-  JUNCTION_DEFINITION_COMPACT_SCHEMA,
-  JUNCTION_DEFINITION_FULL_SCHEMA,
+  JUNCTION_DEFINITION_SCHEMA,
   SqlFilteredResponse,
 } from "../sql";
 
@@ -42,9 +42,7 @@ import {
  */
 export function getJunctionSearchHandler() {
   return async (params: any) => {
-    const { view = "compact", sql_queries } = params;
-
-    logger.info(`Junction search (view: ${view})`);
+    const { sql_queries, show_ui } = params;
 
     // Validate sql_queries is provided (mandatory)
     if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
@@ -68,28 +66,29 @@ export function getJunctionSearchHandler() {
       //    flattener falls back to null/0 for every junction.
       const allJunctions = await getAllJunctionDefinitions({ includeGeometry: true });
 
-      // 2. Flatten into SQL tables based on view
-      const flattenedData = flattenJunctionDefinitions(allJunctions, view);
+      // 2. Flatten into SQL tables
+      const flattenedData = flattenJunctionDefinitions(allJunctions);
 
-      // 3. Select schema based on view
-      const schema =
-        view === "full" ? JUNCTION_DEFINITION_FULL_SCHEMA : JUNCTION_DEFINITION_COMPACT_SCHEMA;
+      // 3. Initialize SQL engine with schema and data
+      const warnings = await sqlEngine.initialize(JUNCTION_DEFINITION_SCHEMA, flattenedData);
 
-      // 4. Initialize SQL engine with schema and data
-      const warnings = await sqlEngine.initialize(schema, flattenedData);
-
-      // 5. Execute SQL queries
+      // 4. Execute SQL queries
       const queryResults = await sqlEngine.executeQueries(sql_queries);
 
-      // 6. Get row counts for metadata
+      // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
+
+      // 6. Cache the raw junction catalog for the MCP App to render, unless disabled
+      const vizMeta = buildVizMeta(show_ui, "junction search", () => ({
+        tool: "tomtom-junction-search",
+        junctions: allJunctions,
+      }));
 
       // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-search",
           parameters: {
-            view,
             totalJunctions: allJunctions.length,
           },
           raw_row_counts: rowCounts,
@@ -97,12 +96,13 @@ export function getJunctionSearchHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
-        `Junction search completed: ${allJunctions.length} junctions (${Object.keys(sql_queries).length} queries, view: ${view})`
+        `Junction search completed: ${allJunctions.length} junctions (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`Junction search failed: ${error.message}`);
       return {
@@ -126,7 +126,7 @@ export function getJunctionSearchHandler() {
  */
 export function getJunctionLiveDataDetailsHandler() {
   return async (params: any) => {
-    const { junctionIds, sql_queries, ...options } = params;
+    const { junctionIds, sql_queries, show_ui, ...options } = params;
 
     const ids: string[] = junctionIds;
 
@@ -156,12 +156,22 @@ export function getJunctionLiveDataDetailsHandler() {
     const sqlEngine = new SqlFilterEngine();
 
     try {
-      // 1. Fetch all junctions in PARALLEL
-      const rawResults = await Promise.all(ids.map((id) => getJunctionLiveData(id, options)));
+      // 1. Fetch all junctions in PARALLEL.
+      // The map app needs junctionModel geometry, so when the UI is enabled we
+      // force includeGeometry on the FETCH — but SQL must see exactly what the
+      // user asked for, so we strip junctionModel again before flattening.
+      const wantGeometry = options.includeGeometry === true;
+      const fetchOptions =
+        !wantGeometry && show_ui !== false ? { ...options, includeGeometry: true } : options;
+      const rawResults = await Promise.all(ids.map((id) => getJunctionLiveData(id, fetchOptions)));
+
+      const sqlResults = wantGeometry
+        ? rawResults
+        : rawResults.map(({ junctionModel: _junctionModel, ...rest }) => rest);
 
       // Log raw data stats
       let totalApproaches = 0;
-      for (const result of rawResults) {
+      for (const result of sqlResults) {
         totalApproaches += result.approachesLiveData?.length ?? 0;
       }
       logger.info(
@@ -171,11 +181,15 @@ export function getJunctionLiveDataDetailsHandler() {
       // 2. Merge flattened results from all junctions
       const mergedTables = new Map<string, Record<string, unknown>[]>();
 
-      for (const rawResult of rawResults) {
+      for (const rawResult of sqlResults) {
         const flattened = flattenJunctionLiveData(rawResult);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
@@ -190,7 +204,13 @@ export function getJunctionLiveDataDetailsHandler() {
       // 5. Get row counts for metadata
       const rowCounts = sqlEngine.getTableRowCounts();
 
-      // 6. Build filtered response
+      // 6. Cache the raw (unstripped) junctions for the MCP App to render, unless disabled
+      const vizMeta = buildVizMeta(show_ui, "junction live data", () => ({
+        tool: "tomtom-junction-live-data",
+        junctions: rawResults,
+      }));
+
+      // 7. Build filtered response
       const response: SqlFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-live-data",
@@ -204,12 +224,13 @@ export function getJunctionLiveDataDetailsHandler() {
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
+        _meta: vizMeta,
       };
 
       logger.info(
         `✅ Junction live data processed with SQL filtering: ${ids.length} junctions (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`❌ Failed to retrieve junction live data: ${error.message}`);
       return {
@@ -263,6 +284,31 @@ export function getJunctionArchiveHandler() {
       };
     }
 
+    // The Move Portal archive endpoint hard-caps the requested window at 2 days,
+    // and when `to` is omitted it uses "today" as the end — so a `from` more than
+    // 2 days before today also exceeds the cap. Reject an over-wide range up front
+    // with an actionable message instead of surfacing a raw 400 from the API.
+    const MAX_ARCHIVE_RANGE_DAYS = 2;
+    const MS_PER_DAY = 86_400_000;
+    const effectiveTo: string = options.to ?? new Date().toISOString().slice(0, 10);
+    const fromMs = Date.parse(`${options.from}T00:00:00Z`);
+    const toMs = Date.parse(`${effectiveTo}T00:00:00Z`);
+    if (!Number.isNaN(fromMs) && !Number.isNaN(toMs)) {
+      const spanDays = Math.round((toMs - fromMs) / MS_PER_DAY);
+      if (spanDays < 0 || spanDays > MAX_ARCHIVE_RANGE_DAYS) {
+        const errorMsg =
+          `Junction archive supports a maximum ${MAX_ARCHIVE_RANGE_DAYS}-day range, but ` +
+          `[${options.from}, ${effectiveTo}] spans ${spanDays} day(s)` +
+          (options.to ? "" : " (no 'to' given, so the API uses today)") +
+          `. Pass 'from' and 'to' no more than ${MAX_ARCHIVE_RANGE_DAYS} days apart.`;
+        logger.error(`❌ Junction archive request rejected: ${errorMsg}`);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
+          isError: true,
+        };
+      }
+    }
+
     const sqlEngine = new SqlFilterEngine();
 
     try {
@@ -286,8 +332,12 @@ export function getJunctionArchiveHandler() {
       for (const rawResult of rawResults) {
         const flattened = flattenJunctionArchive(rawResult);
         for (const [tableName, rows] of flattened.tables) {
-          const existing = mergedTables.get(tableName) ?? [];
-          mergedTables.set(tableName, [...existing, ...rows]);
+          const existing = mergedTables.get(tableName);
+          if (existing) {
+            existing.push(...rows);
+          } else {
+            mergedTables.set(tableName, [...rows]);
+          }
         }
       }
 
@@ -322,7 +372,7 @@ export function getJunctionArchiveHandler() {
       logger.info(
         `✅ Junction archive processed with SQL filtering: ${ids.length} junctions (${Object.keys(sql_queries).length} queries)`
       );
-      return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
     } catch (error: any) {
       logger.error(`❌ Failed to retrieve junction archive: ${error.message}`);
       return {

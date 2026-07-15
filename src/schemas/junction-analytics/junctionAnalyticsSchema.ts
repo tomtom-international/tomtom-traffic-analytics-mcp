@@ -44,6 +44,12 @@ export const junctionLiveDataDetailsSchema = {
     .boolean()
     .optional()
     .describe("Set true to populate junction_metadata, approach_metadata, exit_metadata tables"),
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive junction map app (default true). Set false for text-only analysis."
+    ),
   sql_queries: liveDataSqlQueriesSchema,
 };
 
@@ -65,12 +71,15 @@ export const junctionArchiveSchema = {
     .min(1)
     .max(20)
     .describe("Up to 20 IDs; data merged for cross-junction SQL"),
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Start date YYYY-MM-DD; the from→to window must be ≤ 2 days"),
   to: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
-    .describe("Optional end date; API limited to a 2-day range"),
+    .describe("Optional end date YYYY-MM-DD; omitted = today, so from→to must still be ≤ 2 days"),
   sql_queries: sqlQueriesSchema,
 };
 
@@ -87,12 +96,11 @@ const junctionSearchSqlQueriesSchema = z
 
 // Junction search schema
 export const junctionSearchSchema = {
-  view: z
-    .enum(["compact", "full"])
+  show_ui: z
+    .boolean()
     .optional()
-    .default("compact")
     .describe(
-      "Table detail level. 'compact' (default): junctions table only. 'full': adds approaches and exits tables for structural search."
+      "Render the interactive junction map app (default true). Set false for text-only analysis."
     ),
   sql_queries: junctionSearchSqlQueriesSchema,
 };

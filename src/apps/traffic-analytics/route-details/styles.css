@@ -1,0 +1,238 @@
+/* ---------------------------------------------------------------------------
+   Side panel — route chips + stats + route list / segment table
+   --------------------------------------------------------------------------- */
+
+.details-back {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Layout/row/heading chrome for the multi-route switcher (border, rows,
+   active/hover states) comes from the shared `.tta-switcher`/
+   `.tta-switcher-item`/`.tta-switcher-heading` classes — see
+   `@shared/controls`; `renderRouteChips` adds `.tta-switcher` to
+   `#route-chips` alongside its own id/hidden-toggle. */
+
+.panel-list {
+  padding: 8px 0;
+}
+
+#empty-state {
+  flex: 1 1 auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Search mode — route list rows
+   --------------------------------------------------------------------------- */
+
+.route-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #ffffff;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.route-item:hover,
+.route-item.hover {
+  background: var(--color-background-secondary, #f9fafb);
+}
+
+.route-item.selected {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.route-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.route-item-status {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+.route-load-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #dc2626;
+}
+
+.route-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.route-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-item-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.route-item-id {
+  margin-top: 2px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 11px;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+.metric {
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   Details mode — route stats
+   --------------------------------------------------------------------------- */
+
+.route-stats {
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.route-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.route-stats-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-stats-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: center;
+  /* Grid items default to justify-self: stretch, which would blow up the
+     passable/impassable pill (a `.tta-tag--solid` badge with its own
+     background) into a full-width bar. Right-align every value at its
+     natural content width. */
+  justify-items: end;
+}
+
+.route-stats-grid .stats-label {
+  font-size: 11px;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.route-stats-grid > span:not(.stats-label):not(.tta-tag--solid) {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------------------
+   Details mode — segment speed-profile strip
+   --------------------------------------------------------------------------- */
+
+.segment-strip-wrap {
+  position: relative; /* anchors the floating .segment-tooltip */
+  padding: 4px 12px 12px;
+}
+
+.segment-strip-caption {
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.segment-strip {
+  display: block;
+  width: 100%;
+  height: 40px;
+}
+
+.segment-bar {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  paint-order: stroke fill;
+}
+
+.segment-bar.hover {
+  opacity: 0.75;
+}
+
+.segment-bar.selected {
+  stroke: #2563eb;
+  stroke-width: 2;
+}
+
+.segment-strip-empty {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+/* Floating multi-metric readout, shown on bar hover — mirrors the
+   area-analytics `.tile-tooltip`/`.tooltip-row` pattern, positioned relative
+   to `.segment-strip-wrap` instead of the map. */
+.segment-tooltip {
+  position: absolute;
+  z-index: 10;
+  transform: translate(12px, 12px);
+  pointer-events: none;
+  background: var(--color-background-primary, #ffffff);
+  border-radius: var(--border-radius-lg, 8px);
+  box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
+  padding: 8px 12px;
+  font-size: var(--font-text-xs-size, 12px);
+  color: var(--color-text-secondary, #374151);
+  white-space: nowrap;
+}
+
+.segment-tooltip .tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.segment-tooltip .tooltip-row + .tooltip-row {
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Legend — floats over the map
+   --------------------------------------------------------------------------- */
+
+.legend {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 900;
+  width: 240px;
+  padding: 10px 14px;
+}

@@ -16,7 +16,6 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createRouteMonitoringTools } from "./routeMonitoring";
 
 // Mock the handler module
 vi.mock("../handlers/routeMonitoringHandler", () => ({
@@ -26,10 +25,26 @@ vi.mock("../handlers/routeMonitoringHandler", () => ({
   }),
 }));
 
+const mockRegisterAppTool = vi.fn();
+vi.mock("@modelcontextprotocol/ext-apps/server", () => ({
+  registerAppTool: mockRegisterAppTool,
+  RESOURCE_URI_META_KEY: "ui/resourceUri",
+}));
+
+const mockRegisterTrafficAnalyticsApp = vi.fn(
+  (_server: unknown, appName: string) => `ui://tomtom-traffic-analytics/${appName}/app.html`
+);
+vi.mock("./helpers/resourceRegistry", () => ({
+  registerTrafficAnalyticsApp: mockRegisterTrafficAnalyticsApp,
+}));
+
+const { createRouteMonitoringTools } = await import("./routeMonitoring");
+
 describe("Route Monitoring Tools", () => {
   let mockServer: McpServer;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     mockServer = {
       registerTool: vi.fn(),
     } as any;
@@ -38,10 +53,11 @@ describe("Route Monitoring Tools", () => {
   it("should register 2 route monitoring tools", () => {
     createRouteMonitoringTools(mockServer);
 
-    expect(mockServer.registerTool).toHaveBeenCalledTimes(2);
+    // Both tools are bound to the MCP app via registerAppTool
+    expect(mockServer.registerTool).not.toHaveBeenCalled();
+    expect(mockRegisterAppTool).toHaveBeenCalledTimes(2);
 
-    const toolCalls = (mockServer.registerTool as any).mock.calls;
-    const toolNames = toolCalls.map((call: any) => call[0]);
+    const toolNames = mockRegisterAppTool.mock.calls.map((call: any) => call[1]);
 
     expect(toolNames).toContain("tomtom-route-search");
     expect(toolNames).toContain("tomtom-route-monitoring-details");
@@ -50,26 +66,82 @@ describe("Route Monitoring Tools", () => {
   it("should register tools with correct descriptions", () => {
     createRouteMonitoringTools(mockServer);
 
-    const toolCalls = (mockServer.registerTool as any).mock.calls;
-
-    const searchToolCall = toolCalls.find((call: any) => call[0] === "tomtom-route-search");
-    expect(searchToolCall[1].description).toContain("Search and filter");
-
-    const detailsToolCall = toolCalls.find(
-      (call: any) => call[0] === "tomtom-route-monitoring-details"
+    const searchToolCall = mockRegisterAppTool.mock.calls.find(
+      (call: any) => call[1] === "tomtom-route-search"
     );
-    expect(detailsToolCall[1].description).toContain("detailed segment-level");
+    expect(searchToolCall[2].description).toContain("Search and filter");
+    expect(searchToolCall[2].description).toContain("metadata.route_ids");
+
+    const detailsToolCall = mockRegisterAppTool.mock.calls.find(
+      (call: any) => call[1] === "tomtom-route-monitoring-details"
+    );
+    expect(detailsToolCall[2].description).toContain("detailed segment-level");
   });
 
   it("should register tools with correct schemas and handlers", () => {
     createRouteMonitoringTools(mockServer);
 
-    const toolCalls = (mockServer.registerTool as any).mock.calls;
-
-    toolCalls.forEach((call: any) => {
-      expect(typeof call[1].description).toBe("string"); // description
-      expect(typeof call[1].inputSchema).toBe("object"); // schema
-      expect(typeof call[2]).toBe("function"); // handler
+    mockRegisterAppTool.mock.calls.forEach((call: any) => {
+      expect(typeof call[2].description).toBe("string");
+      expect(typeof call[2].inputSchema).toBe("object");
+      expect(typeof call[3]).toBe("function");
     });
+  });
+
+  it("should register route-search tool via registerAppTool bound to the app resource", () => {
+    createRouteMonitoringTools(mockServer);
+
+    const call = mockRegisterAppTool.mock.calls.find((c: any) => c[1] === "tomtom-route-search");
+    expect(call).toBeDefined();
+    if (!call) return;
+
+    const [server, name, config, handler] = call;
+    expect(server).toBe(mockServer);
+    expect(name).toBe("tomtom-route-search");
+    expect(config.inputSchema).toBeDefined();
+    expect(typeof handler).toBe("function");
+
+    expect(config._meta["ui/resourceUri"]).toBe(
+      "ui://tomtom-traffic-analytics/route-details/app.html"
+    );
+
+    // Should never be registered via the plain server.registerTool
+    expect(
+      (mockServer.registerTool as any).mock.calls.some((c: any) => c[0] === "tomtom-route-search")
+    ).toBe(false);
+  });
+
+  it("should register the route-details app resource exactly once", () => {
+    createRouteMonitoringTools(mockServer);
+
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledTimes(1);
+    expect(mockRegisterTrafficAnalyticsApp).toHaveBeenCalledWith(mockServer, "route-details");
+  });
+
+  it("should register tomtom-route-monitoring-details via registerAppTool bound to the same app resource", () => {
+    createRouteMonitoringTools(mockServer);
+
+    const call = mockRegisterAppTool.mock.calls.find(
+      (c: any) => c[1] === "tomtom-route-monitoring-details"
+    );
+    expect(call).toBeDefined();
+    if (!call) return;
+
+    const [server, name, config, handler] = call;
+    expect(server).toBe(mockServer);
+    expect(name).toBe("tomtom-route-monitoring-details");
+    expect(config.inputSchema).toBeDefined();
+    expect(typeof handler).toBe("function");
+
+    expect(config._meta["ui/resourceUri"]).toBe(
+      "ui://tomtom-traffic-analytics/route-details/app.html"
+    );
+
+    // Should never be registered via the plain server.registerTool
+    expect(
+      (mockServer.registerTool as any).mock.calls.some(
+        (c: any) => c[0] === "tomtom-route-monitoring-details"
+      )
+    ).toBe(false);
   });
 });

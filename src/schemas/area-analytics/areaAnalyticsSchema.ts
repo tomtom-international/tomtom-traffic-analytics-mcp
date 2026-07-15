@@ -95,4 +95,10 @@ export const areaAnalyticsStatsSchema = {
     .length(1)
     .describe("Array of exactly one GeoJSON feature defining the analysis region"),
   sql_queries: sqlQueriesSchema,
+  show_ui: z
+    .boolean()
+    .optional()
+    .describe(
+      "Render the interactive area analytics map app (default true). Set false for text-only analysis."
+    ),
 };

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["vitest/globals"],
+    "baseUrl": ".",
+    "paths": { "@shared/*": ["./shared/*"] }
+  },
+  "include": ["./**/*.ts"],
+  "exclude": []
+}

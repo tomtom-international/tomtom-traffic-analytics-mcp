@@ -1,0 +1,197 @@
+/* ---------------------------------------------------------------------------
+   Header — floats over the top-left of the map. Card chrome (background,
+   radius, shadow) comes from the shared `.tta-panel` class; only positioning
+   and typography live here.
+   --------------------------------------------------------------------------- */
+
+#analytics-panel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#analytics-panel > * {
+  pointer-events: auto;
+}
+
+.analytics-header {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 900;
+  max-width: 320px;
+  padding: 10px 14px;
+}
+
+.header-title {
+  font-size: var(--font-heading-xs-size, 15px);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-primary, #111827);
+}
+
+.header-meta {
+  margin-top: 4px;
+  font-size: var(--font-text-xs-size, 12px);
+  color: var(--color-text-secondary, #6b7280);
+}
+
+/* ---------------------------------------------------------------------------
+   Control bar — mode / metric / range filter. See `@shared/controls` for the
+   shared `.tta-panel` / `.tta-control-bar` / `.tta-field` / `.tta-select` /
+   `.tta-input` / `.tta-btn` chrome; only positioning lives here.
+   --------------------------------------------------------------------------- */
+
+.control-bar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 900;
+  max-width: 420px;
+}
+
+/* ---------------------------------------------------------------------------
+   Legend
+   --------------------------------------------------------------------------- */
+
+.legend {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 900;
+  width: 220px;
+  padding: 10px 14px;
+}
+
+.legend-title {
+  font-size: var(--font-text-xs-size, 12px);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-primary, #111827);
+  margin-bottom: 6px;
+}
+
+.legend-bar {
+  height: 10px;
+  border-radius: var(--border-radius-full, 999px);
+}
+
+.legend-range {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: var(--font-text-xs-size, 11px);
+  color: var(--color-text-secondary, #6b7280);
+}
+
+/* ---------------------------------------------------------------------------
+   Time-series panel
+   --------------------------------------------------------------------------- */
+
+.timeseries-wrap {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.timeseries-toggle {
+  /* Floats directly on the map (not inside a `.tta-panel` card), so it needs
+     its own elevation shadow. */
+  padding: 6px 14px;
+  box-shadow: var(--shadow-md, 0 2px 10px rgba(0, 0, 0, 0.15));
+}
+
+.timeseries-toggle .chevron {
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.timeseries-panel {
+  width: 340px;
+  padding: 12px 14px;
+}
+
+.timeseries-chart {
+  width: 100%;
+}
+
+.timeseries-chart svg {
+  display: block;
+}
+
+.timeseries-bar {
+  fill: var(--color-ring-primary, #2563eb);
+  transition: fill 0.15s ease;
+}
+
+.timeseries-bar:hover {
+  fill: var(--color-ring-info, #1d4ed8);
+}
+
+.timeseries-bar-empty {
+  fill: var(--color-background-tertiary, #e5e7eb);
+}
+
+.timeseries-baseline {
+  stroke: var(--color-border-primary, #e5e7eb);
+  stroke-width: 1;
+}
+
+.timeseries-value-label {
+  font-size: 8.5px;
+  font-weight: var(--font-weight-semibold, 600);
+  fill: var(--color-text-primary, #374151);
+}
+
+.timeseries-axis-label {
+  font-size: 8.5px;
+  fill: var(--color-text-tertiary, #9ca3af);
+}
+
+.timeseries-empty {
+  padding: 12px 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Empty state (no tiled data)
+   --------------------------------------------------------------------------- */
+
+.empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 900;
+  padding: 14px 20px;
+}
+
+/* ---------------------------------------------------------------------------
+   Hover tooltip — follows the cursor over hex/square/heatmap tiles
+   --------------------------------------------------------------------------- */
+
+.tile-tooltip {
+  position: absolute;
+  z-index: 1000;
+  transform: translate(12px, 12px);
+  pointer-events: none;
+  background: var(--color-background-primary, #ffffff);
+  border-radius: var(--border-radius-lg, 8px);
+  box-shadow: var(--shadow-lg, 0 4px 16px rgba(0, 0, 0, 0.2));
+  padding: 8px 12px;
+  font-size: var(--font-text-xs-size, 12px);
+  color: var(--color-text-secondary, #374151);
+  white-space: nowrap;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tooltip-row + .tooltip-row {
+  margin-top: 2px;
+}

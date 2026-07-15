@@ -1,0 +1,314 @@
+/*
+ * Copyright (C) 2025 TomTom Navigation B.V.
+ * Licensed under the Apache License, Version 2.0
+ */
+
+/* ---------------------------------------------------------------------------
+   Shared control chrome for the traffic-analytics MCP apps.
+ *
+ * Consumes the CSS custom properties the ext-apps host injects via
+ * `applyHostStyleVariables()` (see ui/src/host-styles.ts and
+ * @modelcontextprotocol/ext-apps `styles.d.ts`) so the apps re-theme
+ * automatically alongside the host, with the same fallback values used by
+ * the reference TomTom MCP apps (see tomtom-mcp/src/apps/*\/styles.css)
+ * when no host is present (e.g. standalone smoke testing).
+   --------------------------------------------------------------------------- */
+
+.tta-panel {
+  background: var(--color-background-primary, #ffffff);
+  color: var(--color-text-primary, #111827);
+  border-radius: var(--border-radius-lg, 8px);
+  box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1));
+}
+
+.tta-control-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.tta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--font-text-xs-size, 11px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tta-select,
+.tta-input {
+  font-family: inherit;
+  font-size: var(--font-text-sm-size, 13px);
+  font-weight: var(--font-weight-normal, 400);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-primary, #111827);
+  background: var(--color-background-primary, #ffffff);
+  border: var(--border-width-regular, 1px) solid var(--color-border-secondary, #d1d5db);
+  border-radius: var(--border-radius-md, 6px);
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tta-select:hover,
+.tta-input:hover {
+  border-color: var(--color-text-tertiary, #9ca3af);
+}
+
+.tta-select:focus,
+.tta-input:focus {
+  border-color: var(--color-ring-primary, #3b82f6);
+  box-shadow: 0 0 0 2px var(--color-background-info, #eff6ff);
+}
+
+.tta-input-narrow {
+  width: 72px;
+}
+
+.tta-btn {
+  font-family: inherit;
+  border: var(--border-width-regular, 1px) solid var(--color-border-secondary, #d1d5db);
+  background: var(--color-background-secondary, #f9fafb);
+  color: var(--color-text-secondary, #374151);
+  border-radius: var(--border-radius-md, 6px);
+  padding: 6px 12px;
+  font-size: var(--font-text-xs-size, 12px);
+  font-weight: var(--font-weight-semibold, 600);
+  cursor: pointer;
+  height: fit-content;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tta-btn:hover {
+  background: var(--color-background-tertiary, #f3f4f6);
+}
+
+.tta-btn:focus-visible {
+  outline: 2px solid var(--color-ring-primary, #3b82f6);
+  outline-offset: 1px;
+}
+
+.tta-btn-pill {
+  border-radius: var(--border-radius-full, 999px);
+}
+
+/* Pill-shaped toggle chip — used for the area-analytics time-series toggle and
+   the traffic-incidents per-area filter chips. */
+.tta-chip {
+  font-family: inherit;
+  border: var(--border-width-regular, 1px) solid var(--color-border-secondary, #d1d5db);
+  background: var(--color-background-secondary, #f9fafb);
+  color: var(--color-text-secondary, #374151);
+  border-radius: var(--border-radius-full, 999px);
+  padding: 4px 12px;
+  font-size: var(--font-text-xs-size, 12px);
+  font-weight: var(--font-weight-medium, 500);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.tta-chip:hover {
+  background: var(--color-background-tertiary, #f3f4f6);
+}
+
+.tta-chip.active {
+  background: var(--color-ring-primary, #2563eb);
+  border-color: var(--color-ring-primary, #2563eb);
+  color: var(--color-text-inverse, #ffffff);
+}
+
+.tta-chip:focus-visible {
+  outline: 2px solid var(--color-ring-primary, #3b82f6);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------------------
+   Multi-select switcher — vertical clickable-row list used by the
+   junction-live/route-details detail-mode switchers (`#junction-chips`/
+   `#route-chips`) once there's more than one item to switch between. Rows
+   are styled to match the search-result rows' selected-state look (inset
+   blue bar + light-blue background) despite living in a different list.
+   --------------------------------------------------------------------------- */
+.tta-switcher {
+  display: flex;
+  flex-direction: column;
+  /* Bounded + independently scrollable so a long switcher (junction live-data
+     loads up to 20 junctions) can't zero out or clip its `#panel-list`
+     sibling: `max-height: 45%` resolves against the aside's definite height
+     (600px at wide width → ~270px), leaving `#panel-list` (flex: 1 1 auto,
+     min-height: 0) the rest to scroll its own cards. `flex: 0 1 auto` +
+     `min-height: 0` lets it give way at narrow width too. */
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--color-border-secondary, #e5e7eb);
+}
+
+.tta-switcher-heading {
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+.tta-switcher-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-top: 1px solid var(--color-border-primary, #f3f4f6);
+  background: transparent;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Name / id each clip independently (nowrap + ellipsis) so the two-line row
+   stays one visual line per part — nowrap lives here, NOT on the button, so
+   the id can sit on its own line below the name (mirrors the search rows'
+   `.junction-item-name` / `.junction-item-id` idiom). */
+.tta-switcher-item-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tta-switcher-item-id {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-tertiary, #9ca3af);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tta-switcher-item:hover {
+  background: var(--color-background-secondary, #f3f4f6);
+}
+
+.tta-switcher-item.active {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+/* ---------------------------------------------------------------------------
+   Unified pill/badge component — every ad-hoc "metric"/"badge"/"pill" element
+   across the 5 apps (route/junction status, delay text, impassable/passable,
+   magnitude, road-closure) renders as one of these `.tta-tag` variants so
+   mixed rows share a common inline baseline (fixed font-size/line-height)
+   instead of drifting between 10px/11px/12px ad-hoc classes.
+   --------------------------------------------------------------------------- */
+
+.tta-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold, 600);
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+/* Plain typographic label (e.g. "Delay", "Length") — not a flex container,
+   used standalone (no `.tta-tag` base) since it's inline text, not a pill.
+   Normal weight + trailing margin match the original `.metric-label`. */
+.tta-tag--label {
+  font-size: 10px;
+  font-weight: var(--font-weight-normal, 400);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-tertiary, #9ca3af);
+  margin-right: 2px;
+}
+
+/* Padded, colored pill — pair with a color modifier below (e.g.
+   `.tta-tag.tta-tag--solid.tta-tag--danger`). Background defaults neutral. */
+.tta-tag--solid {
+  padding: 2px 8px;
+  border-radius: var(--border-radius-full, 999px);
+  color: #ffffff;
+  background: var(--color-text-tertiary, #6b7280);
+}
+
+.tta-tag--solid.tta-tag--danger {
+  background: #dc2626;
+}
+
+/* Road/approach closure red — the established `CLOSED_COLOR` (#e03030) used by
+   the closed-line map paint and LOS-E, distinct from `--danger`'s #dc2626. */
+.tta-tag--solid.tta-tag--closed {
+  background: #e03030;
+}
+
+.tta-tag--solid.tta-tag--muted {
+  background: #6b7280;
+}
+
+.tta-tag--solid.tta-tag--warn {
+  background: #ca8a04;
+}
+
+.tta-tag--solid.tta-tag--sev-hi {
+  background: #ea580c;
+}
+
+.tta-tag--solid.tta-tag--sev-max {
+  background: #991b1b;
+}
+
+/* Plain-text color modifiers (delay text amber/red bands). */
+.tta-tag--amber {
+  color: #b45309;
+}
+
+.tta-tag--red {
+  color: #dc2626;
+}
+
+/* Dot-prefixed tag (junction/route status). `.tta-tag__dot` defaults to the
+   tag's own text color (neutral) unless a `.status-*` modifier below recolors
+   it — see junction-live's original per-status dot colors. */
+.tta-tag--dot {
+  gap: 5px;
+}
+
+.tta-tag__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+.tta-tag--dot.status-active .tta-tag__dot {
+  background: #2dc653;
+}
+
+.tta-tag--dot.status-preview .tta-tag__dot {
+  background: #9ca3af;
+}
+
+.tta-tag--dot.status-pending .tta-tag__dot {
+  background: #f59e0b;
+}
+
+.tta-tag--dot.status-error .tta-tag__dot {
+  background: #dc2626;
+}

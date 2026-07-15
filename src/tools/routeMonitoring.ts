@@ -15,11 +15,13 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAppTool, RESOURCE_URI_META_KEY } from "@modelcontextprotocol/ext-apps/server";
 import {
   getRouteDetailsSchema,
   routeSearchSchema,
 } from "../schemas/route-monitoring/routeMonitoringSchema";
 import { createRouteMonitoringHandlers } from "../handlers/routeMonitoringHandler";
+import { registerTrafficAnalyticsApp } from "./helpers/resourceRegistry";
 
 /**
  * Creates and registers route monitoring tools
@@ -27,8 +29,11 @@ import { createRouteMonitoringHandlers } from "../handlers/routeMonitoringHandle
 export function createRouteMonitoringTools(server: McpServer): void {
   const handlers = createRouteMonitoringHandlers();
 
+  const routeDetailsUri = registerTrafficAnalyticsApp(server, "route-details");
+
   // Search routes with SQL filtering
-  server.registerTool(
+  registerAppTool(
+    server,
     "tomtom-route-search",
     {
       description: `Search and filter all your monitored routes using SQL queries. Use this FIRST to discover route IDs by name, status, delay, or other properties, then pass the IDs to tomtom-route-monitoring-details for segment-level analysis. Returns one row per monitored route with current aggregate delay and travel-time vs typical. Routes must be pre-configured in Move Portal.
@@ -41,6 +46,8 @@ export function createRouteMonitoringTools(server: McpServer): void {
 
     **Table: routes**
     Columns: route_id, route_name, route_status (NEW/ACTIVE/UPDATING/FAILED/ARCHIVED), travel_time, typical_travel_time, delay_time, passable (0/1), route_length, completeness, typical_travel_time_coverage
+
+    metadata.route_ids in the response always lists {route_id, route_name} for the first 100 routes — no need to re-select ids in every query.
 
     **route_status states:**
     - ACTIVE: live monitoring, data flowing
@@ -55,12 +62,14 @@ export function createRouteMonitoringTools(server: McpServer): void {
     - Status summary: SELECT route_status, COUNT(*) as cnt FROM routes GROUP BY route_status
     - Active with delays: SELECT route_id, route_name, delay_time, ROUND(delay_time * 100.0 / NULLIF(travel_time, 0), 1) as delay_pct FROM routes WHERE route_status = 'ACTIVE' AND delay_time > 0 ORDER BY delay_pct DESC`,
       inputSchema: routeSearchSchema,
+      _meta: { [RESOURCE_URI_META_KEY]: routeDetailsUri },
     },
     handlers.searchRoutes
   );
 
   // Get route details with SQL filtering
-  server.registerTool(
+  registerAppTool(
+    server,
     "tomtom-route-monitoring-details",
     {
       description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs. Returns a route-info summary plus one row per road segment with current vs typical speed, confidence, and OpenLR references.
@@ -84,6 +93,7 @@ export function createRouteMonitoringTools(server: McpServer): void {
     - Compare routes by delay: SELECT route_id, route_name, delay_time, travel_time, ROUND(delay_time * 100.0 / NULLIF(travel_time, 0), 1) as delay_percent FROM route_info ORDER BY delay_percent DESC
     - Route performance ranking: SELECT route_id, route_name, ROUND(route_confidence, 2) as confidence, completeness FROM route_info ORDER BY route_confidence DESC`,
       inputSchema: getRouteDetailsSchema,
+      _meta: { [RESOURCE_URI_META_KEY]: routeDetailsUri },
     },
     handlers.getRouteDetails
   );

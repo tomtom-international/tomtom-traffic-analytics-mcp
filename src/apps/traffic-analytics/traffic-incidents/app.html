@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" style="background: transparent">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
+    <title>TomTom Traffic Incidents</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body style="background: transparent">
+    <div id="app-root" class="shell-split">
+      <!-- Shown until the first tool-input/tool-result notification arrives. -->
+      <div id="waiting-state" class="state-panel">
+        <p>Waiting for tool result&hellip;</p>
+      </div>
+
+      <div id="sdk-map"></div>
+
+      <aside id="incident-panel" class="tta-drawer hidden">
+        <div id="area-filters" class="area-filters"></div>
+        <div id="incident-list" class="incident-list"></div>
+        <div id="empty-state" class="state-panel hidden">No incidents in the queried areas</div>
+      </aside>
+
+      <div id="incident-detail-card" class="incident-detail-card tta-panel hidden"></div>
+    </div>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>

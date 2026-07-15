@@ -1,0 +1,367 @@
+/* ---------------------------------------------------------------------------
+   Side panel — junction chips + junction list / approach cards
+   --------------------------------------------------------------------------- */
+
+.live-back {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Layout/row/heading chrome for the multi-junction switcher (border, rows,
+   active/hover states) comes from the shared `.tta-switcher`/
+   `.tta-switcher-item`/`.tta-switcher-heading` classes — see
+   `@shared/controls`; `renderJunctionChips` adds `.tta-switcher` to
+   `#junction-chips` alongside its own id/hidden-toggle. */
+
+.panel-list {
+  padding: 8px 0;
+}
+
+#empty-state {
+  flex: 1 1 auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Search mode — junction list rows + status badge
+   --------------------------------------------------------------------------- */
+
+.junction-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: #ffffff;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.junction-item:hover {
+  background: var(--color-background-secondary, #f3f4f6);
+}
+
+.junction-item.active {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.junction-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.junction-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.junction-item-id {
+  margin-top: 2px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 11px;
+  color: var(--color-text-tertiary, #9ca3af);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status badge chrome (pill shape, dot colors) comes from the shared
+   `.tta-tag`/`.tta-tag--dot` classes — see `@shared/controls`. */
+
+/* ---------------------------------------------------------------------------
+   Live mode — approach cards
+   --------------------------------------------------------------------------- */
+
+.approach-card {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.approach-card:hover,
+.approach-card.hover {
+  background: var(--color-background-secondary, #f3f4f6);
+}
+
+.approach-card.selected {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.approach-card-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.approach-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Approach delay text and the "Closed" pill come from the shared `.tta-tag`
+   classes — see `@shared/controls`. */
+
+.approach-card-body {
+  margin-top: 4px;
+}
+
+.approach-card-row {
+  font-size: 12px;
+  color: var(--color-text-secondary, #6b7280);
+  line-height: 1.5;
+}
+
+.approach-card-row.los-qualifier {
+  font-weight: 600;
+  color: var(--color-text-primary, #111827);
+}
+
+.geometry-note {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+/* ---------------------------------------------------------------------------
+   LOS badge
+   --------------------------------------------------------------------------- */
+
+.los-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--border-radius-full, 999px);
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Turn-ratio table (expanded on approach-card selection)
+   --------------------------------------------------------------------------- */
+
+.turn-ratio-table {
+  margin-top: 8px;
+}
+
+.turn-ratio-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.turn-ratio-table th,
+.turn-ratio-table td {
+  padding: 3px 4px;
+  text-align: right;
+}
+
+.turn-ratio-table th:first-child,
+.turn-ratio-table td:first-child {
+  text-align: left;
+}
+
+.turn-ratio-table thead th {
+  color: var(--color-text-secondary, #6b7280);
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.turn-ratio-table tbody tr:hover {
+  background: var(--color-background-tertiary, #eef2f7);
+}
+
+.turn-ratio-empty {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #9ca3af);
+  padding: 4px 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Junction detail card — floats over the map (search mode)
+   --------------------------------------------------------------------------- */
+
+.junction-detail-card {
+  /* Card chrome (background, radius, shadow) comes from the shared `.tta-panel`
+     class — see `@shared/controls`; only positioning and type live here. */
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  max-width: 300px;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 16px 20px 14px;
+  font-size: var(--font-text-sm-size, 13px);
+  color: var(--color-text-secondary, #374151);
+}
+
+.detail-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+}
+
+.detail-close:hover {
+  color: #374151;
+}
+
+.detail-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+  margin-right: 20px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 5px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.detail-label {
+  color: var(--color-text-secondary, #6b7280);
+  font-size: 11px;
+}
+
+.detail-id {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 11px;
+  color: var(--color-text-primary, #111827);
+  user-select: all; /* one click selects the whole ID for copying */
+  word-break: break-all;
+}
+
+.detail-approach-table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.detail-approach-table th,
+.detail-approach-table td {
+  padding: 3px 4px;
+  text-align: left;
+}
+
+.detail-approach-table th:last-child,
+.detail-approach-table td:last-child {
+  text-align: right;
+}
+
+.detail-approach-table thead th {
+  color: var(--color-text-secondary, #6b7280);
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-live-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  text-align: center;
+}
+
+.detail-live-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.detail-live-error {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #dc2626;
+}
+
+/* ---------------------------------------------------------------------------
+   LOS legend — floats over the map (live mode)
+   --------------------------------------------------------------------------- */
+
+.legend {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 900;
+  width: 240px;
+  padding: 10px 14px;
+}
+
+.los-legend-title {
+  font-size: var(--font-text-xs-size, 11px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-secondary, #6b7280);
+  margin-bottom: 8px;
+}
+
+.los-scale {
+  display: flex;
+}
+
+.los-scale-step {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Full-width swatches touch, reading as one continuous A→F scale bar. */
+.los-scale-swatch {
+  width: 100%;
+  height: 8px;
+}
+
+.los-scale-step:first-child .los-scale-swatch {
+  border-radius: 4px 0 0 4px;
+}
+
+.los-scale-step:last-child .los-scale-swatch {
+  border-radius: 0 4px 4px 0;
+}
+
+.los-scale-letter {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-primary, #111827);
+}
+
+.los-scale-threshold {
+  font-size: 9px;
+  color: var(--color-text-tertiary, #9ca3af);
+  white-space: nowrap;
+}
