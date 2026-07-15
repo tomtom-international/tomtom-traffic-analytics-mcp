@@ -65,7 +65,7 @@ const CLOSED_COLOR = "#e03030";
 let map: TomTomMap | undefined;
 let geoModule: CustomGeoJSONModule | undefined;
 let flowBackdrop: TrafficFlowModule | undefined;
-let backdropOn = true;
+let backdropOn = false;
 
 // ---------------------------------------------------------------------------
 // DOM helpers
