@@ -93,6 +93,21 @@ function firstRowValue(
   return queryResult?.rows?.[0]?.[idx];
 }
 
+/**
+ * Same shape as `firstRowValue` but returns every row's value for a column.
+ * Used to try to force the Wave-6 multi-select switcher UI (`.tta-switcher`)
+ * when the test account happens to have more than one junction/route — the
+ * switcher only renders once `junctionIds`/`routeIds` has 2+ entries.
+ */
+function allColumnValues(
+  queryResult: { columns?: string[]; rows?: unknown[][] } | undefined,
+  column: string
+): unknown[] {
+  const idx = queryResult?.columns?.indexOf(column) ?? -1;
+  if (idx < 0) return [];
+  return (queryResult?.rows ?? []).map((row) => row[idx]);
+}
+
 /** A small bbox around central Amsterdam — kept tight so the API call is fast. */
 const AMSTERDAM_BBOX = "4.88,52.36,4.91,52.38";
 
@@ -199,6 +214,27 @@ test.describe("Traffic Incidents app", () => {
     expect(widePanelBox?.width).toBeGreaterThanOrEqual(300);
     expect(widePanelBox?.width).toBeLessThanOrEqual(325);
 
+    // --- Fixed-height widget (Wave 6): `#app-root` reports a definite content
+    // height (600px) instead of stretching to fit the incident list, so the
+    // ext-apps SDK auto-resizes the host iframe to that stable height and the
+    // list scrolls internally (`.incident-list`) rather than growing the map.
+    const appRootBox = await app.locator("#app-root").boundingBox();
+    expect(appRootBox?.height).toBeGreaterThan(550);
+    expect(appRootBox?.height).toBeLessThan(650);
+    // Fallback/sanity: the map itself must stay bounded too, not balloon to
+    // thousands of px if the height model regresses.
+    const mapBox = await app.locator("#sdk-map").boundingBox();
+    expect(mapBox?.height).toBeLessThan(900);
+
+    // Only meaningful once the list has enough rows to overflow the drawer —
+    // guarded on data since a tight Amsterdam bbox may return few incidents.
+    if (itemCount > 8) {
+      const listOverflows = await app
+        .locator("#incident-list")
+        .evaluate((elm) => elm.scrollHeight > elm.clientHeight);
+      expect(listOverflows).toBe(true);
+    }
+
     await page.setViewportSize({ width: 900, height: 800 });
     await expect
       .poll(async () => (await page.getByTestId("app-iframe").boundingBox())?.width)
@@ -283,6 +319,12 @@ test.describe("Traffic Flow app", () => {
     await expect(frame.locator("#sdk-map")).toHaveClass(/visible/, { timeout: 30_000 });
     await expect(frame.locator("#flow-panel")).not.toHaveClass(/hidden/);
     await expect(frame.locator("#stat-grid dt").first()).toBeVisible();
+
+    // --- Live-traffic backdrop defaults off (Wave 6): `#backdrop-toggle`
+    // loads unpressed so the flow segment reads clearly against the base map.
+    const backdropToggle = frame.locator("#backdrop-toggle");
+    await expect(backdropToggle).not.toHaveClass(/active/);
+    await expect(backdropToggle).toHaveAttribute("aria-pressed", "false");
 
     const inner = await findInnerAppFrame(page);
     await inner.waitForFunction(() =>
@@ -377,6 +419,35 @@ test.describe("Junction app", () => {
       .toBeGreaterThan(640);
     await expect(liveFrame.locator(".legend")).not.toHaveClass(/collapsed/);
 
+    // --- Switcher-as-list (Wave 6): when the Move Portal account has 2+
+    // junctions, loading them together renders `#junction-chips` as a
+    // `.tta-switcher` of `.tta-switcher-item` rows (name +
+    // `.tta-switcher-item-id`) instead of the old `.tta-chip` pills. Guarded —
+    // not every test account has multiple junctions to force this with.
+    const twoJunctionIds = Array.from(new Set(allColumnValues(junctionsResult, "junction_id"))).slice(
+      0,
+      2
+    );
+    if (twoJunctionIds.length >= 2) {
+      await runToolWithUI(page, "tomtom-junction-live-data", {
+        junctionIds: twoJunctionIds,
+        sql_queries: { delays: "SELECT junction_id, approach_id, delay_sec FROM approaches" },
+        show_ui: true,
+      });
+      const multiFrame = await getAppFrame(page);
+      await expect(multiFrame.locator("#junction-chips .tta-switcher-item").first()).toBeVisible({
+        timeout: 30_000,
+      });
+      expect(
+        await multiFrame.locator("#junction-chips .tta-switcher-item-id").count()
+      ).toBeGreaterThanOrEqual(2);
+      await expect(multiFrame.locator("#junction-chips .tta-chip")).toHaveCount(0);
+    } else {
+      console.log(
+        "Skipping multi-junction switcher assertion: fewer than 2 junctions available in this Move Portal account"
+      );
+    }
+
     await verifyJsonResult(page);
   });
 });
@@ -412,12 +483,17 @@ test.describe("Route app", () => {
       await expect(frame.locator("#details-back")).not.toHaveClass(/hidden/);
       // ...and detail cards use `.tta-tag` too.
       await expect(frame.locator("#route-stats .tta-tag").first()).toBeVisible();
-      const segmentRowCount = await frame.locator(".segment-row").count();
-      if (segmentRowCount > 0) {
-        await expect(frame.locator(".segment-table th").nth(2)).toContainText("now / typical");
+      // Segment strip (Wave 6): replaces the old per-segment table with an
+      // SVG speed-profile strip — one `.segment-bar` rect per segment, no
+      // unbounded `.segment-table` rows.
+      const segmentBarCount = await frame.locator(".segment-bar").count();
+      if (segmentBarCount > 0) {
+        await expect(frame.locator(".segment-strip")).toBeVisible();
+        await expect(frame.locator(".segment-strip-caption")).toContainText("segment");
       } else {
-        await expect(frame.locator(".segment-table-empty")).toBeVisible();
+        await expect(frame.locator(".segment-strip-empty")).toBeVisible();
       }
+      await expect(frame.locator(".segment-table")).toHaveCount(0);
 
       // The back button returns to the search list.
       await frame.locator("#details-back-btn").click();
@@ -439,17 +515,47 @@ test.describe("Route app", () => {
       show_ui: true,
     });
     const detailsFrame = await getAppFrame(page);
-    await expect(detailsFrame.locator(".segment-row").first()).toBeVisible({ timeout: 30_000 });
-    await expect(detailsFrame.locator(".segment-table th").nth(2)).toContainText("now / typical");
+    await expect(detailsFrame.locator(".segment-bar").first()).toBeVisible({ timeout: 30_000 });
+    await expect(detailsFrame.locator(".segment-strip")).toBeVisible();
+    await expect(detailsFrame.locator(".segment-table")).toHaveCount(0);
 
-    // Row↔map highlight smoke test: hovering a row must mark it (feature-state
+    // Row↔map highlight smoke test: hovering a bar must mark it (feature-state
     // side is asserted visually in Task 11).
-    await detailsFrame.locator(".segment-row").first().hover();
-    await expect(detailsFrame.locator(".segment-row").first()).toHaveClass(/hover/);
+    await detailsFrame.locator(".segment-bar").first().hover();
+    await expect(detailsFrame.locator(".segment-bar").first()).toHaveClass(/hover/);
 
     // Pill consistency: detail cards use `.tta-tag`; no leftover ad-hoc pill classes.
     await expect(detailsFrame.locator("#route-stats .tta-tag").first()).toBeVisible();
     await expect(detailsFrame.locator(REMOVED_PILL_CLASSES)).toHaveCount(0);
+
+    // --- Switcher-as-list (Wave 6): when the Move Portal account has 2+
+    // routes, loading them together renders `#route-chips` as a
+    // `.tta-switcher` of `.tta-switcher-item` rows (name +
+    // `.tta-switcher-item-id`) instead of the old `.tta-chip` pills. Guarded —
+    // not every test account has multiple routes to force this with.
+    const twoRouteIds = Array.from(new Set(allColumnValues(routesResult, "route_id").map(String))).slice(
+      0,
+      2
+    );
+    if (twoRouteIds.length >= 2) {
+      await runToolWithUI(page, "tomtom-route-monitoring-details", {
+        routeIds: twoRouteIds,
+        sql_queries: { info: "SELECT * FROM route_info" },
+        show_ui: true,
+      });
+      const multiFrame = await getAppFrame(page);
+      await expect(multiFrame.locator("#route-chips .tta-switcher-item").first()).toBeVisible({
+        timeout: 30_000,
+      });
+      expect(
+        await multiFrame.locator("#route-chips .tta-switcher-item-id").count()
+      ).toBeGreaterThanOrEqual(2);
+      await expect(multiFrame.locator("#route-chips .tta-chip")).toHaveCount(0);
+    } else {
+      console.log(
+        "Skipping multi-route switcher assertion: fewer than 2 routes available in this Move Portal account"
+      );
+    }
 
     await verifyJsonResult(page);
   });
