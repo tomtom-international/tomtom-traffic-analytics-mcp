@@ -138,6 +138,16 @@
 .tta-switcher {
   display: flex;
   flex-direction: column;
+  /* Bounded + independently scrollable so a long switcher (junction live-data
+     loads up to 20 junctions) can't zero out or clip its `#panel-list`
+     sibling: `max-height: 45%` resolves against the aside's definite height
+     (600px at wide width → ~270px), leaving `#panel-list` (flex: 1 1 auto,
+     min-height: 0) the rest to scroll its own cards. `flex: 0 1 auto` +
+     `min-height: 0` lets it give way at narrow width too. */
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  overflow-y: auto;
   border-bottom: 1px solid var(--color-border-secondary, #e5e7eb);
 }
 
@@ -160,9 +170,29 @@
   padding: 8px 12px;
   cursor: pointer;
   font-family: inherit;
+}
+
+/* Name / id each clip independently (nowrap + ellipsis) so the two-line row
+   stays one visual line per part — nowrap lives here, NOT on the button, so
+   the id can sit on its own line below the name (mirrors the search rows'
+   `.junction-item-name` / `.junction-item-id` idiom). */
+.tta-switcher-item-name {
+  display: block;
   font-size: 13px;
   font-weight: 600;
   color: var(--color-text-primary, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tta-switcher-item-id {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-tertiary, #9ca3af);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -461,7 +461,10 @@ function renderRouteChips(routes: RouteDetailedInfo[]): void {
     row.type = "button";
     row.className = "tta-switcher-item" + (route.routeId === selectedRouteId ? " active" : "");
     row.setAttribute("data-id", String(route.routeId));
-    row.textContent = route.routeName || `Route ${route.routeId}`;
+    row.innerHTML = `
+      <span class="tta-switcher-item-name">${escapeHtml(route.routeName || `Route ${route.routeId}`)}</span>
+      <span class="tta-switcher-item-id">ID ${Number(route.routeId)}</span>
+    `;
     row.addEventListener("click", () => selectDetailsRoute(route.routeId));
     container.appendChild(row);
   }

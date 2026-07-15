@@ -468,7 +468,10 @@ function renderJunctionChips(junctions: JunctionLiveData[]): void {
     row.type = "button";
     row.className = "tta-switcher-item" + (junction.id === selectedLiveJunctionId ? " active" : "");
     row.setAttribute("data-id", junction.id);
-    row.textContent = junction.junctionModel?.name ?? junction.id;
+    row.innerHTML = `
+      <span class="tta-switcher-item-name">${escapeHtml(junction.junctionModel?.name ?? junction.id)}</span>
+      <span class="tta-switcher-item-id">${escapeHtml(junction.id)}</span>
+    `;
     row.addEventListener("click", () => selectLiveJunction(junction));
     container.appendChild(row);
   }
