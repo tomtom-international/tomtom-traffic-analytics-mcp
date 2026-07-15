@@ -53,6 +53,12 @@ body {
 
 .shell-split#app-root {
   display: flex;
+  /* Clip the bottom-drawer's docked-below-the-fold portion. At BP-A the drawer
+     is absolutely positioned and `transform: translateY(...)` docks it past the
+     bottom edge so only its handle peeks. Without clipping, that transformed
+     overflow is counted by the SDK's content-height measurement and grows the
+     widget downward instead of letting the drawer collapse. */
+  overflow: hidden;
 }
 
 #sdk-map {
@@ -295,10 +301,21 @@ html.ui-hidden #app-root {
   .shell-overlay .overlay-bottom > * {
     position: static;
     inset: auto;
-    max-width: none;
-    width: auto;
     margin-bottom: 8px;
     pointer-events: auto;
+  }
+
+  /* Only the TOP widgets (analytics-header/control-bar, stat-card/control-bar)
+     stretch to fill the stacked column. The bottom `.legend` deliberately keeps
+     its natural fixed width (styles.css) — stretching it to full width reads as
+     a heavy bar over the map. Clamp it only so it can't overflow a tiny panel. */
+  .shell-overlay .overlay-top > * {
+    max-width: none;
+    width: auto;
+  }
+
+  .shell-overlay .overlay-bottom .legend {
+    max-width: 100%;
   }
 
   .shell-overlay .overlay-top > *:last-child,
