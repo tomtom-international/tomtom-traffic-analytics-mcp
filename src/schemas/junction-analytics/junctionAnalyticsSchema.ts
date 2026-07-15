@@ -71,12 +71,15 @@ export const junctionArchiveSchema = {
     .min(1)
     .max(20)
     .describe("Up to 20 IDs; data merged for cross-junction SQL"),
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Start date YYYY-MM-DD; the from→to window must be ≤ 2 days"),
   to: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
-    .describe("Optional end date; API limited to a 2-day range"),
+    .describe("Optional end date YYYY-MM-DD; omitted = today, so from→to must still be ≤ 2 days"),
   sql_queries: sqlQueriesSchema,
 };
 

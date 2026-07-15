@@ -284,6 +284,31 @@ export function getJunctionArchiveHandler() {
       };
     }
 
+    // The Move Portal archive endpoint hard-caps the requested window at 2 days,
+    // and when `to` is omitted it uses "today" as the end — so a `from` more than
+    // 2 days before today also exceeds the cap. Reject an over-wide range up front
+    // with an actionable message instead of surfacing a raw 400 from the API.
+    const MAX_ARCHIVE_RANGE_DAYS = 2;
+    const MS_PER_DAY = 86_400_000;
+    const effectiveTo: string = options.to ?? new Date().toISOString().slice(0, 10);
+    const fromMs = Date.parse(`${options.from}T00:00:00Z`);
+    const toMs = Date.parse(`${effectiveTo}T00:00:00Z`);
+    if (!Number.isNaN(fromMs) && !Number.isNaN(toMs)) {
+      const spanDays = Math.round((toMs - fromMs) / MS_PER_DAY);
+      if (spanDays < 0 || spanDays > MAX_ARCHIVE_RANGE_DAYS) {
+        const errorMsg =
+          `Junction archive supports a maximum ${MAX_ARCHIVE_RANGE_DAYS}-day range, but ` +
+          `[${options.from}, ${effectiveTo}] spans ${spanDays} day(s)` +
+          (options.to ? "" : " (no 'to' given, so the API uses today)") +
+          `. Pass 'from' and 'to' no more than ${MAX_ARCHIVE_RANGE_DAYS} days apart.`;
+        logger.error(`❌ Junction archive request rejected: ${errorMsg}`);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
+          isError: true,
+        };
+      }
+    }
+
     const sqlEngine = new SqlFilterEngine();
 
     try {

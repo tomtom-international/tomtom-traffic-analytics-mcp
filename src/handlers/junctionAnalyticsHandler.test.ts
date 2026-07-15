@@ -334,6 +334,45 @@ describe("junctionAnalyticsHandler", () => {
       expect(getJunctionArchive).toHaveBeenCalledTimes(2);
     });
 
+    it("rejects a range wider than 2 days without calling the API", async () => {
+      const result = await handler({
+        junctionIds: ["j1"],
+        from: "2024-01-01",
+        to: "2024-01-08",
+        sql_queries: { q: "SELECT 1" },
+      });
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain("maximum 2-day range");
+      expect(getJunctionArchive).not.toHaveBeenCalled();
+    });
+
+    it("rejects when 'to' is omitted and 'from' is more than 2 days before today", async () => {
+      // A `from` far in the past is always >2 days before today regardless of
+      // the current date, so this stays deterministic. Mirrors the reported
+      // failure (from set days ago, no `to` → API uses today → >2-day span).
+      const result = await handler({
+        junctionIds: ["j1"],
+        from: "2000-01-01",
+        sql_queries: { q: "SELECT 1" },
+      });
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error).toContain("no 'to' given");
+      expect(getJunctionArchive).not.toHaveBeenCalled();
+    });
+
+    it("accepts an exactly-2-day range", async () => {
+      const result = await handler({
+        junctionIds: ["j1"],
+        from: "2024-01-01",
+        to: "2024-01-03",
+        sql_queries: { q: "SELECT 1" },
+      });
+      expect(result.isError).toBeUndefined();
+      expect(getJunctionArchive).toHaveBeenCalledTimes(1);
+    });
+
     it("returns correct metadata with date range", async () => {
       const result = await handler(validParams);
       const parsed = JSON.parse(result.content[0].text);
