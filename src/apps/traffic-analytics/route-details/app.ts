@@ -449,13 +449,21 @@ function renderRouteChips(routes: RouteDetailedInfo[]): void {
   }
 
   container.classList.remove("hidden");
+  container.classList.add("tta-switcher");
+
+  const heading = document.createElement("div");
+  heading.className = "tta-switcher-heading";
+  heading.textContent = `Routes (${routes.length})`;
+  container.appendChild(heading);
+
   for (const route of routes) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "tta-chip" + (route.routeId === selectedRouteId ? " active" : "");
-    chip.textContent = route.routeName || `Route ${route.routeId}`;
-    chip.addEventListener("click", () => selectDetailsRoute(route.routeId));
-    container.appendChild(chip);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "tta-switcher-item" + (route.routeId === selectedRouteId ? " active" : "");
+    row.setAttribute("data-id", String(route.routeId));
+    row.textContent = route.routeName || `Route ${route.routeId}`;
+    row.addEventListener("click", () => selectDetailsRoute(route.routeId));
+    container.appendChild(row);
   }
 }
 

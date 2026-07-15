@@ -7,16 +7,11 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
-.route-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 12px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-/* Chip chrome (colors, pill shape, active/hover states) comes from the shared
-   `.tta-chip` class — see `@shared/controls`. */
+/* Layout/row/heading chrome for the multi-route switcher (border, rows,
+   active/hover states) comes from the shared `.tta-switcher`/
+   `.tta-switcher-item`/`.tta-switcher-heading` classes — see
+   `@shared/controls`; `renderRouteChips` adds `.tta-switcher` to
+   `#route-chips` alongside its own id/hidden-toggle. */
 
 .panel-list {
   padding: 8px 0;

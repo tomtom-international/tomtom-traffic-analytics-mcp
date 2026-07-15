@@ -456,13 +456,21 @@ function renderJunctionChips(junctions: JunctionLiveData[]): void {
   }
 
   container.classList.remove("hidden");
+  container.classList.add("tta-switcher");
+
+  const heading = document.createElement("div");
+  heading.className = "tta-switcher-heading";
+  heading.textContent = `Junctions (${junctions.length})`;
+  container.appendChild(heading);
+
   for (const junction of junctions) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "tta-chip" + (junction.id === selectedLiveJunctionId ? " active" : "");
-    chip.textContent = junction.junctionModel?.name ?? junction.id;
-    chip.addEventListener("click", () => selectLiveJunction(junction));
-    container.appendChild(chip);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "tta-switcher-item" + (junction.id === selectedLiveJunctionId ? " active" : "");
+    row.setAttribute("data-id", junction.id);
+    row.textContent = junction.junctionModel?.name ?? junction.id;
+    row.addEventListener("click", () => selectLiveJunction(junction));
+    container.appendChild(row);
   }
 }
 

@@ -129,6 +129,55 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Multi-select switcher — vertical clickable-row list used by the
+   junction-live/route-details detail-mode switchers (`#junction-chips`/
+   `#route-chips`) once there's more than one item to switch between. Rows
+   are styled to match the search-result rows' selected-state look (inset
+   blue bar + light-blue background) despite living in a different list.
+   --------------------------------------------------------------------------- */
+.tta-switcher {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--color-border-secondary, #e5e7eb);
+}
+
+.tta-switcher-heading {
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-tertiary, #9ca3af);
+}
+
+.tta-switcher-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-top: 1px solid var(--color-border-primary, #f3f4f6);
+  background: transparent;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tta-switcher-item:hover {
+  background: var(--color-background-secondary, #f3f4f6);
+}
+
+.tta-switcher-item.active {
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+/* ---------------------------------------------------------------------------
    Unified pill/badge component — every ad-hoc "metric"/"badge"/"pill" element
    across the 5 apps (route/junction status, delay text, impassable/passable,
    magnitude, road-closure) renders as one of these `.tta-tag` variants so
