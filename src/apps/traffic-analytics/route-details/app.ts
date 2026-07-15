@@ -13,6 +13,7 @@ import { el, escapeHtml, clearAndHide } from "@shared/dom";
 import { createFeatureStateSetter } from "@shared/feature-state";
 import { initDrawer, initCollapsibleLegend } from "@shared/drawer";
 import { fetchRouteDetails } from "./fetch-route-details";
+import { computeSegmentStripLayout } from "./segment-strip-layout";
 import "@shared/controls";
 import "@shared/app-shell.css";
 // Bundled so map chrome styling never depends on the CDN link the SDK
@@ -506,37 +507,73 @@ function renderRouteStats(route: RouteDetailedInfo | undefined): void {
   `;
 }
 
-function highlightSegmentRow(segmentId: number | null, scrollIntoView: boolean): void {
+function highlightSegmentBar(segmentId: number | null): void {
   const list = el("panel-list");
   if (!list) return;
-  for (const row of Array.from(list.querySelectorAll<HTMLElement>(".segment-row"))) {
-    const isMatch = Number(row.getAttribute("data-segment-id")) === segmentId;
-    row.classList.toggle("selected", isMatch);
-  }
-  if (scrollIntoView && segmentId !== null) {
-    list
-      .querySelector<HTMLElement>(`.segment-row[data-segment-id="${segmentId}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+  for (const bar of Array.from(list.querySelectorAll<HTMLElement>(".segment-bar"))) {
+    bar.classList.toggle("selected", Number(bar.getAttribute("data-segment-id")) === segmentId);
   }
 }
 
-function syncSegmentRowHover(segmentId: number | null): void {
+function syncSegmentBarHover(segmentId: number | null): void {
   const list = el("panel-list");
   if (!list) return;
-  for (const row of Array.from(list.querySelectorAll<HTMLElement>(".segment-row"))) {
-    const isMatch = Number(row.getAttribute("data-segment-id")) === segmentId;
-    row.classList.toggle("hover", isMatch);
-    if (isMatch) row.scrollIntoView({ block: "nearest" });
+  for (const bar of Array.from(list.querySelectorAll<HTMLElement>(".segment-bar"))) {
+    bar.classList.toggle("hover", Number(bar.getAttribute("data-segment-id")) === segmentId);
   }
 }
 
 function selectSegment(routeId: number, segmentId: number): void {
   selectedSegmentId = segmentId;
   setState("segments", `${routeId}:${segmentId}`, "selected");
-  highlightSegmentRow(segmentId, false);
+  highlightSegmentBar(segmentId);
 }
 
-function renderSegmentTable(route: RouteDetailedInfo | undefined): void {
+/** Multi-metric readout for the floating `.segment-tooltip` — mirrors area-analytics' `.tile-tooltip` rows. */
+function renderSegmentTooltipContent(seg: RouteSegment, idx: number, total: number): string {
+  const ratio = normalizeRelativeSpeed(seg.relativeSpeed);
+  const pctText = ratio != null ? `${Math.round(ratio * 100)}%` : NO_VALUE;
+  const currentSpeed = seg.currentSpeed != null ? `${Math.round(seg.currentSpeed)} km/h` : NO_VALUE;
+  const typicalSpeed = seg.typicalSpeed != null ? `${Math.round(seg.typicalSpeed)} km/h` : NO_VALUE;
+  const averageRow =
+    seg.averageSpeed != null
+      ? `<div class="tooltip-row"><span>Average speed</span><span>${Math.round(seg.averageSpeed)} km/h</span></div>`
+      : "";
+  const confidenceRow =
+    seg.confidence != null
+      ? `<div class="tooltip-row"><span>Confidence</span><span>${escapeHtml(formatConfidence(seg.confidence))}</span></div>`
+      : "";
+
+  return `
+    <div class="tooltip-row"><span>Segment</span><span>#${idx + 1} of ${total}</span></div>
+    <div class="tooltip-row"><span>Speed now</span><span>${currentSpeed}</span></div>
+    <div class="tooltip-row"><span>Typical speed</span><span>${typicalSpeed}</span></div>
+    ${averageRow}
+    <div class="tooltip-row"><span>% of typical</span><span>${pctText}</span></div>
+    <div class="tooltip-row"><span>Length</span><span>${Math.round(seg.segmentLength)} m</span></div>
+    ${confidenceRow}
+  `;
+}
+
+/** Positions the floating tooltip at the cursor, relative to its offset parent (`.segment-strip-wrap`). */
+function positionSegmentTooltip(wrap: HTMLElement, tooltip: HTMLElement, event: MouseEvent): void {
+  const rect = wrap.getBoundingClientRect();
+  tooltip.style.left = `${event.clientX - rect.left}px`;
+  tooltip.style.top = `${event.clientY - rect.top}px`;
+}
+
+/**
+ * Horizontal speed-profile strip — one SVG bar per segment, width proportional
+ * to segment length (via `computeSegmentStripLayout`), colored by the same
+ * green→amber→red ramp as the map segment line. Replaces the old per-segment
+ * table (unbounded row count for a multi-km route); a native `<title>` gives a
+ * baseline tooltip and a floating `.segment-tooltip` panel shows the full
+ * multi-metric readout. Both directions of map linkage are preserved: bars
+ * dispatch `setState`/`selectSegment` same as the table rows did, and
+ * `syncSegmentBarHover`/`highlightSegmentBar` (used by the map hover/select
+ * handlers) target `.segment-bar[data-segment-id]` instead of `.segment-row`.
+ */
+function renderSegmentStrip(route: RouteDetailedInfo | undefined): void {
   const list = el("panel-list");
   if (!list) return;
   list.innerHTML = "";
@@ -544,63 +581,71 @@ function renderSegmentTable(route: RouteDetailedInfo | undefined): void {
   const segments = route?.detailedSegments ?? [];
   if (segments.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "segment-table-empty";
+    empty.className = "segment-strip-empty";
     empty.textContent = "No segment data";
     list.appendChild(empty);
     return;
   }
 
-  const table = document.createElement("table");
-  table.className = "segment-table";
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th title="Segment number along the route">#</th>
-        <th>Length</th>
-        <th title="Current speed / typical speed for this time of day">Speed km/h<br />now / typical</th>
-        <th title="Current speed as a percentage of typical — lower means slower than usual">% of<br />typical</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
+  const width = 320;
+  const height = 40;
+  const positions = computeSegmentStripLayout(segments, width);
+
+  const bars = segments
+    .map((seg, idx) => {
+      const pos = positions[idx];
+      const ratio = normalizeRelativeSpeed(seg.relativeSpeed);
+      const color = ratioToColor(ratio);
+      const currentSpeed = seg.currentSpeed != null ? `${Math.round(seg.currentSpeed)}` : NO_VALUE;
+      const typicalSpeed = seg.typicalSpeed != null ? `${Math.round(seg.typicalSpeed)}` : NO_VALUE;
+      const pctText = ratio != null ? `${Math.round(ratio * 100)}%` : NO_VALUE;
+      const selectedClass = seg.segmentId === selectedSegmentId ? " selected" : "";
+      const title = escapeHtml(`#${idx + 1} · ${currentSpeed}/${typicalSpeed} km/h · ${pctText}`);
+      return `<rect class="segment-bar${selectedClass}" data-segment-id="${seg.segmentId}" x="${pos.x.toFixed(2)}" y="0" width="${pos.width.toFixed(2)}" height="${height}" fill="${color}"><title>${title}</title></rect>`;
+    })
+    .join("");
+
+  const wrap = document.createElement("div");
+  wrap.className = "segment-strip-wrap";
+  wrap.innerHTML = `
+    <div class="segment-strip-caption">${segments.length} segment${segments.length === 1 ? "" : "s"}</div>
+    <svg class="segment-strip" viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="none" role="img" aria-label="Speed profile along the route">
+      ${bars}
+    </svg>
+    <div class="segment-tooltip hidden"></div>
   `;
-  const tbody = table.querySelector("tbody");
-  if (!tbody) return;
+  list.appendChild(wrap);
+
+  if (!route) return;
+
+  const tooltip = wrap.querySelector<HTMLElement>(".segment-tooltip");
+  const barEls = Array.from(wrap.querySelectorAll<HTMLElement>(".segment-bar"));
 
   segments.forEach((seg, idx) => {
-    const row = document.createElement("tr");
-    row.className = "segment-row" + (seg.segmentId === selectedSegmentId ? " selected" : "");
-    row.setAttribute("data-segment-id", String(seg.segmentId));
+    const barEl = barEls[idx];
+    if (!barEl) return;
+    const featureId = `${route.routeId}:${seg.segmentId}`;
 
-    const ratio = normalizeRelativeSpeed(seg.relativeSpeed);
-    const ratioText = ratio != null ? `${Math.round(ratio * 100)}%` : NO_VALUE;
-    const dotColor = ratioToColor(ratio);
-    const currentSpeed = seg.currentSpeed != null ? `${Math.round(seg.currentSpeed)}` : NO_VALUE;
-    const typicalSpeed = seg.typicalSpeed != null ? `${Math.round(seg.typicalSpeed)}` : NO_VALUE;
-
-    row.innerHTML = `
-      <td>${idx + 1}</td>
-      <td>${Math.round(seg.segmentLength)} m</td>
-      <td>${currentSpeed} / ${typicalSpeed}</td>
-      <td><span class="ratio-dot" style="background:${dotColor}"></span>${ratioText}</td>
-    `;
-
-    if (route) {
-      const featureId = `${route.routeId}:${seg.segmentId}`;
-      row.addEventListener("mouseenter", () => {
-        row.classList.add("hover");
-        setState("segments", featureId, "hover");
-      });
-      row.addEventListener("mouseleave", () => {
-        row.classList.remove("hover");
-        setState("segments", null, "hover");
-      });
-      row.addEventListener("click", () => selectSegment(route.routeId, seg.segmentId));
-    }
-
-    tbody.appendChild(row);
+    barEl.addEventListener("mouseenter", (event) => {
+      barEl.classList.add("hover");
+      setState("segments", featureId, "hover");
+      if (tooltip) {
+        tooltip.innerHTML = renderSegmentTooltipContent(seg, idx, segments.length);
+        tooltip.classList.remove("hidden");
+        positionSegmentTooltip(wrap, tooltip, event);
+      }
+    });
+    barEl.addEventListener("mousemove", (event) => {
+      if (tooltip && !tooltip.classList.contains("hidden"))
+        positionSegmentTooltip(wrap, tooltip, event);
+    });
+    barEl.addEventListener("mouseleave", () => {
+      barEl.classList.remove("hover");
+      setState("segments", null, "hover");
+      tooltip?.classList.add("hidden");
+    });
+    barEl.addEventListener("click", () => selectSegment(route.routeId, seg.segmentId));
   });
-
-  list.appendChild(table);
 }
 
 function renderDetailsMap(route: RouteDetailedInfo | undefined): void {
@@ -649,7 +694,7 @@ function selectDetailsRoute(routeId: number): void {
   const route = detailsRoutes.find((r) => r.routeId === routeId);
   renderDetailsMap(route);
   renderRouteStats(route);
-  renderSegmentTable(route);
+  renderSegmentStrip(route);
 }
 
 function renderDetailsMode(routes: RouteDetailedInfo[]): void {
@@ -864,7 +909,7 @@ bootstrapVizApp<VizPayload>({
         if (currentMode !== "details") return;
         const parsed = parseSegmentFeatureId(f?.id);
         setState("segments", parsed ? `${parsed.routeId}:${parsed.segmentId}` : null, "hover");
-        syncSegmentRowHover(parsed ? parsed.segmentId : null);
+        syncSegmentBarHover(parsed ? parsed.segmentId : null);
       });
       segmentsHoverBound = true;
     }
