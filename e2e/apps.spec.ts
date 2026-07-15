@@ -424,10 +424,10 @@ test.describe("Junction app", () => {
     // `.tta-switcher` of `.tta-switcher-item` rows (name +
     // `.tta-switcher-item-id`) instead of the old `.tta-chip` pills. Guarded —
     // not every test account has multiple junctions to force this with.
-    const twoJunctionIds = Array.from(new Set(allColumnValues(junctionsResult, "junction_id"))).slice(
-      0,
-      2
-    );
+    // junction ids are already strings from the API; routes need `.map(String)` (see below).
+    const twoJunctionIds = Array.from(
+      new Set(allColumnValues(junctionsResult, "junction_id"))
+    ).slice(0, 2);
     if (twoJunctionIds.length >= 2) {
       await runToolWithUI(page, "tomtom-junction-live-data", {
         junctionIds: twoJunctionIds,
@@ -533,10 +533,11 @@ test.describe("Route app", () => {
     // `.tta-switcher` of `.tta-switcher-item` rows (name +
     // `.tta-switcher-item-id`) instead of the old `.tta-chip` pills. Guarded —
     // not every test account has multiple routes to force this with.
-    const twoRouteIds = Array.from(new Set(allColumnValues(routesResult, "route_id").map(String))).slice(
-      0,
-      2
-    );
+    // `.map(String)` coerces numeric route ids to strings (junction ids are already strings) so
+    // the Set dedupes correctly and the tool receives the string[] its schema expects.
+    const twoRouteIds = Array.from(
+      new Set(allColumnValues(routesResult, "route_id").map(String))
+    ).slice(0, 2);
     if (twoRouteIds.length >= 2) {
       await runToolWithUI(page, "tomtom-route-monitoring-details", {
         routeIds: twoRouteIds,
