@@ -28,8 +28,8 @@
 html,
 body {
   width: 100%;
-  height: 100%;
-  min-height: 600px;
+  height: auto;
+  min-height: 0;
   background: transparent;
   font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
@@ -38,11 +38,17 @@ body {
   display: none !important;
 }
 
+/* The ext-apps SDK auto-resizes the host iframe to the reported CONTENT
+   height (it measures `<html>` at `max-content`) — a percentage height here
+   would collapse to `auto` and let a long `.tta-drawer` list drive
+   `#app-root`'s height, which then stretches `#sdk-map` via `align-items:
+   stretch` on the flex row. A DEFINITE height keeps the reported content
+   height stable, so `.tta-drawer .panel-list { min-height:0;
+   overflow-y:auto }` below can scroll internally instead of growing this box. */
 #app-root {
   position: relative;
   width: 100%;
-  height: 100%;
-  min-height: 600px;
+  height: 600px;
 }
 
 .shell-split#app-root {
@@ -52,7 +58,6 @@ body {
 #sdk-map {
   width: 100%;
   height: 100%;
-  min-height: 600px;
 }
 
 .shell-split #sdk-map {
@@ -62,7 +67,7 @@ body {
 
 /* Collapse app-root in ui-hidden state (show_ui:false, missing API key, etc.) */
 html.ui-hidden #app-root {
-  min-height: 0 !important;
+  height: 0;
   display: none;
 }
 
@@ -137,7 +142,7 @@ html.ui-hidden #app-root {
     z-index: 1100;
     flex: none;
     width: auto;
-    max-height: 60%;
+    max-height: 45%;
     border-left: none;
     border-top: 1px solid var(--color-border-secondary, #e5e7eb);
     border-radius: var(--border-radius-lg, 12px) var(--border-radius-lg, 12px) 0 0;
