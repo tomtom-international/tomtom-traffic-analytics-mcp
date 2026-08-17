@@ -4,21 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+The package manager is **pnpm** (`>=11`); linting and formatting are handled by **Biome**
+(`biome.json`). Do not use `npm`/`yarn` — the repo has no `package-lock.json`.
+
 | Task | Command |
 |------|---------|
-| Build | `npm run build` |
-| Dev (no build) | `npm run dev` |
-| Unit tests + coverage | `npm test` |
-| Single test file | `npx vitest src/path/to/file.test.ts` |
-| Single test by name | `npx vitest -t "test name pattern"` |
-| Watch mode | `npm run test:watch` |
-| Integration tests | `npm run test:comprehensive` (requires API keys in `.env`) |
-| All tests | `npm run test:all` |
+| Install | `pnpm install` |
+| Build | `pnpm run build` |
+| Dev (no build) | `pnpm run dev` |
+| Unit tests + coverage | `pnpm test` |
+| Single test file | `pnpm exec vitest src/path/to/file.test.ts` |
+| Single test by name | `pnpm exec vitest -t "test name pattern"` |
+| Watch mode | `pnpm run test:watch` |
+| Integration tests | `pnpm run test:comprehensive` (requires API keys in `.env`) |
+| All tests | `pnpm run test:all` |
 | Token metrics only | `node tests/test-comprehensive.js --metrics-only` |
-| Lint | `npm run lint` |
-| Lint fix | `npm run lint:fix` |
-| Format | `npm run format` |
-| Clean | `npm run clean` |
+| Type check | `pnpm type-check` |
+| Lint | `pnpm lint` |
+| Lint fix | `pnpm lint:fix` |
+| Format check | `pnpm format` |
+| Format fix | `pnpm format:fix` |
+| Clean | `pnpm run clean` |
+| Build MCPB bundle | `pnpm run build:mcpb` (per-platform; built natively) |
+| Verify MCPB bundle | `pnpm run verify:mcpb` |
 
 ## Architecture
 
@@ -83,4 +91,4 @@ Configured via `.env` (see `.env.example`):
 
 ## Build
 
-`npm run build` runs TypeScript declarations (`tsc --emitDeclarationOnly`) then Rollup bundling (ESM + CJS). Rollup circular dependency warnings from `zod-to-json-schema` are expected and harmless.
+`pnpm run build` runs TypeScript declarations (`tsc --emitDeclarationOnly`) then Rollup bundling (ESM + CJS). Rollup circular dependency warnings from `zod-to-json-schema` are expected and harmless.

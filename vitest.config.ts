@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
+    environment: "node",
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
+      provider: "v8",
+      reporter: ["text", "html"],
       thresholds: {
         statements: 70,
         branches: 60,
@@ -30,9 +30,9 @@ export default defineConfig({
         lines: 70,
       },
     },
-    include: ['src/**/*.test.ts'],
+    include: ["src/**/*.test.ts"],
     env: {
-      LOG_LEVEL: 'debug',
+      LOG_LEVEL: "debug",
     },
   },
 });

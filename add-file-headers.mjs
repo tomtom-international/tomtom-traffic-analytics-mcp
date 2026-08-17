@@ -4,8 +4,8 @@
  * It is not a license document itself, but a tool to apply license notices to source files.
  */
 
-import fs from 'fs';
-import path from 'path';
+import fs from "fs";
+import path from "path";
 
 // License header template
 const licenseHeader = `/*
@@ -27,65 +27,65 @@ const licenseHeader = `/*
 `;
 
 // Extensions to process
-const extensions = ['.ts', '.js', '.tsx', '.jsx'];
+const extensions = [".ts", ".js", ".tsx", ".jsx"];
 
 // Find all source files
 function findSourceFiles(dir) {
   let results = [];
   const items = fs.readdirSync(dir);
-  
+
   for (const item of items) {
     const fullPath = path.join(dir, item);
     const stat = fs.statSync(fullPath);
-    
-    if (stat.isDirectory() && !fullPath.includes('node_modules') && !fullPath.includes('dist')) {
+
+    if (stat.isDirectory() && !fullPath.includes("node_modules") && !fullPath.includes("dist")) {
       results = results.concat(findSourceFiles(fullPath));
     } else if (stat.isFile() && extensions.includes(path.extname(fullPath))) {
       results.push(fullPath);
     }
   }
-  
+
   return results;
 }
 
 // Add license header (and preserve shebang) to file if it doesn't already have one
 function addLicenseHeader(filePath) {
   console.log(`Processing: ${filePath}`);
-  
-  let content = fs.readFileSync(filePath, 'utf8');
+
+  let content = fs.readFileSync(filePath, "utf8");
 
   // Skip if file already has a license header
-  if (content.includes('Copyright (C)') && content.includes('TomTom')) {
+  if (content.includes("Copyright (C)") && content.includes("TomTom")) {
     console.log(`  Already has license header`);
     return;
   }
 
   // Preserve shebang if present
-  let shebang = '';
+  let shebang = "";
   const lines = content.split(/\r?\n/);
-  if (lines[0].startsWith('#!')) {
-    shebang = lines.shift() + '\n';
+  if (lines[0].startsWith("#!")) {
+    shebang = lines.shift() + "\n";
   }
-  const body = lines.join('\n');
+  const body = lines.join("\n");
 
   // Write back with shebang, license header, then original body
   const newContent = shebang + licenseHeader + body;
-  fs.writeFileSync(filePath, newContent, 'utf8');
+  fs.writeFileSync(filePath, newContent, "utf8");
   console.log(`  Added license header`);
 }
 
 // Main function
 function main() {
-  console.log('Adding license headers to source files...');
-  
-  const sourceFiles = findSourceFiles(path.resolve('.'));
+  console.log("Adding license headers to source files...");
+
+  const sourceFiles = findSourceFiles(path.resolve("."));
   console.log(`Found ${sourceFiles.length} source files to process`);
-  
+
   for (const file of sourceFiles) {
     addLicenseHeader(file);
   }
-  
-  console.log('License headers added successfully!');
+
+  console.log("License headers added successfully!");
 }
 
 // Run the script

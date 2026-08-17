@@ -1,0 +1,35 @@
+# pnpm 11 moved these settings out of package.json's "pnpm" field.
+# See https://pnpm.io/settings
+
+# Deliberate divergence from tomtom-maps-mcp, which leaves this at pnpm's default.
+# Don't re-verify (and silently re-install) dependencies before every `pnpm run`.
+# pnpm 11 defaults this to `install`, which made `RUN pnpm run build` in the Dockerfile
+# re-install on top of its `--ignore-scripts` install and fire the `prepare` script, so
+# the image built everything twice (measured on the arm64 layer: 600s against 250s).
+# maps-mcp avoids that by copying sources before installing, which costs it the Docker
+# layer cache on every source change; this keeps the cache and turns the check off.
+verifyDepsBeforeRun: false
+
+# Real directories in node_modules instead of pnpm's default symlinks into .pnpm.
+# This is about path length, not the symlinks: the isolated layout inserts
+# `.pnpm/<pkg>@<ver>_<peers>/node_modules/<pkg>/` into every dependency path, which puts
+# e.g. @rollup/pluginutils/dist/es/package.json past Windows' 260-character MAX_PATH at
+# an ordinary checkout depth. Node then fails to read that `{"type":"module"}` marker
+# *silently*, falls back to the package root's "commonjs" and parses the ESM file as CJS
+# — surfacing as `SyntaxError: Named export 'createFilter' not found` from `pnpm build`,
+# which points nowhere near the cause. CI never sees it because runner paths are short.
+nodeLinker: hoisted
+
+# Packages allowed to run install/build scripts (pnpm blocks these by default).
+# esbuild, pulled in by vitest, has a postinstall that resolves its platform binary.
+# Nothing here actually needs it: current esbuild ships the binary as an
+# optionalDependency and works without the script — CI installs with --ignore-scripts and
+# the full test suite passes. This entry exists so a plain `pnpm install` does not print
+# the "ignored build scripts" warning and send contributors to `pnpm approve-builds`.
+allowBuilds:
+  esbuild: true
+
+# Dependency version pins (formerly the npm "overrides" field in package.json).
+overrides:
+  inflight: npm:lru-cache@^11.1.0
+  tmp: ^0.2.4

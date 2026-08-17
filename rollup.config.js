@@ -15,36 +15,36 @@
  */
 
 // rollup.config.js
-import resolve from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import json from '@rollup/plugin-json';
-import typescript from '@rollup/plugin-typescript';
-import license from 'rollup-plugin-license';
+import resolve from "@rollup/plugin-node-resolve";
+import commonjs from "@rollup/plugin-commonjs";
+import json from "@rollup/plugin-json";
+import typescript from "@rollup/plugin-typescript";
+import license from "rollup-plugin-license";
 
-const stdioEntryPoint = 'src/index.ts';
+const stdioEntryPoint = "src/index.ts";
 
 const sharedPlugins = [
   resolve({
     preferBuiltins: true,
-    exportConditions: ['node']
+    exportConditions: ["node"],
   }),
   commonjs(),
   json(),
   typescript({
-    tsconfig: './tsconfig.json'
+    tsconfig: "./tsconfig.json",
   }),
   license({
     thirdParty: {
-      output: { file: './dist/THIRD_PARTY.txt' },
+      output: { file: "./dist/THIRD_PARTY.txt" },
     },
-  })
+  }),
 ];
 
 const sharedExternal = [
-  '@duckdb/node-api',
-  '@duckdb/node-bindings',
-  /^@duckdb\/node-bindings-/,  // All platform-specific bindings
-  'async_hooks',
+  "@duckdb/node-api",
+  "@duckdb/node-bindings",
+  /^@duckdb\/node-bindings-/, // All platform-specific bindings
+  "async_hooks",
 ];
 
 /** @type {import('rollup').RollupOptions[]} */
@@ -54,42 +54,37 @@ export default [
     input: stdioEntryPoint,
     output: [
       {
-        file: 'dist/index.esm.js',
-        format: 'es',
-        sourcemap: true
+        file: "dist/index.esm.js",
+        format: "es",
+        sourcemap: true,
       },
       {
-        file: 'dist/index.cjs.js',
-        format: 'cjs',
-        sourcemap: true
-      }
+        file: "dist/index.cjs.js",
+        format: "cjs",
+        sourcemap: true,
+      },
     ],
     external: sharedExternal,
-    plugins: sharedPlugins
+    plugins: sharedPlugins,
   },
   // HTTP MCP server entry point
   {
-    input: 'src/indexHttp.ts',
+    input: "src/indexHttp.ts",
     output: [
       {
-        file: 'dist/indexHttp.esm.js',
-        format: 'es',
+        file: "dist/indexHttp.esm.js",
+        format: "es",
         sourcemap: true,
-        inlineDynamicImports: true
+        inlineDynamicImports: true,
       },
       {
-        file: 'dist/indexHttp.cjs.js',
-        format: 'cjs',
+        file: "dist/indexHttp.cjs.js",
+        format: "cjs",
         sourcemap: true,
-        inlineDynamicImports: true
-      }
+        inlineDynamicImports: true,
+      },
     ],
-    external: [
-      ...sharedExternal,
-      'express',
-      'cors',
-      'http',
-    ],
-    plugins: sharedPlugins
-  }
+    external: [...sharedExternal, "express", "cors", "http"],
+    plugins: sharedPlugins,
+  },
 ];

@@ -23,7 +23,7 @@ coverage/
 rollup.config.js
 tsconfig.json
 tsconfig.*.json
-eslint.config.js
+biome.json
 add-file-headers.mjs
 
 # Development scripts
@@ -61,6 +61,6 @@ manifest-binary.json
 # Claude Code local files
 .claude/
 
-# Prettier config
-.prettierrc
-.prettierignore
+# Package manager metadata
+pnpm-lock.yaml
+pnpm-workspace.yaml
