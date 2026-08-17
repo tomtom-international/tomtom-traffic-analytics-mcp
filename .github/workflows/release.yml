@@ -122,24 +122,62 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download MCPB artifact
+      # No `name:` filter — build-mcpb.yml publishes one artifact per platform and
+      # every one of them belongs on the release. Omitting it takes them all, so a
+      # new matrix entry needs no change here. Each lands in its own subdirectory.
+      - name: Download MCPB artifacts
         uses: dawidd6/action-download-artifact@688efa90a08f3552e7c1420c8313e215164e8b14
         with:
           workflow: build-mcpb.yml
-          name: tomtom-traffic-analytics-mcp-mcpb
           path: ./dist/mcpb
           branch: main
           search_artifacts: true
 
-      - name: List downloaded artifacts
-        run: ls -la ./dist/mcpb/
+      # Dropping the `name:` filter above also dropped its failure mode: the glob in the
+      # Release step takes whatever happens to be there, so with `fail-fast: false` on
+      # the matrix a single red platform would quietly ship a release missing a bundle.
+      # The expected count is read from the matrix itself so it cannot drift.
+      - name: Check every platform bundle arrived
+        run: |
+          expected=$(yq '.jobs.build-mcpb.strategy.matrix.include | length' .github/workflows/build-mcpb.yml)
+          found=$(find ./dist/mcpb -name '*.mcpb' | wc -l | tr -d ' ')
+          find ./dist/mcpb -name '*.mcpb' -print
+          if [[ "$found" -ne "$expected" ]]; then
+            echo "::error::expected $expected .mcpb bundles from the build-mcpb.yml matrix, found $found"
+            exit 1
+          fi
+          echo "All $expected platform bundles present."
 
+      # `compatibility.platforms` in manifest-binary.json has no arch field, so both macOS
+      # bundles advertise ["darwin"] and only the filename separates arm64 from x64.
+      # Someone on an Intel Mac who picks up the arm64 file gets a bundle that passes
+      # the platform check and then dies on its first duckdb require — the failure the
+      # per-platform build exists to prevent, narrowed from OS to arch. It cannot be
+      # expressed in the manifest, so it is spelled out on the release instead.
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.get-version.outputs.version }}
+          append_body: true
+          body: |
+            ### Choosing an `.mcpb` bundle
+
+            Each bundle carries a native DuckDB binding built for one OS **and one CPU
+            architecture**, while the bundle manifest can only declare the OS. Pick the file
+            that matches your machine:
+
+            | Machine | File |
+            |---|---|
+            | Apple Silicon Mac | `tomtom-traffic-analytics-mcp-darwin-arm64.mcpb` |
+            | Intel Mac | `tomtom-traffic-analytics-mcp-darwin-x64.mcpb` |
+            | Linux (x86-64) | `tomtom-traffic-analytics-mcp-linux-x64.mcpb` |
+            | Windows (x86-64) | `tomtom-traffic-analytics-mcp-win32-x64.mcpb` |
+            | Windows on Arm | `tomtom-traffic-analytics-mcp-win32-arm64.mcpb` |
+
+            Installing a bundle built for a different architecture fails on first use, when a
+            tool reaches the SQL engine — not at install time.
           files: |
-            ./dist/mcpb/tomtom-traffic-analytics-mcp.mcpb
+            ./dist/mcpb/**/*.mcpb
 
   publish-npm:
     runs-on: ubuntu-22.04
@@ -150,20 +188,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
 
+      # --ignore-scripts so the `prepare` hook (`pnpm run build`) does not build the
+      # project here and again in the Build step below. See quality_checks.yml.
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
+      # --ignore-scripts here too: `prepare` runs on publish as well, and dist/ is
+      # already the output of the step above.
       - name: Publish to NPM
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

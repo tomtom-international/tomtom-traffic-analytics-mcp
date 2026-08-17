@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - 'main'
+  # Bundles are the one artifact whose correctness cannot be inferred from a Linux
+  # CI run — each carries a native binding that only loads on its own platform — so
+  # they are built and smoke-tested per platform on pull requests too, rather than
+  # first being exercised after merge.
+  pull_request:
+    branches:
+      - main
   release:
     types: [published]
 
@@ -29,12 +36,36 @@ jobs:
           fi
 
   build-mcpb:
-    name: Build MCPB
+    name: Build MCPB (${{ matrix.platform }}-${{ matrix.arch }})
     needs: [pre-check]
     if: |
       always() &&
-      (github.event_name == 'release' || needs.pre-check.outputs.skip-workflow == 'false')
-    runs-on: ubuntu-22.04
+      (github.event_name == 'release' || github.event_name == 'pull_request' ||
+       needs.pre-check.outputs.skip-workflow == 'false')
+    # One bundle per platform. @duckdb/node-bindings requires a per-platform binary
+    # that ships as an optionalDependency, so only the build host's is ever installed
+    # — a single bundle works on exactly the OS/arch it was built on. Each job
+    # therefore runs on a native runner of its target.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+          - os: ubuntu-22.04
+            platform: linux
+            arch: x64
+          - os: windows-2022
+            platform: win32
+            arch: x64
+          - os: windows-11-arm
+            platform: win32
+            arch: arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,57 +74,61 @@ jobs:
 
       - name: Update version from release tag
         if: github.event_name == 'release'
+        shell: bash
         run: |
           version_number=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
           echo "Updating version to ${version_number}"
-          sed -i "s/\"version\": \".*\"/\"version\": \"${version_number}\"/" manifest-binary.json
+          sed -i.bak "s/\"version\": \".*\"/\"version\": \"${version_number}\"/" manifest-binary.json
+          rm -f manifest-binary.json.bak
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
+          cache: 'pnpm'
 
-      - name: Install system dependencies
+      - name: Install system dependencies (Linux)
+        if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
 
+      # --ignore-scripts so the `prepare` hook (`pnpm run build`) does not build the
+      # project here and again in the Build step below. See quality_checks.yml.
       - name: Install dependencies
-        run: npm ci
-
-      - name: Install cross-platform DuckDB native bindings for MCPB
-        # The MCPB bundle ships to Claude Desktop on macOS and Windows, but
-        # the CI runner is Linux — so npm only installs linux-x64 DuckDB
-        # bindings via optionalDependencies. Explicitly pull all platform
-        # variants so the bundled node_modules contains every binding a
-        # Claude Desktop user might need at install time.
-        run: |
-          DUCKDB_VERSION=$(node -p "require('./node_modules/@duckdb/node-api/package.json').dependencies['@duckdb/node-bindings']")
-          echo "Installing DuckDB bindings ${DUCKDB_VERSION} for all platforms"
-          npm install --no-save --force \
-            "@duckdb/node-bindings-darwin-arm64@${DUCKDB_VERSION}" \
-            "@duckdb/node-bindings-darwin-x64@${DUCKDB_VERSION}" \
-            "@duckdb/node-bindings-linux-x64@${DUCKDB_VERSION}" \
-            "@duckdb/node-bindings-linux-arm64@${DUCKDB_VERSION}" \
-            "@duckdb/node-bindings-win32-x64@${DUCKDB_VERSION}" \
-            "@duckdb/node-bindings-win32-arm64@${DUCKDB_VERSION}"
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build project
-        run: npm run build
+        run: pnpm run build
 
       - name: Build MCPB bundle
-        run: npm run build:mcpb
+        run: pnpm run build:mcpb
+        env:
+          # Fails the job if the runner is not the platform this row claims — the
+          # bundle is named from the matrix but built from the host.
+          MCPB_EXPECT_TARGET: ${{ matrix.platform }}-${{ matrix.arch }}
+
+      # Unpacks the bundle the way a user's machine would and drives a real MCP
+      # handshake through it, so a bundle that cannot load its own native binding
+      # fails here rather than on first use.
+      - name: Smoke-test bundle
+        run: pnpm run verify:mcpb
 
       - name: Upload MCPB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tomtom-traffic-analytics-mcp-mcpb
-          path: dist/mcpb/tomtom-traffic-analytics-mcp.mcpb
+          name: tomtom-traffic-analytics-mcp-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/mcpb/tomtom-traffic-analytics-mcp-${{ matrix.platform }}-${{ matrix.arch }}.mcpb
           retention-days: 90
 
       - name: Upload to GitHub Release
         if: github.event_name == 'release'
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "dist/mcpb/tomtom-traffic-analytics-mcp.mcpb" --clobber
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "dist/mcpb/tomtom-traffic-analytics-mcp-${{ matrix.platform }}-${{ matrix.arch }}.mcpb" --clobber

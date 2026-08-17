@@ -41,6 +41,7 @@
     "check:fix": "biome check --write .",
     "inspector": "node run-inspector.js",
     "build:mcpb": "node scripts/build-mcpb.cjs",
+    "verify:mcpb": "node scripts/verify-mcpb.cjs",
     "publish:npm": "pnpm publish --access public --no-git-checks",
     "clean": "shx rm -rf dist coverage",
     "prebuild": "pnpm run clean"
@@ -68,7 +69,6 @@
     "@types/node": "^20.19.43",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/ui": "^4.1.8",
-    "archiver": "^7.0.1",
     "rollup": "^4.62.4",
     "rollup-plugin-license": "^3.7.1",
     "shx": "^0.4.0",
