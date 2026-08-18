@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install curl for health checks, plus pnpm.
 # Keep PNPM_VERSION in sync with the "packageManager" field in package.json.
-ARG PNPM_VERSION=11.21.0
+ARG PNPM_VERSION=11.22.0
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/* \
  && npm install -g pnpm@${PNPM_VERSION}

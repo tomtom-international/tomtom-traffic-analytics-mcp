@@ -91,4 +91,4 @@ Configured via `.env` (see `.env.example`):
 
 ## Build
 
-`pnpm run build` runs TypeScript declarations (`tsc --emitDeclarationOnly`) then Rollup bundling (ESM + CJS). Rollup circular dependency warnings from `zod-to-json-schema` are expected and harmless.
+`pnpm run build` runs TypeScript declarations (`tsc --emitDeclarationOnly`) then Rolldown bundling (ESM + CJS, `rolldown.config.js`). Rolldown resolves node modules, CJS interop, JSON and TypeScript natively, so there is no plugin chain apart from `rollup-plugin-license`, which emits `dist/THIRD_PARTY.txt`.
