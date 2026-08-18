@@ -20,7 +20,7 @@ coverage/
 .idea/
 
 # Build tools
-rollup.config.js
+rolldown.config.js
 tsconfig.json
 tsconfig.*.json
 biome.json

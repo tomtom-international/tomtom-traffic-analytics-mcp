@@ -17,12 +17,6 @@
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
-    "baseUrl": ".",
-    "paths": {
-      "express": ["node_modules/@types/express"],
-      "cors": ["node_modules/@types/cors"],
-      "*": ["node_modules/*"]
-    },
     "sourceMap": true
   },
   "include": ["src/**/*"],
