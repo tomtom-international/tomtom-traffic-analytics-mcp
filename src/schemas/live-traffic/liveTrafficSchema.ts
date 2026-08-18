@@ -23,18 +23,18 @@ import { z } from "zod";
  */
 
 // ============================================================================
-// SQL queries schema for filtering large responses
+// JavaScript queries schema for filtering large responses
 // ============================================================================
 
-// SQL queries schema for Traffic Flow Segment
-const flowSegmentSqlQueriesSchema = z
+// JavaScript queries schema for Traffic Flow Segment
+const flowSegmentJsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"segment_info": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"segment_info": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
   );
 
 // Named bbox schema for multi-area comparison
@@ -42,22 +42,22 @@ const namedBboxSchema = z.object({
   name: z
     .string()
     .min(1)
-    .describe("Area name for identification in SQL queries (e.g., 'Downtown', 'Airport')"),
+    .describe("Area name for identification in queries (e.g., 'Downtown', 'Airport')"),
   bbox: z
     .string()
     .regex(/^-?\d+\.?\d*,-?\d+\.?\d*,-?\d+\.?\d*,-?\d+\.?\d*$/)
     .describe("Bounding box: minLon,minLat,maxLon,maxLat (e.g., '-122.42,37.77,-122.40,37.79')"),
 });
 
-// SQL queries schema for Traffic Incidents
-const incidentsSqlQueriesSchema = z
+// JavaScript queries schema for Traffic Incidents
+const incidentsJsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"accidents": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"accidents": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
   );
 
 // ============================================================================
@@ -86,7 +86,7 @@ export const trafficFlowDataSchema = {
   unit: z.enum(["kmph", "mph"]).optional().default("kmph"),
   thickness: z.number().int().min(1).max(20).optional().default(10),
   openLr: z.boolean().optional().default(false).describe("Include OpenLR code in response"),
-  sql_queries: flowSegmentSqlQueriesSchema,
+  js_queries: flowSegmentJsQueriesSchema,
 };
 
 // ============================================================================
@@ -133,7 +133,7 @@ export const trafficIncidentsSchema = {
       "Time validity filter: 'present' (current), 'future' (upcoming). Default: 'present'."
     ),
 
-  sql_queries: incidentsSqlQueriesSchema,
+  js_queries: incidentsJsQueriesSchema,
 };
 
 // ============================================================================

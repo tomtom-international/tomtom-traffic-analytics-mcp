@@ -18,7 +18,7 @@ import { FlattenResult } from "../types";
 import { RouteDetailedInfo } from "../../services/route-monitoring/types";
 
 /**
- * Flattened route info row for SQL table
+ * Flattened route info row
  */
 interface RouteInfoRow {
   route_id: number;
@@ -35,7 +35,7 @@ interface RouteInfoRow {
 }
 
 /**
- * Flattened segment row for SQL table
+ * Flattened segment row
  */
 interface SegmentRow {
   route_id: number;
@@ -52,7 +52,7 @@ interface SegmentRow {
 }
 
 /**
- * Flatten RouteDetailedInfo into SQL-queryable tables
+ * Flatten RouteDetailedInfo into queryable datasets
  *
  * Creates two tables:
  * - route_info: Single row with route-level information

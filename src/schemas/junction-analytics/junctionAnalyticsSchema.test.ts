@@ -24,9 +24,9 @@ import {
 
 describe("Junction Analytics Schema Validation", () => {
   describe("Junction Search Schema", () => {
-    it("should validate search request with sql_queries", () => {
+    it("should validate search request with js_queries", () => {
       const validRequest = {
-        sql_queries: { active: "SELECT * FROM junctions WHERE status = 'ACTIVE'" },
+        js_queries: { active: "SELECT * FROM junctions WHERE status = 'ACTIVE'" },
       };
 
       const schema = z.object(junctionSearchSchema);
@@ -36,7 +36,7 @@ describe("Junction Analytics Schema Validation", () => {
 
     it("should default view to compact", () => {
       const validRequest = {
-        sql_queries: { all: "SELECT * FROM junctions" },
+        js_queries: { all: "SELECT * FROM junctions" },
       };
 
       const schema = z.object(junctionSearchSchema);
@@ -50,7 +50,7 @@ describe("Junction Analytics Schema Validation", () => {
     it("should accept view full", () => {
       const validRequest = {
         view: "full",
-        sql_queries: { roads: "SELECT * FROM approaches" },
+        js_queries: { roads: "SELECT * FROM approaches" },
       };
 
       const schema = z.object(junctionSearchSchema);
@@ -61,9 +61,9 @@ describe("Junction Analytics Schema Validation", () => {
       }
     });
 
-    it("should reject empty sql_queries", () => {
+    it("should reject empty js_queries", () => {
       const invalidRequest = {
-        sql_queries: {},
+        js_queries: {},
       };
 
       const schema = z.object(junctionSearchSchema);
@@ -74,7 +74,7 @@ describe("Junction Analytics Schema Validation", () => {
     it("should reject invalid view value", () => {
       const invalidRequest = {
         view: "invalid",
-        sql_queries: { test: "SELECT 1" },
+        js_queries: { test: "SELECT 1" },
       };
 
       const schema = z.object(junctionSearchSchema);
@@ -88,7 +88,7 @@ describe("Junction Analytics Schema Validation", () => {
       const validRequest = {
         junctionIds: ["test-junction-id"],
         includeGeometry: true,
-        sql_queries: { approaches: "SELECT * FROM approaches" },
+        js_queries: { approaches: "SELECT * FROM approaches" },
       };
 
       const schema = z.object(junctionLiveDataDetailsSchema);
@@ -103,7 +103,7 @@ describe("Junction Analytics Schema Validation", () => {
         junctionIds: ["test-junction-id"],
         from: "2024-01-01",
         to: "2024-01-31",
-        sql_queries: { avg_delay: "SELECT AVG(delay_sec) FROM approaches" },
+        js_queries: { avg_delay: "SELECT AVG(delay_sec) FROM approaches" },
       };
 
       const schema = z.object(junctionArchiveSchema);
@@ -115,7 +115,7 @@ describe("Junction Analytics Schema Validation", () => {
       const validRequest = {
         junctionIds: ["test-junction-id"],
         from: "2024-01-01",
-        sql_queries: { summary: "SELECT COUNT(*) FROM approaches" },
+        js_queries: { summary: "SELECT COUNT(*) FROM approaches" },
       };
 
       const schema = z.object(junctionArchiveSchema);
@@ -127,7 +127,7 @@ describe("Junction Analytics Schema Validation", () => {
       const invalidRequest = {
         junctionIds: ["test-junction-id"],
         from: "2024/01/01", // Wrong format
-        sql_queries: { test: "SELECT 1" },
+        js_queries: { test: "SELECT 1" },
       };
 
       const schema = z.object(junctionArchiveSchema);

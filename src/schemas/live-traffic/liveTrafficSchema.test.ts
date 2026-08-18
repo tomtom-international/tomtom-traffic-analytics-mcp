@@ -18,9 +18,9 @@ import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import { trafficFlowDataSchema, trafficIncidentsSchema } from "./liveTrafficSchema";
 
-// Default sql_queries for tests
-const defaultSqlQueries = { test: "SELECT * FROM flow_segment" };
-const incidentsSqlQueries = { test: "SELECT * FROM incidents" };
+// Default js_queries for tests
+const defaultJsQueries = { test: "SELECT * FROM flow_segment" };
+const incidentsJsQueries = { test: "SELECT * FROM incidents" };
 
 describe("Live Traffic Schema Validation", () => {
   describe("trafficFlowDataSchema", () => {
@@ -32,7 +32,7 @@ describe("Live Traffic Schema Validation", () => {
         },
         style: "absolute",
         zoom: 10,
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -52,7 +52,7 @@ describe("Live Traffic Schema Validation", () => {
         unit: "mph",
         thickness: 15,
         openLr: true,
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -68,7 +68,7 @@ describe("Live Traffic Schema Validation", () => {
         },
         style: "absolute",
         zoom: 10,
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -84,7 +84,7 @@ describe("Live Traffic Schema Validation", () => {
         },
         style: "absolute",
         zoom: 10,
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -100,7 +100,7 @@ describe("Live Traffic Schema Validation", () => {
         },
         style: "invalid-style",
         zoom: 10,
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -116,7 +116,7 @@ describe("Live Traffic Schema Validation", () => {
         },
         style: "absolute",
         zoom: 25, // Invalid: > 22
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -133,7 +133,7 @@ describe("Live Traffic Schema Validation", () => {
         style: "absolute",
         zoom: 10,
         thickness: 25, // Invalid: > 20
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -149,7 +149,7 @@ describe("Live Traffic Schema Validation", () => {
         },
         style: "absolute",
         zoom: 10,
-        sql_queries: defaultSqlQueries,
+        js_queries: defaultJsQueries,
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -180,7 +180,7 @@ describe("Live Traffic Schema Validation", () => {
           point: { latitude: 52.41072, longitude: 4.84239 },
           style,
           zoom: 10,
-          sql_queries: defaultSqlQueries,
+          js_queries: defaultJsQueries,
         };
         const result = schema.safeParse(request);
         expect(result.success).toBe(true);
@@ -196,7 +196,7 @@ describe("Live Traffic Schema Validation", () => {
           point: { latitude: 52.41072, longitude: 4.84239 },
           style: "absolute",
           zoom,
-          sql_queries: defaultSqlQueries,
+          js_queries: defaultJsQueries,
         };
         const result = schema.safeParse(request);
         expect(result.success).toBe(true);
@@ -213,14 +213,14 @@ describe("Live Traffic Schema Validation", () => {
           style: "absolute",
           zoom: 10,
           thickness,
-          sql_queries: defaultSqlQueries,
+          js_queries: defaultJsQueries,
         };
         const result = schema.safeParse(request);
         expect(result.success).toBe(true);
       });
     });
 
-    it("should reject missing sql_queries", () => {
+    it("should reject missing js_queries", () => {
       const invalidRequest = {
         point: {
           latitude: 52.41072,
@@ -235,7 +235,7 @@ describe("Live Traffic Schema Validation", () => {
       expect(result.success).toBe(false);
     });
 
-    it("should reject empty sql_queries", () => {
+    it("should reject empty js_queries", () => {
       const invalidRequest = {
         point: {
           latitude: 52.41072,
@@ -243,7 +243,7 @@ describe("Live Traffic Schema Validation", () => {
         },
         style: "absolute",
         zoom: 10,
-        sql_queries: {},
+        js_queries: {},
       };
 
       const schema = z.object(trafficFlowDataSchema);
@@ -258,7 +258,7 @@ describe("Live Traffic Schema Validation", () => {
     it("should parse a valid traffic input with bboxes", () => {
       const input = {
         bboxes: [{ name: "test", bbox: "-74.02,40.70,-73.96,40.80" }],
-        sql_queries: incidentsSqlQueries,
+        js_queries: incidentsJsQueries,
       };
       expect(schema.parse(input)).toMatchObject(input);
     });
@@ -270,36 +270,36 @@ describe("Live Traffic Schema Validation", () => {
         maxResults: 50,
         categoryFilter: "0,1,2",
         timeValidityFilter: "present",
-        sql_queries: incidentsSqlQueries,
+        js_queries: incidentsJsQueries,
       };
       expect(schema.parse(input)).toMatchObject(input);
     });
 
     it("should fail if maxResults is less than 1", () => {
-      expect(() => schema.parse({ maxResults: 0, sql_queries: incidentsSqlQueries })).toThrow();
+      expect(() => schema.parse({ maxResults: 0, js_queries: incidentsJsQueries })).toThrow();
     });
 
     it("should fail if maxResults is more than 1000", () => {
-      expect(() => schema.parse({ maxResults: 1001, sql_queries: incidentsSqlQueries })).toThrow();
+      expect(() => schema.parse({ maxResults: 1001, js_queries: incidentsJsQueries })).toThrow();
     });
 
     it("should fail if timeValidityFilter is invalid", () => {
       expect(() =>
-        schema.parse({ timeValidityFilter: "past", sql_queries: incidentsSqlQueries })
+        schema.parse({ timeValidityFilter: "past", js_queries: incidentsJsQueries })
       ).toThrow();
     });
 
-    it("should fail if sql_queries is missing", () => {
+    it("should fail if js_queries is missing", () => {
       expect(() =>
         schema.parse({ bboxes: [{ name: "test", bbox: "-74.02,40.70,-73.96,40.80" }] })
       ).toThrow();
     });
 
-    it("should fail if sql_queries is empty", () => {
+    it("should fail if js_queries is empty", () => {
       expect(() =>
         schema.parse({
           bboxes: [{ name: "test", bbox: "-74.02,40.70,-73.96,40.80" }],
-          sql_queries: {},
+          js_queries: {},
         })
       ).toThrow();
     });

@@ -32,11 +32,18 @@ Recommended hardening for any HTTP deployment:
 - **Restrict network exposure** to the gateway; do not publish the port to the public
   internet directly.
 
-## SQL filtering safety
+## JavaScript filtering safety
 
-User-supplied `sql_queries` run against an in-memory DuckDB instance that is locked down
-at initialization: `enable_external_access=false`, `disabled_filesystems='LocalFileSystem'`,
-extension autoload/autoinstall disabled, `lock_configuration=true`, and bounded resource
-limits. A defense-in-depth validator additionally rejects non-`SELECT` statements,
-multi-statement queries, and filesystem/network/config functions (`read_*`, `write_*`,
-`glob`, `sniff_csv`, `parquet_*`, `http_*`, `INSTALL`/`LOAD`/`SET`/`ATTACH`, etc.).
+User-supplied `js_queries` are evaluated inside a QuickJS WASM sandbox, on a heap separate
+from the host. The model is deny-by-default: the host bridges nothing into the guest, so
+there is no `process`, `require`, `import`, `fetch`, filesystem, network or timer to reach
+— they are absent rather than blocked, and no blocklist has to keep up with them. The only
+values that cross the boundary are the dataset JSON going in and a JSON string coming out.
+
+Runaway code is bounded by a wall-clock interrupt handler (5s), a heap cap (512 MB) and a
+stack cap. The stack cap is deliberately small (256 KB): above roughly that, deep guest
+recursion exhausts the host's WASM stack before QuickJS raises its own error, which would
+surface as an uncatchable `RangeError` and take the process down.
+
+Results are capped at 10,000 array elements and 1 MB of JSON, so a query cannot flood the
+caller's context window.

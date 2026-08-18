@@ -16,15 +16,15 @@
 
 import { z } from "zod";
 
-// SQL queries schema for filtering large responses
-const sqlQueriesSchema = z
+// JavaScript queries schema for filtering large responses
+const jsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"slow_segments": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"slow_segments": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
   );
 
 // Schema for getting detailed route information - requires route IDs array
@@ -33,24 +33,24 @@ export const getRouteDetailsSchema = {
     .array(z.coerce.string())
     .min(1)
     .max(20)
-    .describe("Up to 20 IDs; data merged for cross-route SQL"),
-  sql_queries: sqlQueriesSchema,
+    .describe("Up to 20 IDs; data merged for cross-route queries"),
+  js_queries: jsQueriesSchema,
 };
 
-// SQL queries schema for route search
-const routeSearchSqlQueriesSchema = z
+// JavaScript queries schema for route search
+const routeSearchJsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"delayed_routes": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"delayed_routes": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
   );
 
 // Route search schema
 export const routeSearchSchema = {
-  sql_queries: routeSearchSqlQueriesSchema,
+  js_queries: routeSearchJsQueriesSchema,
 };
 
 // Combined schemas export

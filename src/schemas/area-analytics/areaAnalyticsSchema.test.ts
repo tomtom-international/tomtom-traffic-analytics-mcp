@@ -49,7 +49,7 @@ describe("Area Analytics Schema Validation", () => {
           },
         },
       ],
-      sql_queries: {
+      js_queries: {
         avg_congestion: "SELECT AVG(congestion_level) as avg FROM timed_data",
       },
     };

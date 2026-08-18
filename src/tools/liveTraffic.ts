@@ -33,22 +33,21 @@ export function createLiveTrafficTools(server: McpServer): void {
     {
       description: `Get real-time traffic flow information for the road segment closest to given coordinates. Returns one segment per call: current and free-flow speed, current and free-flow travel time, confidence, and road-closure flag.
 
-REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"segment_info": "SELECT frc, current_speed FROM flow_segment"}.
+REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"segment_info": "flow_segment.map(s => ({ frc: s.frc, speed: s.current_speed }))"}.
 
-**SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding; booleans stored as 0/1 integers (1 = true, e.g. road_closure=1 means the road is closed).
+**Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
 
-**Available Table: flow_segment**
-Columns: frc (FRC0-FRC6), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence (0-1, 1=highest quality), road_closure (0/1), coordinates, openlr, geom_geojson (TEXT GeoJSON LineString), geom (GEOMETRY, lazy)
+**Available dataset: flow_segment** (exactly one row)
+Fields: frc (FRC0-FRC6), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence (0-1, 1=highest quality), road_closure (0/1), openlr, geom (GeoJSON LineString object — pass straight to turf)
 
 **FRC scale** (Functional Road Class — lower number = more major road):
 FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting, FRC5=LocalHigh, FRC6=Local.
 
-**Spatial columns** — geom_geojson is GeoJSON text (queryable directly), geom is native GEOMETRY populated on demand by ST_ functions. Avoid SELECT * because GEOMETRY does not serialise cleanly. Wrap geom_geojson with ST_GeomFromGeoJSON() for spatial ops.
-
 **Example queries:**
-- Get segment data: SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment
-- Calculate delay: SELECT current_travel_time - free_flow_travel_time as delay_seconds, confidence FROM flow_segment
-- Spatial filter: SELECT current_speed FROM flow_segment WHERE ST_Intersects(ST_GeomFromGeoJSON(geom_geojson), ST_GeomFromGeoJSON('{...polygon...}'))`,
+- Segment data: flow_segment.map(s => ({ frc: s.frc, speed: s.current_speed, freeFlow: s.free_flow_speed, confidence: s.confidence }))
+- Delay: flow_segment.map(s => ({ delaySeconds: s.current_travel_time - s.free_flow_travel_time, confidence: s.confidence }))
+- Segment length in metres: turf.length(flow_segment[0].geom, { units: 'meters' })
+- Does it cross an area: turf.booleanIntersects(flow_segment[0].geom, turf.circle([4.9, 52.37], 1, { units: 'kilometers' }))`,
       inputSchema: trafficFlowDataSchema,
     },
     getFlowSegmentDataHandler()
@@ -59,14 +58,12 @@ FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting
     {
       description: `Query live traffic incidents (accidents, jams, closures, roadworks) within one or more named bounding boxes. Returns each active incident in the requested areas with category, delay, magnitude, geometry, and report metadata.
 
-    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"accidents": "SELECT id, iconCategory, delay FROM incidents WHERE iconCategory = 'Accident'"}.
+    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"accidents": "incidents.filter(i => i.iconCategory === 'Accident')"}.
 
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding; booleans stored as 0/1 integers.
+    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
 
-    **Available Table: incidents**
-    Columns: area_name (for multi-bbox queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, "from", "to", length, delay, roadNumbers, timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (JSON array of {description, code, iconCategory} — extract with json_extract_string for text values), geometry_type, coordinates, geom_geojson (TEXT GeoJSON), geom (GEOMETRY, lazy)
-
-    **Spatial columns** — geom_geojson is GeoJSON text (queryable directly), geom is native GEOMETRY populated on demand by ST_ functions. Avoid SELECT * because GEOMETRY does not serialise cleanly. Wrap geom_geojson with ST_GeomFromGeoJSON() for spatial ops.
+    **Available dataset: incidents**
+    Fields: area_name (set per bounding box, for cross-area queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, from, to, length, delay, roadNumbers (array of strings), timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (array of {description, code, iconCategory}), geometry_type, geom (GeoJSON object — pass straight to turf)
 
     **iconCategory enum (13 values):**
     - Disruptions: Accident, JamLane, LaneClosure, RoadClosure
@@ -74,23 +71,17 @@ FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting
     - Weather: Fog, Rain, Ice, Wind, Flooding
     - Other: Dangerous, Cluster
 
-    **IMPORTANT - delay column availability:**
-    - Accident, JamLane, LaneClosure have real-time delay measurements
-    - RoadWorks are informational markers with NULL delay - they mark construction zones, not real-time congestion
-    - When averaging delays, use WHERE delay IS NOT NULL to exclude informational incidents
-
-    **Default:** Use iconCategory IN ('Accident', 'RoadWorks') for accidents + roadworks. Use iconCategory = 'JamLane' or 'LaneClosure' only when user requests jams/lane issues.
+    **IMPORTANT — delay availability:**
+    - Accident, JamLane, LaneClosure carry real-time delay measurements
+    - RoadWorks are informational markers with delay = null — they mark construction zones, not live congestion
+    - When averaging delays, filter with \`i.delay != null\` to exclude informational incidents
 
     **Example queries:**
-    - Default (accidents + roadworks): SELECT id, iconCategory, delay FROM incidents WHERE iconCategory IN ('Accident', 'RoadWorks')
-    - Count by type: SELECT iconCategory, COUNT(*) as count FROM incidents GROUP BY iconCategory
-    - Top delays: SELECT id, delay FROM incidents WHERE delay IS NOT NULL ORDER BY delay DESC LIMIT 10
-    - First event description per incident: SELECT id, json_extract_string(events, '$[0].description') AS first_event FROM incidents WHERE events IS NOT NULL
-    - Spatial filter: SELECT id, iconCategory FROM incidents WHERE ST_Contains(ST_GeomFromGeoJSON('{...polygon...}'), ST_GeomFromGeoJSON(geom_geojson))
-
-    **MULTI-AREA COMPARISON queries:**
-    - Incidents by area: SELECT area_name, COUNT(*) as total_incidents, SUM(CASE WHEN iconCategory = 'Accident' THEN 1 ELSE 0 END) as accidents FROM incidents GROUP BY area_name
-    - Average delay by area: SELECT area_name, ROUND(AVG(delay), 2) as avg_delay_sec, COUNT(*) as incidents_with_delay FROM incidents WHERE delay IS NOT NULL GROUP BY area_name ORDER BY avg_delay_sec DESC`,
+    - Accidents: incidents.filter(i => i.iconCategory === 'Accident').map(i => ({ id: i.id, from: i.from, delay: i.delay }))
+    - Event descriptions: incidents.flatMap(i => i.events?.map(e => e.description) ?? [])
+    - Compare areas: Object.entries(Object.groupBy(incidents.filter(i => i.delay != null), i => i.area_name)).map(([area, rows]) => ({ area, count: rows.length, avgDelay: +(rows.reduce((s, r) => s + r.delay, 0) / rows.length).toFixed(1) }))
+    - Within 2km of a point: incidents.filter(i => turf.distance(turf.centroid(i.geom), [4.9, 52.37], { units: 'kilometers' }) < 2).map(i => i.id)
+    - Inside a polygon: incidents.filter(i => turf.booleanIntersects(i.geom, turf.circle([4.9, 52.37], 1, { units: 'kilometers' })))`,
       inputSchema: trafficIncidentsSchema,
     },
     createTrafficIncidentsHandler()

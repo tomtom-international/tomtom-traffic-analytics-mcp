@@ -21,7 +21,7 @@ import {
 } from "../../services/area-analytics/types";
 
 /**
- * Flattened timed data row for SQL table
+ * Flattened timed data row
  */
 interface TimedDataRow {
   region_name: string | null;
@@ -37,7 +37,7 @@ interface TimedDataRow {
 }
 
 /**
- * Flattened tiled data row for SQL table
+ * Flattened tiled data row
  */
 interface TiledDataRow {
   region_name: string | null;
@@ -48,7 +48,6 @@ interface TiledDataRow {
   congestion_level: number | null;
   travel_time: number | null;
   network_length: number | null;
-  point_geom: null; // Placeholder for native GEOMETRY (populated by engine using ST_Point(lon, lat))
 }
 
 /**
@@ -76,7 +75,7 @@ function flattenTimedDataItem(
 }
 
 /**
- * Flatten AreaAnalyticsReportResults into SQL-queryable tables
+ * Flatten AreaAnalyticsReportResults into queryable datasets
  *
  * Creates two tables:
  * - timed_data: One row per time aggregation per region (flattened from nested timedData)
@@ -125,7 +124,6 @@ export function flattenAreaAnalyticsResults(response: AreaAnalyticsReportResults
           congestion_level: tile.c ?? null,
           travel_time: tile.t ?? null,
           network_length: tile.l ?? null,
-          point_geom: null, // Populated by SqlFilterEngine using ST_Point(lon, lat)
         });
       }
     }

@@ -77,12 +77,12 @@ cp .env.example .env
 
 ### Architecture
 
-Every tool follows the 4-layer pattern: **Tool → Handler → Service → SQL Engine**
+Every tool follows the 4-layer pattern: **Tool → Handler → Service → Query Engine**
 
 1. **Tools** (`src/tools/`) — Register MCP tools with name, description, schema, and handler
-2. **Handlers** (`src/handlers/`) — Orchestrate validation, API calls, flattening, and SQL filtering
+2. **Handlers** (`src/handlers/`) — Orchestrate validation, API calls, flattening, and JS filtering
 3. **Services** (`src/services/`) — HTTP calls to TomTom APIs
-4. **SQL Layer** (`src/sql/`) — DuckDB-powered filtering with flatteners and table schemas
+4. **Query Layer** (`src/query/`) — QuickJS-sandboxed JS filtering with flatteners and vendored turf/h3 bundles
 
 ## Submitting Changes
 

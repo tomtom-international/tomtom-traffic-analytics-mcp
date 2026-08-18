@@ -69,15 +69,15 @@ const geoJSONFeatureSchema = z.object({
     .optional(),
 });
 
-// SQL queries schema for filtering large responses
-const sqlQueriesSchema = z
+// JavaScript queries schema for filtering large responses
+const jsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"daily_avg": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"daily_avg": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
   );
 
 // Stats schema (lite version with restrictions)
@@ -94,5 +94,5 @@ export const areaAnalyticsStatsSchema = {
     .array(geoJSONFeatureSchema)
     .length(1)
     .describe("Array of exactly one GeoJSON feature defining the analysis region"),
-  sql_queries: sqlQueriesSchema,
+  js_queries: jsQueriesSchema,
 };

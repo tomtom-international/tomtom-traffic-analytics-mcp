@@ -56,20 +56,15 @@ describe("flattenTrafficFlowSegment", () => {
     expect(row.openlr).toBe("abc123");
   });
 
-  it("should serialize coordinates as JSON", () => {
+  it("should build geom as an RFC 7946 LineString object (lon, lat arrays)", () => {
     const result = flattenTrafficFlowSegment(mockResponse);
     const row = result.tables.get("flow_segment")![0];
-    expect(row.coordinates).toBe(JSON.stringify(mockResponse.coordinates));
-  });
-
-  it("should build geom_geojson as RFC 7946 LineString (lon, lat arrays)", () => {
-    const result = flattenTrafficFlowSegment(mockResponse);
-    const row = result.tables.get("flow_segment")![0];
-    const parsed = JSON.parse(row.geom_geojson as string);
-    expect(parsed.type).toBe("LineString");
+    const geom = row.geom as { type: string; coordinates: number[][] };
+    expect(geom.type).toBe("LineString");
     // Standard GeoJSON requires [longitude, latitude] numeric arrays — not
-    // { latitude, longitude } objects — so that ST_GeomFromGeoJSON can parse it.
-    expect(parsed.coordinates).toEqual(
+    // { latitude, longitude } objects — so that turf can consume the value
+    // directly, with no parsing step in the query.
+    expect(geom.coordinates).toEqual(
       mockResponse.coordinates.map((c) => [c.longitude, c.latitude])
     );
   });

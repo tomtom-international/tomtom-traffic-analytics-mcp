@@ -17,32 +17,27 @@
 import { logger } from "../utils/logger";
 import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsService";
 import { AreaAnalyticsStatsRequest } from "../services/area-analytics/types";
-import {
-  SqlFilterEngine,
-  flattenAreaAnalyticsResults,
-  AREA_ANALYTICS_SCHEMA,
-  SqlFilteredResponse,
-} from "../sql";
+import { JsQueryEngine, flattenAreaAnalyticsResults, JsFilteredResponse } from "../query";
 
 /**
- * Handler for getting Area Analytics stats (lite version) with SQL filtering
+ * Handler for getting Area Analytics stats (lite version) with sandboxed JS filtering
  *
- * Requires sql_queries parameter to filter/aggregate the response data.
+ * Requires js_queries parameter to filter/aggregate the response data.
  * This prevents context window overflow when working with LLM agents.
  */
 export function getAreaAnalyticsStatsHandler() {
   return async (params: any) => {
     logger.info("Processing Area Analytics stats request");
 
-    const { sql_queries, ...request } = params as AreaAnalyticsStatsRequest & {
-      sql_queries?: Record<string, string>;
+    const { js_queries, ...request } = params as AreaAnalyticsStatsRequest & {
+      js_queries?: Record<string, string>;
     };
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the stats results. " +
-        'Example: {"congestion_trend": "SELECT time, AVG(congestion_level) as avg_congestion FROM timed_data WHERE aggregation_type = \'daily\' GROUP BY time"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the stats results. " +
+        'Example: {"congestion_trend": "timed_data.filter(r => r.aggregation_type === \'daily\').map(r => ({ time: r.time, congestion: r.congestion_level }))"}';
       logger.error(`❌ Area Analytics stats request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }, null, 2) }],
@@ -50,7 +45,7 @@ export function getAreaAnalyticsStatsHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       // 1. Fetch raw data from API
@@ -60,17 +55,17 @@ export function getAreaAnalyticsStatsHandler() {
       // 2. Flatten JSON to relational tables (reuse existing flattener)
       const flattenedData = flattenAreaAnalyticsResults(rawResult);
 
-      // 3. Initialize SQL engine with schema and data
-      const warnings = await sqlEngine.initialize(AREA_ANALYTICS_SCHEMA, flattenedData);
+      // 3. Load the flattened data into the sandbox
+      const warnings = await queryEngine.initialize(flattenedData);
 
-      // 4. Execute SQL queries
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 4. Execute JS queries
+      const queryResults = await queryEngine.executeQueries(js_queries);
 
-      // 5. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
       // 6. Build filtered response
-      const response: SqlFilteredResponse = {
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-area-analytics-stats",
           parameters: {
@@ -78,15 +73,15 @@ export function getAreaAnalyticsStatsHandler() {
             startDate: request.startDate,
             endDate: request.endDate,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `✅ Area Analytics stats processed with SQL filtering (${Object.keys(sql_queries).length} queries)`
+        `✅ Area Analytics stats processed with sandboxed JS filtering (${Object.keys(js_queries).length} queries)`
       );
       return {
         content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
@@ -101,7 +96,7 @@ export function getAreaAnalyticsStatsHandler() {
       };
     } finally {
       // Always clean up database resources
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }

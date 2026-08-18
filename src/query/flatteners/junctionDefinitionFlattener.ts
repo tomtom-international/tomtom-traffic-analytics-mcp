@@ -23,7 +23,7 @@ import { JunctionDefinition } from "../../services/junction-analytics/types";
 export type JunctionViewMode = "compact" | "full";
 
 /**
- * Flattened junction summary row for SQL table
+ * Flattened junction summary row
  */
 interface JunctionRow {
   junction_id: string;
@@ -40,7 +40,7 @@ interface JunctionRow {
 }
 
 /**
- * Flattened approach row for SQL table (full view only)
+ * Flattened approach row (full view only)
  */
 interface ApproachRow {
   junction_id: string;
@@ -56,7 +56,7 @@ interface ApproachRow {
 }
 
 /**
- * Flattened exit row for SQL table (full view only)
+ * Flattened exit row (full view only)
  */
 interface ExitRow {
   junction_id: string;
@@ -70,7 +70,7 @@ interface ExitRow {
 }
 
 /**
- * Flatten junction definitions into SQL-queryable tables
+ * Flatten junction definitions into queryable datasets
  *
  * Compact view (default): junctions table only — summary info for ID discovery
  * Full view: adds approaches and exits tables for structural search

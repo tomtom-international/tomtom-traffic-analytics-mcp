@@ -20,16 +20,14 @@
 //
 // Output: dist/mcpb/tomtom-traffic-analytics-mcp-{platform}-{arch}.mcpb
 //
-// Each bundle ships its own Node runtime, the compiled app, and the platform-specific
-// DuckDB native binding, and is launched as `type: binary`. Users need no Node
-// installed, and the launcher avoids the macOS Hardened Runtime library-validation
-// restriction that blocks dlopen of non-Anthropic-signed native modules inside Claude
-// Desktop's Electron UtilityProcess sandbox.
+// Each bundle ships its own Node runtime and the compiled app, and is launched as
+// `type: binary`. Users need no Node installed.
 //
-// The bundle is platform-specific twice over: the embedded Node binary is one OS/arch
-// build, and @duckdb/node-bindings requires a per-platform binary that ships as an
-// optionalDependency, so only the build host's is ever installed. CI runs this on a
-// native runner per target.
+// The bundle is platform-specific in one respect only: the embedded Node binary is one
+// OS/arch build. The query engine is a WASM sandbox compiled into dist/index.cjs.js, so
+// there is no native module to match against the host — which is also why the launcher
+// no longer has to work around the macOS Hardened Runtime library-validation
+// restriction on dlopen of non-Anthropic-signed native modules.
 //
 // Usage:
 //   pnpm run build       # produces dist/index.cjs.js (prerequisite)
@@ -43,7 +41,7 @@ const path = require("node:path");
 const { run } = require("./run-command.cjs");
 
 // Bundled Node version. Pinned for reproducible ABI (Node 24.x = ABI 137, which matches
-// the prebuilt @duckdb/node-bindings-* shipped on npm).
+// the Node runtime that the bundle embeds).
 const NODE_VERSION = "24.13.1";
 
 const PLATFORM = process.platform;
@@ -200,21 +198,6 @@ function installProductionDeps(appDir) {
   }
 }
 
-// The whole point of building on a native runner: @duckdb/node-bindings picks its binary
-// by ${process.platform}-${process.arch} from optionalDependencies, so a host that
-// resolved none of them packs a bundle that throws on the first require of the SQL
-// engine — which every tool goes through.
-function assertDuckDbBindingStaged(appDir) {
-  const binding = path.join(appDir, "node_modules", "@duckdb", `node-bindings-${TARGET}`);
-  if (!fs.existsSync(binding)) {
-    throw new Error(
-      `@duckdb/node-bindings-${TARGET} is not in the staged tree. The production ` +
-        `install resolved no native binding for this host, so the bundle would fail on ` +
-        `its first SQL call.`
-    );
-  }
-}
-
 // A package stored as a symlink only survives extraction by a tool that restores
 // symlinks; one that doesn't writes the link target out as a short text file, and the
 // server dies on its first require. Checking the staged tree catches that here rather
@@ -269,8 +252,8 @@ function stageManifest(stageDir, launcherPath) {
   manifest.server.entry_point = launcherPath;
   manifest.server.mcp_config.command = `\${__dirname}/${launcherPath}`;
   // A bundle should describe itself, not every platform the project can be built for — a
-  // darwin bundle advertising win32 is how someone installs one that cannot load its own
-  // duckdb binding, or run its own Node binary.
+  // darwin bundle advertising win32 is how someone installs one that cannot run its own
+  // embedded Node binary.
   manifest.compatibility = { ...manifest.compatibility, platforms: [PLATFORM] };
   fs.writeFileSync(path.join(stageDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
@@ -306,7 +289,6 @@ async function main() {
     console.log("  ✓ Application files");
 
     installProductionDeps(appDir);
-    assertDuckDbBindingStaged(appDir);
     assertNoSymlinks(stageDir);
     console.log("  ✓ Production dependencies");
 

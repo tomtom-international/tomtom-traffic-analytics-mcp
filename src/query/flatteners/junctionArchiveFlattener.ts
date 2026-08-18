@@ -18,7 +18,7 @@ import { FlattenResult } from "../types";
 import { JunctionArchiveJsonResponse } from "../../services/junction-analytics/types";
 
 /**
- * Flattened approach row for SQL table
+ * Flattened approach row
  */
 interface ApproachRow {
   time: string;
@@ -35,7 +35,7 @@ interface ApproachRow {
 }
 
 /**
- * Flattened turn ratio row for SQL table
+ * Flattened turn ratio row
  */
 interface TurnRatioRow {
   time: string;
@@ -48,7 +48,7 @@ interface TurnRatioRow {
 }
 
 /**
- * Flatten JunctionArchiveJsonResponse into SQL-queryable tables
+ * Flatten JunctionArchiveJsonResponse into queryable datasets
  *
  * Creates two tables:
  * - approaches: One row per approach per time period

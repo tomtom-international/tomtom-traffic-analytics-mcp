@@ -31,22 +31,22 @@ export function createAreaAnalyticsTools(server: McpServer): void {
     - Without a feature timezone (UTC default): endDate must be ≥ 2 days before today.
     - WITH \`properties.timezone\` set on the feature (e.g. "Europe/Amsterdam"): the API applies a stricter rule — endDate must be ≥ 3 days before today. For the broadest coverage, leave the feature timezone UNSET and let the API default to UTC.
 
-    REQUIRES sql_queries parameter: an object mapping named keys to DuckDB SELECT queries — e.g. {"daily_avg": "SELECT time::DATE AS day, AVG(congestion_level) FROM timed_data GROUP BY day"}.
+    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"daily_avg": "timed_data.filter(r => r.aggregation_type === 'daily').map(r => ({ day: r.time, congestion: r.congestion_level }))"}.
 
-    **SQL Dialect: DuckDB** (PostgreSQL-compatible). SELECT-only, 5s timeout, 10,000-row cap. Tips: ROUND(value, 2) for rounding; date helpers for the \`time\` column: time::DATE, date_part('hour', time::TIMESTAMP).
+    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
 
-    **Available Tables:**
+    **Available datasets:**
     - timed_data: region_name, timezone, level, aggregation_type ('all'|'yearly'|'monthly'|'daily'|'hourly'), time, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length
-    - tiled_data: region_name, lat, lon, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length, point_geom (GEOMETRY, lazy ST_Point(lon, lat))
+    - tiled_data: region_name, lat, lon, speed, free_flow_speed, congestion_level (0-100), travel_time, network_length
 
-    Note: Column data depends on dataTypes you request. Valid values: NETWORK_LENGTH, CONGESTION_LEVEL, FREE_FLOW_SPEED, TRAVEL_TIME, SPEED. E.g., free_flow_speed column requires FREE_FLOW_SPEED in dataTypes.
-
-    **Spatial column on tiled_data** — point_geom is native GEOMETRY populated on demand by ST_ functions. Avoid SELECT * (GEOMETRY does not serialise cleanly). Example: WHERE ST_DWithin(point_geom, ST_Point(4.9, 52.37), 1000).
+    Note: field content depends on the dataTypes you request. Valid values: NETWORK_LENGTH, CONGESTION_LEVEL, FREE_FLOW_SPEED, TRAVEL_TIME, SPEED. E.g. free_flow_speed is only populated if FREE_FLOW_SPEED is in dataTypes.
 
     **Example queries:**
-    - Daily trend: SELECT time::DATE as day, ROUND(AVG(congestion_level), 2) as avg FROM timed_data WHERE aggregation_type = 'daily' GROUP BY day ORDER BY day
-    - Hotspots (congestion > 70%): SELECT lat, lon, congestion_level FROM tiled_data WHERE congestion_level > 70 ORDER BY congestion_level DESC LIMIT 20
-    - Spatial filter: SELECT lat, lon, congestion_level FROM tiled_data WHERE ST_DWithin(point_geom, ST_Point(4.9, 52.37), 1000)`,
+    - Daily trend: timed_data.filter(r => r.aggregation_type === 'daily').map(r => ({ day: r.time, congestion: +r.congestion_level.toFixed(2) }))
+    - Hotspots: [...tiled_data].sort((a, b) => b.congestion_level - a.congestion_level).slice(0, 20)
+    - Peak hour: Object.entries(Object.groupBy(timed_data.filter(r => r.aggregation_type === 'hourly'), r => new Date(r.time).getUTCHours())).map(([hour, rows]) => ({ hour: +hour, avg: rows.reduce((s, r) => s + r.congestion_level, 0) / rows.length })).sort((a, b) => b.avg - a.avg)
+    - Within 1km of a point: tiled_data.filter(t => turf.distance([t.lon, t.lat], [4.9, 52.37], { units: 'meters' }) < 1000)
+    - H3 hex-binned hotspots: Object.entries(Object.groupBy(tiled_data, t => h3.latLngToCell(t.lat, t.lon, 8))).map(([cell, rows]) => ({ cell, center: h3.cellToLatLng(cell), congestion: +(rows.reduce((s, r) => s + r.congestion_level, 0) / rows.length).toFixed(1) })).sort((a, b) => b.congestion - a.congestion).slice(0, 10)`,
       inputSchema: areaAnalyticsStatsSchema,
     },
     getAreaAnalyticsStatsHandler()
