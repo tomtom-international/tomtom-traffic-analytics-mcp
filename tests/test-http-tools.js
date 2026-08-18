@@ -292,8 +292,7 @@ const SCENARIOS = {
       style: "absolute",
       zoom: 12,
       js_queries: {
-        flow:
-          "flow_segment.map(s => ({ frc: s.frc, current_speed: s.current_speed, free_flow_speed: s.free_flow_speed }))",
+        flow: "flow_segment.map(s => ({ frc: s.frc, current_speed: s.current_speed, free_flow_speed: s.free_flow_speed }))",
       },
     },
     expectedFields: { flow: ["frc", "current_speed", "free_flow_speed"] },
@@ -373,8 +372,7 @@ const DEPENDENT_SCENARIOS = {
     makeParams: (id) => ({
       routeIds: [id],
       js_queries: {
-        info:
-          "route_info.map(r => ({ route_name: r.route_name, travel_time: r.travel_time, delay_time: r.delay_time }))",
+        info: "route_info.map(r => ({ route_name: r.route_name, travel_time: r.travel_time, delay_time: r.delay_time }))",
       },
     }),
     expectedFields: { info: ["route_name", "travel_time", "delay_time"] },
@@ -510,7 +508,11 @@ async function main() {
             const data = JSON.parse(result.content[0].text);
             for (const qr of Object.values(data.aggregated_data || {})) {
               const rows = qr?.value;
-              if (Array.isArray(rows) && rows.length > 0 && rows[0]?.[scenario.captureId.field] != null) {
+              if (
+                Array.isArray(rows) &&
+                rows.length > 0 &&
+                rows[0]?.[scenario.captureId.field] != null
+              ) {
                 captured[scenario.captureId.key] = String(rows[0][scenario.captureId.field]);
                 break;
               }

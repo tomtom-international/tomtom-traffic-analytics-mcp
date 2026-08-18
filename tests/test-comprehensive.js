@@ -564,11 +564,7 @@ const validators = {
   },
 
   "tomtom-traffic-incidents": (result, scenario) => {
-    return validateFilteredResponse(
-      result,
-      "tomtom-traffic-incidents",
-      scenario.validateOptions
-    );
+    return validateFilteredResponse(result, "tomtom-traffic-incidents", scenario.validateOptions);
   },
 
   "tomtom-area-analytics-stats": (result, scenario) => {
@@ -580,11 +576,7 @@ const validators = {
   },
 
   "tomtom-junction-live-data": (result, scenario) => {
-    return validateFilteredResponse(
-      result,
-      "tomtom-junction-live-data",
-      scenario.validateOptions
-    );
+    return validateFilteredResponse(result, "tomtom-junction-live-data", scenario.validateOptions);
   },
 
   "tomtom-junction-archive": (result, scenario) => {
