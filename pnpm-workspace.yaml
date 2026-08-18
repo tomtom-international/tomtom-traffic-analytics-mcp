@@ -11,13 +11,19 @@
 verifyDepsBeforeRun: false
 
 # Real directories in node_modules instead of pnpm's default symlinks into .pnpm.
-# This is about path length, not the symlinks: the isolated layout inserts
-# `.pnpm/<pkg>@<ver>_<peers>/node_modules/<pkg>/` into every dependency path, which puts
-# e.g. @rollup/pluginutils/dist/es/package.json past Windows' 260-character MAX_PATH at
-# an ordinary checkout depth. Node then fails to read that `{"type":"module"}` marker
-# *silently*, falls back to the package root's "commonjs" and parses the ESM file as CJS
-# — surfacing as `SyntaxError: Named export 'createFilter' not found` from `pnpm build`,
-# which points nowhere near the cause. CI never sees it because runner paths are short.
+# This is about Windows path length, not the symlinks. The isolated layout inserts
+# `.pnpm/<pkg>@<ver>_<peers>/node_modules/<pkg>/` into every dependency path: measured on
+# this lockfile, the longest path relative to the repo root is 115 characters hoisted
+# against 190 isolated (using Windows' default virtualStoreDirMaxLength of 60). A plain
+# C:\Users\<first>.<last>\IdeaProjects\tomtom-traffic-analytics-mcp checkout is already 63
+# characters, so isolated leaves ~6 before the 260-character MAX_PATH — a OneDrive-redirected
+# Documents folder or a worktree subdirectory busts it. Node itself handles long paths since
+# 22.7 (nodejs/node#53294) and we require >=22.9, but git and tsc don't, and enabling long
+# paths on Windows needs an admin registry value plus a longPathAware manifest node.exe does
+# not ship (nodejs/node#40641) — not something a public repo can ask of contributors.
+# The cost is pnpm's strict isolation: an undeclared dependency resolves here but would break
+# in the published bundle. Nothing else measurable — same 321 MB and same install time either
+# way, because the store dedup comes from packageImportMethod, not from this setting.
 nodeLinker: hoisted
 
 # Packages allowed to run install/build scripts (pnpm blocks these by default).
