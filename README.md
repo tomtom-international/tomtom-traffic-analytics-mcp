@@ -37,7 +37,7 @@ This MCP server connects to multiple TomTom APIs with different access requireme
 ## Quick Start
 
 ### Prerequisites
-- **Node.js 22+**
+- **Node.js 22.12+**
 - API keys (see table above)
 
 ### Install from npm

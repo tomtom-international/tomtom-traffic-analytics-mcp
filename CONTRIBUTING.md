@@ -10,7 +10,7 @@ This project adheres to the [TomTom Code of Conduct](https://tomtominternational
 
 ### Prerequisites
 
-- **Node.js 22+**
+- **Node.js 22.12+**
 - Git
 
 ### Development Setup
