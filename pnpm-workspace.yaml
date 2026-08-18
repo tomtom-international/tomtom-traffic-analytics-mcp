@@ -1,0 +1,41 @@
+# pnpm 11 moved these settings out of package.json's "pnpm" field.
+# See https://pnpm.io/settings
+
+# Deliberate divergence from tomtom-maps-mcp, which leaves this at pnpm's default.
+# Don't re-verify (and silently re-install) dependencies before every `pnpm run`.
+# pnpm 11 defaults this to `install`, which made `RUN pnpm run build` in the Dockerfile
+# re-install on top of its `--ignore-scripts` install and fire the `prepare` script, so
+# the image built everything twice (measured on the arm64 layer: 600s against 250s).
+# maps-mcp avoids that by copying sources before installing, which costs it the Docker
+# layer cache on every source change; this keeps the cache and turns the check off.
+verifyDepsBeforeRun: false
+
+# Real directories in node_modules instead of pnpm's default symlinks into .pnpm.
+# This is about Windows path length, not the symlinks. The isolated layout inserts
+# `.pnpm/<pkg>@<ver>_<peers>/node_modules/<pkg>/` into every dependency path: measured on
+# this lockfile, the longest path relative to the repo root is 115 characters hoisted
+# against 190 isolated (using Windows' default virtualStoreDirMaxLength of 60). A plain
+# C:\Users\<first>.<last>\IdeaProjects\tomtom-traffic-analytics-mcp checkout is already 63
+# characters, so isolated leaves ~6 before the 260-character MAX_PATH — a OneDrive-redirected
+# Documents folder or a worktree subdirectory busts it. Node itself handles long paths since
+# 22.7 (nodejs/node#53294) and we require >=22.9, but git and tsc don't, and enabling long
+# paths on Windows needs an admin registry value plus a longPathAware manifest node.exe does
+# not ship (nodejs/node#40641) — not something a public repo can ask of contributors.
+# The cost is pnpm's strict isolation: an undeclared dependency resolves here but would break
+# in the published bundle. Nothing else measurable — same 321 MB and same install time either
+# way, because the store dedup comes from packageImportMethod, not from this setting.
+nodeLinker: hoisted
+
+# Packages allowed to run install/build scripts (pnpm blocks these by default).
+# esbuild, pulled in by vitest, has a postinstall that resolves its platform binary.
+# Nothing here actually needs it: current esbuild ships the binary as an
+# optionalDependency and works without the script — CI installs with --ignore-scripts and
+# the full test suite passes. This entry exists so a plain `pnpm install` does not print
+# the "ignored build scripts" warning and send contributors to `pnpm approve-builds`.
+allowBuilds:
+  esbuild: true
+
+# Dependency version pins (formerly the npm "overrides" field in package.json).
+overrides:
+  inflight: npm:lru-cache@^11.1.0
+  tmp: ^0.2.4

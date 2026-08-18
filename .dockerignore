@@ -1,0 +1,27 @@
+# The image installs its own dependencies before `COPY . .`; copying the host's
+# node_modules over them would clobber pnpm's symlinked store and defeat the
+# layer cache. Same for build output, which the image rebuilds from source.
+node_modules
+dist
+coverage
+
+.git
+.github
+.idea
+.vscode
+.claude
+
+# Secrets never belong in a build context
+.env
+.env.*
+!.env.example
+
+docs
+tests
+images
+*.md
+!README.md
+
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,15 @@
+# Normalise line endings on checkout, on every platform.
+#
+# biome.json pins `lineEnding: "lf"` (as .prettierrc pinned `endOfLine: "lf"` before it),
+# so a Windows checkout with core.autocrlf=true gets CRLF working files that `pnpm format`
+# then rejects on every file. CI never sees this because the runners check out LF.
+* text=auto eol=lf
+
+# Binary — never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mcpb binary
+*.node binary

@@ -31,12 +31,12 @@
  *   [toolName]       Run only tests for a specific tool
  */
 
-import dotenv from 'dotenv';
-import { Client as McpClient } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
-import { existsSync } from 'fs';
+import dotenv from "dotenv";
+import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+import { existsSync } from "fs";
 
 // Load environment variables
 dotenv.config();
@@ -45,10 +45,10 @@ dotenv.config();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const possibleServerPaths = [
-  resolve(__dirname, '..', 'bin', 'tomtom-traffic-analytics-mcp.js'),
-  resolve(__dirname, 'bin', 'tomtom-traffic-analytics-mcp.js'),
-  resolve(__dirname, '..', 'tomtom-traffic-analytics-mcp.js'),
-  resolve(__dirname, 'tomtom-traffic-analytics-mcp.js'),
+  resolve(__dirname, "..", "bin", "tomtom-traffic-analytics-mcp.js"),
+  resolve(__dirname, "bin", "tomtom-traffic-analytics-mcp.js"),
+  resolve(__dirname, "..", "tomtom-traffic-analytics-mcp.js"),
+  resolve(__dirname, "tomtom-traffic-analytics-mcp.js"),
 ];
 
 let serverPath = null;
@@ -60,17 +60,18 @@ for (const path of possibleServerPaths) {
 }
 
 if (!serverPath) {
-  console.error('Could not find TomTom Traffic Analytics MCP Server file!');
-  console.error('Searched in:');
-  possibleServerPaths.forEach(path => console.error(`  - ${path}`));
+  console.error("Could not find TomTom Traffic Analytics MCP Server file!");
+  console.error("Searched in:");
+  possibleServerPaths.forEach((path) => console.error(`  - ${path}`));
   process.exit(1);
 }
 
 // Configuration
-const TEST_TOOL = process.argv.find(a => !a.startsWith('--') && a !== process.argv[0] && a !== process.argv[1])?.toLowerCase();
-const VERBOSE = process.argv.includes('--verbose');
-const METRICS_ONLY = process.argv.includes('--metrics-only');
-
+const TEST_TOOL = process.argv
+  .find((a) => !a.startsWith("--") && a !== process.argv[0] && a !== process.argv[1])
+  ?.toLowerCase();
+const VERBOSE = process.argv.includes("--verbose");
+const METRICS_ONLY = process.argv.includes("--metrics-only");
 
 // ============================================================================
 // TOKEN METRICS — Measures the actual MCP listTools() response
@@ -80,10 +81,14 @@ function printToolMetrics(toolsResponse, instructions) {
   const tools = toolsResponse.tools;
   const fullResponseJson = JSON.stringify(toolsResponse);
 
-  console.log('\nTOOL TOKEN METRICS (from MCP listTools response)');
-  console.log('='.repeat(85));
-  console.log(` ${'Tool Name'.padEnd(38)}| ${'Desc'.padStart(6)} | ${'Schema'.padStart(6)} | ${'Wire'.padStart(7)} | ${'~Tokens'.padStart(7)} | ${'%'.padStart(4)}`);
-  console.log(`${'─'.repeat(39)}+${('─'.repeat(8))}+${('─'.repeat(8))}+${('─'.repeat(9))}+${('─'.repeat(9))}+${'─'.repeat(5)}`);
+  console.log("\nTOOL TOKEN METRICS (from MCP listTools response)");
+  console.log("=".repeat(85));
+  console.log(
+    ` ${"Tool Name".padEnd(38)}| ${"Desc".padStart(6)} | ${"Schema".padStart(6)} | ${"Wire".padStart(7)} | ${"~Tokens".padStart(7)} | ${"%".padStart(4)}`
+  );
+  console.log(
+    `${"─".repeat(39)}+${"─".repeat(8)}+${"─".repeat(8)}+${"─".repeat(9)}+${"─".repeat(9)}+${"─".repeat(5)}`
+  );
 
   let totalDesc = 0;
   let totalSchema = 0;
@@ -91,7 +96,7 @@ function printToolMetrics(toolsResponse, instructions) {
 
   const rows = [];
   for (const tool of tools) {
-    const descChars = (tool.description || '').length;
+    const descChars = (tool.description || "").length;
     const schemaChars = JSON.stringify(tool.inputSchema || {}).length;
     const wireChars = JSON.stringify(tool).length;
     const tokens = Math.ceil(wireChars / 4);
@@ -106,49 +111,57 @@ function printToolMetrics(toolsResponse, instructions) {
   for (const row of rows) {
     const pct = totalWire > 0 ? Math.round((row.wireChars / totalWire) * 100) : 0;
     console.log(
-      ` ${row.name.padEnd(38)}| ${fmt(row.descChars).padStart(6)} | ${fmt(row.schemaChars).padStart(6)} | ${fmt(row.wireChars).padStart(7)} | ${fmt(row.tokens).padStart(7)} | ${(pct + '%').padStart(4)}`
+      ` ${row.name.padEnd(38)}| ${fmt(row.descChars).padStart(6)} | ${fmt(row.schemaChars).padStart(6)} | ${fmt(row.wireChars).padStart(7)} | ${fmt(row.tokens).padStart(7)} | ${(pct + "%").padStart(4)}`
     );
   }
 
   const totalTokens = Math.ceil(totalWire / 4);
   const fullTokens = Math.ceil(fullResponseJson.length / 4);
 
-  console.log(`${'─'.repeat(39)}+${('─'.repeat(8))}+${('─'.repeat(8))}+${('─'.repeat(9))}+${('─'.repeat(9))}+${'─'.repeat(5)}`);
   console.log(
-    ` ${'TOTAL (' + tools.length + ' tools)'.padEnd(29)}| ${fmt(totalDesc).padStart(6)} | ${fmt(totalSchema).padStart(6)} | ${fmt(totalWire).padStart(7)} | ${fmt(totalTokens).padStart(7)} |`
+    `${"─".repeat(39)}+${"─".repeat(8)}+${"─".repeat(8)}+${"─".repeat(9)}+${"─".repeat(9)}+${"─".repeat(5)}`
   );
   console.log(
-    ` ${'Full listTools() response'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(fullResponseJson.length).padStart(7)} | ${fmt(fullTokens).padStart(7)} |`
+    ` ${"TOTAL (" + tools.length + " tools)".padEnd(29)}| ${fmt(totalDesc).padStart(6)} | ${fmt(totalSchema).padStart(6)} | ${fmt(totalWire).padStart(7)} | ${fmt(totalTokens).padStart(7)} |`
   );
-  console.log('='.repeat(85));
+  console.log(
+    ` ${"Full listTools() response".padEnd(38)}| ${"".padStart(6)} | ${"".padStart(6)} | ${fmt(fullResponseJson.length).padStart(7)} | ${fmt(fullTokens).padStart(7)} |`
+  );
+  console.log("=".repeat(85));
 
   // Bootstrap accounting: tool catalog + server-level `instructions` field.
   // Both load at session start, so they together determine the per-conversation baseline cost in the LLM client's system prompt.
-  const instrChars = (instructions || '').length;
+  const instrChars = (instructions || "").length;
   const instrTokens = Math.ceil(instrChars / 4);
   const bootstrapWire = fullResponseJson.length + instrChars;
   const bootstrapTokens = Math.ceil(bootstrapWire / 4);
 
-  console.log('\nBOOTSTRAP TOKEN METRICS (server instructions + tools loaded at session start)');
-  console.log('='.repeat(85));
-  console.log(` ${'Component'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${'Wire'.padStart(7)} | ${'~Tokens'.padStart(7)} |`);
-  console.log(`${'─'.repeat(39)}+${('─'.repeat(8))}+${('─'.repeat(8))}+${('─'.repeat(9))}+${('─'.repeat(9))}+${'─'.repeat(5)}`);
+  console.log("\nBOOTSTRAP TOKEN METRICS (server instructions + tools loaded at session start)");
+  console.log("=".repeat(85));
   console.log(
-    ` ${'Server instructions'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(instrChars).padStart(7)} | ${fmt(instrTokens).padStart(7)} |`
+    ` ${"Component".padEnd(38)}| ${"".padStart(6)} | ${"".padStart(6)} | ${"Wire".padStart(7)} | ${"~Tokens".padStart(7)} |`
   );
   console.log(
-    ` ${'tools/list response'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(fullResponseJson.length).padStart(7)} | ${fmt(fullTokens).padStart(7)} |`
+    `${"─".repeat(39)}+${"─".repeat(8)}+${"─".repeat(8)}+${"─".repeat(9)}+${"─".repeat(9)}+${"─".repeat(5)}`
   );
-  console.log(`${'─'.repeat(39)}+${('─'.repeat(8))}+${('─'.repeat(8))}+${('─'.repeat(9))}+${('─'.repeat(9))}+${'─'.repeat(5)}`);
   console.log(
-    ` ${'BOOTSTRAP TOTAL'.padEnd(38)}| ${''.padStart(6)} | ${''.padStart(6)} | ${fmt(bootstrapWire).padStart(7)} | ${fmt(bootstrapTokens).padStart(7)} |`
+    ` ${"Server instructions".padEnd(38)}| ${"".padStart(6)} | ${"".padStart(6)} | ${fmt(instrChars).padStart(7)} | ${fmt(instrTokens).padStart(7)} |`
   );
-  console.log('='.repeat(85));
+  console.log(
+    ` ${"tools/list response".padEnd(38)}| ${"".padStart(6)} | ${"".padStart(6)} | ${fmt(fullResponseJson.length).padStart(7)} | ${fmt(fullTokens).padStart(7)} |`
+  );
+  console.log(
+    `${"─".repeat(39)}+${"─".repeat(8)}+${"─".repeat(8)}+${"─".repeat(9)}+${"─".repeat(9)}+${"─".repeat(5)}`
+  );
+  console.log(
+    ` ${"BOOTSTRAP TOTAL".padEnd(38)}| ${"".padStart(6)} | ${"".padStart(6)} | ${fmt(bootstrapWire).padStart(7)} | ${fmt(bootstrapTokens).padStart(7)} |`
+  );
+  console.log("=".repeat(85));
   console.log(`\nApproximation: 1 token ~ 4 chars. Wire = JSON.stringify(tool) per tool.\n`);
 }
 
 function fmt(n) {
-  return n.toLocaleString('en-US');
+  return n.toLocaleString("en-US");
 }
 
 // ============================================================================
@@ -160,7 +173,7 @@ function fmt(n) {
  */
 function parseResponse(result) {
   if (!result.content || !result.content[0] || !result.content[0].text) {
-    throw new Error('Invalid response structure - missing content');
+    throw new Error("Invalid response structure - missing content");
   }
   return JSON.parse(result.content[0].text);
 }
@@ -177,72 +190,88 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
     if (data.error) return fail(`API error: ${data.error}`);
 
     // --- Metadata validation ---
-    if (!data.metadata) return fail('Missing metadata in response');
+    if (!data.metadata) return fail("Missing metadata in response");
     if (data.metadata.tool !== expectedToolName) {
       return fail(`metadata.tool = "${data.metadata.tool}", expected "${expectedToolName}"`);
     }
-    if (typeof data.metadata.queries_executed !== 'number' || data.metadata.queries_executed < 1) {
-      return fail(`metadata.queries_executed should be >= 1, got: ${data.metadata.queries_executed}`);
+    if (typeof data.metadata.queries_executed !== "number" || data.metadata.queries_executed < 1) {
+      return fail(
+        `metadata.queries_executed should be >= 1, got: ${data.metadata.queries_executed}`
+      );
     }
-    if (!data.metadata.raw_row_counts || typeof data.metadata.raw_row_counts !== 'object') {
-      return fail('metadata.raw_row_counts is missing or not an object');
+    if (!data.metadata.raw_row_counts || typeof data.metadata.raw_row_counts !== "object") {
+      return fail("metadata.raw_row_counts is missing or not an object");
     }
     if (data.metadata.parameters === undefined) {
-      return fail('metadata.parameters is missing');
+      return fail("metadata.parameters is missing");
     }
 
     // --- Aggregated data validation ---
-    if (!data.aggregated_data || typeof data.aggregated_data !== 'object') {
-      return fail('Missing or invalid aggregated_data');
+    if (!data.aggregated_data || typeof data.aggregated_data !== "object") {
+      return fail("Missing or invalid aggregated_data");
     }
 
     const queryNames = Object.keys(data.aggregated_data);
     if (queryNames.length === 0) {
-      return fail('aggregated_data has no query results');
+      return fail("aggregated_data has no query results");
     }
 
     // Validate each query result has { columns, rows, rowCount }
     const queryErrors = [];
     for (const name of queryNames) {
       const qr = data.aggregated_data[name];
-      if (!qr) { queryErrors.push(`${name}: null result`); continue; }
+      if (!qr) {
+        queryErrors.push(`${name}: null result`);
+        continue;
+      }
       if (!Array.isArray(qr.columns)) queryErrors.push(`${name}: missing columns array`);
       if (!Array.isArray(qr.rows)) queryErrors.push(`${name}: missing rows array`);
-      if (typeof qr.rowCount !== 'number') queryErrors.push(`${name}: missing rowCount`);
+      if (typeof qr.rowCount !== "number") queryErrors.push(`${name}: missing rowCount`);
 
       // Verify rows match rowCount
-      if (Array.isArray(qr.rows) && typeof qr.rowCount === 'number' && qr.rows.length !== qr.rowCount) {
+      if (
+        Array.isArray(qr.rows) &&
+        typeof qr.rowCount === "number" &&
+        qr.rows.length !== qr.rowCount
+      ) {
         queryErrors.push(`${name}: rows.length (${qr.rows.length}) != rowCount (${qr.rowCount})`);
       }
 
       // Verify each row has same length as columns
       if (Array.isArray(qr.columns) && Array.isArray(qr.rows) && qr.rows.length > 0) {
         const colLen = qr.columns.length;
-        for (let i = 0; i < Math.min(qr.rows.length, 3); i++) { // Check first 3 rows
+        for (let i = 0; i < Math.min(qr.rows.length, 3); i++) {
+          // Check first 3 rows
           if (qr.rows[i].length !== colLen) {
-            queryErrors.push(`${name}: row[${i}] has ${qr.rows[i].length} values, expected ${colLen} columns`);
+            queryErrors.push(
+              `${name}: row[${i}] has ${qr.rows[i].length} values, expected ${colLen} columns`
+            );
           }
         }
       }
     }
 
     if (queryErrors.length > 0) {
-      return fail(`Query result errors: ${queryErrors.join('; ')}`);
+      return fail(`Query result errors: ${queryErrors.join("; ")}`);
     }
 
     // --- Expected columns validation (if provided) ---
     if (options.expectedColumns) {
       for (const [queryName, expectedCols] of Object.entries(options.expectedColumns)) {
         const qr = data.aggregated_data[queryName];
-        if (!qr) { continue; }
+        if (!qr) {
+          continue;
+        }
         for (const col of expectedCols) {
           if (!qr.columns.includes(col)) {
-            queryErrors.push(`${queryName}: expected column "${col}" not found in [${qr.columns.join(', ')}]`);
+            queryErrors.push(
+              `${queryName}: expected column "${col}" not found in [${qr.columns.join(", ")}]`
+            );
           }
         }
       }
       if (queryErrors.length > 0) {
-        return fail(`Column validation: ${queryErrors.join('; ')}`);
+        return fail(`Column validation: ${queryErrors.join("; ")}`);
       }
     }
 
@@ -258,7 +287,9 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
 
     // Build summary
     const rowCounts = data.metadata.raw_row_counts;
-    const tables = Object.entries(rowCounts).map(([t, c]) => `${t}:${c}`).join(', ');
+    const tables = Object.entries(rowCounts)
+      .map(([t, c]) => `${t}:${c}`)
+      .join(", ");
     const warnings = data.metadata.warnings;
 
     let msg = `${data.metadata.queries_executed} queries, rows: {${tables}}`;
@@ -267,7 +298,9 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
     }
 
     // Append query result counts
-    const resultSummary = queryNames.map(n => `${n}:${data.aggregated_data[n]?.rowCount ?? 0}r`).join(', ');
+    const resultSummary = queryNames
+      .map((n) => `${n}:${data.aggregated_data[n]?.rowCount ?? 0}r`)
+      .join(", ");
     msg += ` | results: {${resultSummary}}`;
 
     return pass(msg);
@@ -276,8 +309,12 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
   }
 }
 
-function pass(message) { return { valid: true, message }; }
-function fail(message) { return { valid: false, message }; }
+function pass(message) {
+  return { valid: true, message };
+}
+function fail(message) {
+  return { valid: false, message };
+}
 
 // ============================================================================
 // TEST SCENARIOS — ordered by dependency
@@ -288,7 +325,7 @@ function getRecentDates() {
   to.setDate(to.getDate() - 1); // yesterday
   const from = new Date(to);
   from.setDate(from.getDate() - 1); // day before yesterday
-  const fmt = d => d.toISOString().split('T')[0];
+  const fmt = (d) => d.toISOString().split("T")[0];
   return { from: fmt(from), to: fmt(to) };
 }
 const recentDates = getRecentDates();
@@ -297,92 +334,95 @@ const recentDates = getRecentDates();
 // Phase 2: Dependent tools (use captured IDs from Phase 1)
 const TEST_EXECUTION_ORDER = [
   // Phase 1
-  'tomtom-junction-search',
-  'tomtom-route-search',
-  'tomtom-traffic-flow-segment',
-  'tomtom-traffic-incidents',
-  'tomtom-area-analytics-stats',
+  "tomtom-junction-search",
+  "tomtom-route-search",
+  "tomtom-traffic-flow-segment",
+  "tomtom-traffic-incidents",
+  "tomtom-area-analytics-stats",
   // Phase 2
-  'tomtom-junction-live-data',
-  'tomtom-junction-archive',
-  'tomtom-route-monitoring-details',
+  "tomtom-junction-live-data",
+  "tomtom-junction-archive",
+  "tomtom-route-monitoring-details",
 ];
 
 const COMPREHENSIVE_TEST_SCENARIOS = {
   "tomtom-junction-search": [
     {
-      name: 'Search junction definitions with SQL',
+      name: "Search junction definitions with SQL",
       params: {
         sql_queries: {
-          all_junctions: "SELECT junction_id, name, status FROM junctions LIMIT 5"
-        }
+          all_junctions: "SELECT junction_id, name, status FROM junctions LIMIT 5",
+        },
       },
-      captureId: 'junctionId',
+      captureId: "junctionId",
       validateOptions: {
-        expectedColumns: { all_junctions: ['junction_id', 'name', 'status'] },
-        expectNonEmpty: ['all_junctions'],
+        expectedColumns: { all_junctions: ["junction_id", "name", "status"] },
+        expectNonEmpty: ["all_junctions"],
       },
-    }
+    },
   ],
 
   "tomtom-route-search": [
     {
-      name: 'Search all monitored routes with SQL',
+      name: "Search all monitored routes with SQL",
       params: {
         sql_queries: {
-          all_routes: "SELECT route_id, route_name, route_status, delay_time FROM routes"
-        }
+          all_routes: "SELECT route_id, route_name, route_status, delay_time FROM routes",
+        },
       },
-      captureId: 'routeId',
+      captureId: "routeId",
       validateOptions: {
-        expectedColumns: { all_routes: ['route_id', 'route_name', 'route_status'] },
-        expectNonEmpty: ['all_routes'],
+        expectedColumns: { all_routes: ["route_id", "route_name", "route_status"] },
+        expectNonEmpty: ["all_routes"],
       },
-    }
+    },
   ],
 
   "tomtom-traffic-flow-segment": [
     {
-      name: 'Get traffic flow for Amsterdam point',
+      name: "Get traffic flow for Amsterdam point",
       params: {
-        point: { latitude: 52.3740, longitude: 4.8897 },
-        style: 'absolute',
+        point: { latitude: 52.374, longitude: 4.8897 },
+        style: "absolute",
         zoom: 12,
         sql_queries: {
-          segment_info: "SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment"
-        }
+          segment_info: "SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment",
+        },
       },
       validateOptions: {
-        expectedColumns: { segment_info: ['frc', 'current_speed', 'free_flow_speed', 'confidence'] },
-        expectNonEmpty: ['segment_info'],
+        expectedColumns: {
+          segment_info: ["frc", "current_speed", "free_flow_speed", "confidence"],
+        },
+        expectNonEmpty: ["segment_info"],
       },
-    }
+    },
   ],
 
   "tomtom-traffic-incidents": [
     {
-      name: 'Get traffic incidents in Amsterdam area',
+      name: "Get traffic incidents in Amsterdam area",
       params: {
-        bboxes: [{ name: 'Amsterdam', bbox: '4.85,52.35,4.95,52.40' }],
-        language: 'en-US',
+        bboxes: [{ name: "Amsterdam", bbox: "4.85,52.35,4.95,52.40" }],
+        language: "en-US",
         maxResults: 10,
         sql_queries: {
-          summary: "SELECT iconCategory, COUNT(*) as count FROM incidents GROUP BY iconCategory ORDER BY count DESC",
-          all_incidents: "SELECT id, iconCategory, delay FROM incidents LIMIT 5"
-        }
+          summary:
+            "SELECT iconCategory, COUNT(*) as count FROM incidents GROUP BY iconCategory ORDER BY count DESC",
+          all_incidents: "SELECT id, iconCategory, delay FROM incidents LIMIT 5",
+        },
       },
       validateOptions: {
         expectedColumns: {
-          summary: ['iconCategory', 'count'],
-          all_incidents: ['id', 'iconCategory', 'delay'],
+          summary: ["iconCategory", "count"],
+          all_incidents: ["id", "iconCategory", "delay"],
         },
       },
-    }
+    },
   ],
 
   "tomtom-area-analytics-stats": [
     {
-      name: 'Get area analytics stats for Amsterdam polygon',
+      name: "Get area analytics stats for Amsterdam polygon",
       params: {
         name: "Test Amsterdam Stats",
         startDate: "2024-08-01",
@@ -395,80 +435,93 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
             type: "Feature",
             geometry: {
               type: "Polygon",
-              coordinates: [[[4.896128, 52.382402], [4.875701, 52.368459], [4.923611, 52.36341], [4.896128, 52.382402]]]
+              coordinates: [
+                [
+                  [4.896128, 52.382402],
+                  [4.875701, 52.368459],
+                  [4.923611, 52.36341],
+                  [4.896128, 52.382402],
+                ],
+              ],
             },
             properties: {
               name: "Amsterdam",
-              timezone: "Europe/Amsterdam"
-            }
-          }
+              timezone: "Europe/Amsterdam",
+            },
+          },
         ],
         sql_queries: {
-          daily_trend: "SELECT time::DATE as day, ROUND(AVG(congestion_level), 2) as avg_congestion FROM timed_data WHERE aggregation_type = 'daily' GROUP BY day ORDER BY day"
-        }
+          daily_trend:
+            "SELECT time::DATE as day, ROUND(AVG(congestion_level), 2) as avg_congestion FROM timed_data WHERE aggregation_type = 'daily' GROUP BY day ORDER BY day",
+        },
       },
       validateOptions: {
-        expectedColumns: { daily_trend: ['day', 'avg_congestion'] },
-        expectNonEmpty: ['daily_trend'],
+        expectedColumns: { daily_trend: ["day", "avg_congestion"] },
+        expectNonEmpty: ["daily_trend"],
       },
-    }
+    },
   ],
 
   // Phase 2 — Dependent tools
 
   "tomtom-junction-live-data": [
     {
-      name: 'Get junction live data',
+      name: "Get junction live data",
       params: {
-        junctionIds: ['{{capturedJunctionId}}'],
+        junctionIds: ["{{capturedJunctionId}}"],
         includeGeometry: false,
         sql_queries: {
-          approach_summary: "SELECT approach_id, delay_sec, travel_time_sec, queue_length_meters FROM approaches ORDER BY delay_sec DESC"
-        }
+          approach_summary:
+            "SELECT approach_id, delay_sec, travel_time_sec, queue_length_meters FROM approaches ORDER BY delay_sec DESC",
+        },
       },
-      dependsOn: 'junctionId',
+      dependsOn: "junctionId",
       validateOptions: {
-        expectedColumns: { approach_summary: ['approach_id', 'delay_sec', 'travel_time_sec'] },
+        expectedColumns: { approach_summary: ["approach_id", "delay_sec", "travel_time_sec"] },
       },
-    }
+    },
   ],
 
   "tomtom-junction-archive": [
     {
-      name: 'Get junction archive data',
+      name: "Get junction archive data",
       params: {
-        junctionIds: ['{{capturedJunctionId}}'],
+        junctionIds: ["{{capturedJunctionId}}"],
         from: recentDates.from,
         to: recentDates.to,
         sql_queries: {
-          avg_delay: "SELECT approach_id, ROUND(AVG(delay_sec), 2) as avg_delay FROM approaches GROUP BY approach_id ORDER BY avg_delay DESC"
-        }
+          avg_delay:
+            "SELECT approach_id, ROUND(AVG(delay_sec), 2) as avg_delay FROM approaches GROUP BY approach_id ORDER BY avg_delay DESC",
+        },
       },
-      dependsOn: 'junctionId',
+      dependsOn: "junctionId",
       validateOptions: {
-        expectedColumns: { avg_delay: ['approach_id', 'avg_delay'] },
+        expectedColumns: { avg_delay: ["approach_id", "avg_delay"] },
       },
-    }
+    },
   ],
 
   "tomtom-route-monitoring-details": [
     {
-      name: 'Get detailed route analysis with SQL',
+      name: "Get detailed route analysis with SQL",
       params: {
-        routeIds: ['{{capturedRouteId}}'],
+        routeIds: ["{{capturedRouteId}}"],
         sql_queries: {
-          route_summary: "SELECT route_name, travel_time, delay_time, ROUND(route_confidence, 2) as confidence FROM route_info",
-          slow_segments: "SELECT segment_id, current_speed, typical_speed FROM segments WHERE current_speed < typical_speed * 0.7 ORDER BY current_speed LIMIT 10"
-        }
+          route_summary:
+            "SELECT route_name, travel_time, delay_time, ROUND(route_confidence, 2) as confidence FROM route_info",
+          slow_segments:
+            "SELECT segment_id, current_speed, typical_speed FROM segments WHERE current_speed < typical_speed * 0.7 ORDER BY current_speed LIMIT 10",
+        },
       },
-      dependsOn: 'routeId',
+      dependsOn: "routeId",
       validateOptions: {
-        expectedColumns: { route_summary: ['route_name', 'travel_time', 'delay_time', 'confidence'] },
-        expectNonEmpty: ['route_summary'],
+        expectedColumns: {
+          route_summary: ["route_name", "travel_time", "delay_time", "confidence"],
+        },
+        expectNonEmpty: ["route_summary"],
       },
-    }
+    },
   ],
-
 };
 
 // ============================================================================
@@ -477,45 +530,72 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
 
 const validators = {
   "tomtom-junction-search": (result, scenario, captured) => {
-    const validation = validateSqlFilteredResponse(result, 'tomtom-junction-search', scenario.validateOptions);
+    const validation = validateSqlFilteredResponse(
+      result,
+      "tomtom-junction-search",
+      scenario.validateOptions
+    );
     if (validation.valid) {
-      captureIdFromResult(result, 'junction_id', 'junctionId', captured);
+      captureIdFromResult(result, "junction_id", "junctionId", captured);
     }
     return validation;
   },
 
   "tomtom-route-search": (result, scenario, captured) => {
-    const validation = validateSqlFilteredResponse(result, 'tomtom-route-search', scenario.validateOptions);
+    const validation = validateSqlFilteredResponse(
+      result,
+      "tomtom-route-search",
+      scenario.validateOptions
+    );
     if (validation.valid) {
-      captureIdFromResult(result, 'route_id', 'routeId', captured);
+      captureIdFromResult(result, "route_id", "routeId", captured);
     }
     return validation;
   },
 
   "tomtom-traffic-flow-segment": (result, scenario) => {
-    return validateSqlFilteredResponse(result, 'tomtom-traffic-flow-segment', scenario.validateOptions);
+    return validateSqlFilteredResponse(
+      result,
+      "tomtom-traffic-flow-segment",
+      scenario.validateOptions
+    );
   },
 
   "tomtom-traffic-incidents": (result, scenario) => {
-    return validateSqlFilteredResponse(result, 'tomtom-traffic-incidents', scenario.validateOptions);
+    return validateSqlFilteredResponse(
+      result,
+      "tomtom-traffic-incidents",
+      scenario.validateOptions
+    );
   },
 
   "tomtom-area-analytics-stats": (result, scenario) => {
-    return validateSqlFilteredResponse(result, 'tomtom-area-analytics-stats', scenario.validateOptions);
+    return validateSqlFilteredResponse(
+      result,
+      "tomtom-area-analytics-stats",
+      scenario.validateOptions
+    );
   },
 
   "tomtom-junction-live-data": (result, scenario) => {
-    return validateSqlFilteredResponse(result, 'tomtom-junction-live-data', scenario.validateOptions);
+    return validateSqlFilteredResponse(
+      result,
+      "tomtom-junction-live-data",
+      scenario.validateOptions
+    );
   },
 
   "tomtom-junction-archive": (result, scenario) => {
-    return validateSqlFilteredResponse(result, 'tomtom-junction-archive', scenario.validateOptions);
+    return validateSqlFilteredResponse(result, "tomtom-junction-archive", scenario.validateOptions);
   },
 
   "tomtom-route-monitoring-details": (result, scenario) => {
-    return validateSqlFilteredResponse(result, 'tomtom-route-monitoring-details', scenario.validateOptions);
+    return validateSqlFilteredResponse(
+      result,
+      "tomtom-route-monitoring-details",
+      scenario.validateOptions
+    );
   },
-
 };
 
 /**
@@ -533,7 +613,9 @@ function captureIdFromResult(result, columnName, captureKey, captured) {
         }
       }
     }
-  } catch { /* ignore capture errors */ }
+  } catch {
+    /* ignore capture errors */
+  }
 }
 
 // ============================================================================
@@ -551,29 +633,29 @@ class TestResults {
   addResult(toolName, name, status, message, duration = null) {
     this.results.push({ toolName, name, status, message, duration });
 
-    const icon = status === 'PASS' ? '  PASS' : status === 'FAIL' ? '  FAIL' : '  SKIP';
-    const durStr = duration ? ` (${duration}ms)` : '';
+    const icon = status === "PASS" ? "  PASS" : status === "FAIL" ? "  FAIL" : "  SKIP";
+    const durStr = duration ? ` (${duration}ms)` : "";
     console.log(`${icon} ${name} - ${message}${durStr}`);
 
-    if (status === 'PASS') this.passed++;
-    else if (status === 'FAIL') this.failed++;
+    if (status === "PASS") this.passed++;
+    else if (status === "FAIL") this.failed++;
     else this.skipped++;
   }
 
   printSummary() {
-    console.log(`\n${'='.repeat(60)}`);
+    console.log(`\n${"=".repeat(60)}`);
     console.log(`TEST SUMMARY: ${this.passed + this.failed + this.skipped} tests`);
-    console.log(`${'='.repeat(60)}`);
+    console.log(`${"=".repeat(60)}`);
     console.log(`  Passed:  ${this.passed}`);
     console.log(`  Failed:  ${this.failed}`);
     console.log(`  Skipped: ${this.skipped}`);
-    console.log(`${'='.repeat(60)}`);
+    console.log(`${"=".repeat(60)}`);
 
     if (this.failed > 0) {
-      console.log('\nFailed tests:');
+      console.log("\nFailed tests:");
       this.results
-        .filter(r => r.status === 'FAIL')
-        .forEach(r => console.log(`  - ${r.toolName}: ${r.message}`));
+        .filter((r) => r.status === "FAIL")
+        .forEach((r) => console.log(`  - ${r.toolName}: ${r.message}`));
     }
   }
 }
@@ -586,26 +668,26 @@ async function main() {
   const startTime = Date.now();
 
   console.log(`Found server at: ${serverPath}`);
-  console.log('Starting MCP server and connecting...');
+  console.log("Starting MCP server and connecting...");
 
   const client = new McpClient({
     name: "tomtom-traffic-analytics-mcp-test",
-    version: "1.0.0"
+    version: "1.0.0",
   });
 
   const transport = new StdioClientTransport({
-    command: 'node',
+    command: "node",
     args: [serverPath],
-    env: { ...process.env }
+    env: { ...process.env },
   });
 
   await client.connect(transport);
-  console.log('Connected to MCP server\n');
+  console.log("Connected to MCP server\n");
 
   // Get available tools and print metrics
   const toolsResponse = await client.listTools();
-  const availableTools = toolsResponse.tools.map(t => t.name);
-  console.log(`Available tools (${availableTools.length}): ${availableTools.join(', ')}\n`);
+  const availableTools = toolsResponse.tools.map((t) => t.name);
+  console.log(`Available tools (${availableTools.length}): ${availableTools.join(", ")}\n`);
 
   // Always print token metrics — include the server `instructions` field so
   // the bootstrap-total line reflects the real per-conversation cost.
@@ -614,7 +696,7 @@ async function main() {
 
   // If --metrics-only, exit here
   if (METRICS_ONLY) {
-    console.log('--metrics-only mode: skipping tests');
+    console.log("--metrics-only mode: skipping tests");
     await client.close();
     process.exit(0);
   }
@@ -634,15 +716,15 @@ async function main() {
   for (const toolName of toolsToTest) {
     const scenarios = COMPREHENSIVE_TEST_SCENARIOS[toolName];
     if (!scenarios) {
-      results.addResult(toolName, 'setup', 'SKIP', `No test scenarios defined`);
+      results.addResult(toolName, "setup", "SKIP", `No test scenarios defined`);
       continue;
     }
 
     console.log(`\n${toolName.toUpperCase()}`);
-    console.log('-'.repeat(40));
+    console.log("-".repeat(40));
 
     if (!availableTools.includes(toolName)) {
-      results.addResult(toolName, 'availability', 'FAIL', `Tool not available on server`);
+      results.addResult(toolName, "availability", "FAIL", `Tool not available on server`);
       continue;
     }
 
@@ -651,7 +733,12 @@ async function main() {
       if (scenario.dependsOn) {
         const depValue = captured[scenario.dependsOn];
         if (!depValue) {
-          results.addResult(toolName, scenario.name, 'SKIP', `No ${scenario.dependsOn} captured from Phase 1`);
+          results.addResult(
+            toolName,
+            scenario.name,
+            "SKIP",
+            `No ${scenario.dependsOn} captured from Phase 1`
+          );
           continue;
         }
       }
@@ -669,7 +756,7 @@ async function main() {
 
         const result = await client.callTool({
           name: toolName,
-          arguments: testParams
+          arguments: testParams,
         });
 
         const duration = Date.now() - t0;
@@ -681,20 +768,34 @@ async function main() {
               const parsed = JSON.parse(text);
               console.log(`    Response: ${JSON.stringify(parsed, null, 2).substring(0, 500)}...`);
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
 
         // Validate
         const validator = validators[toolName];
         if (validator) {
           const validation = validator(result, scenario, captured);
-          results.addResult(toolName, scenario.name, validation.valid ? 'PASS' : 'FAIL', validation.message, duration);
+          results.addResult(
+            toolName,
+            scenario.name,
+            validation.valid ? "PASS" : "FAIL",
+            validation.message,
+            duration
+          );
         } else {
-          results.addResult(toolName, scenario.name, 'PASS', 'No validator (response received)', duration);
+          results.addResult(
+            toolName,
+            scenario.name,
+            "PASS",
+            "No validator (response received)",
+            duration
+          );
         }
       } catch (error) {
         const duration = Date.now() - t0;
-        results.addResult(toolName, scenario.name, 'FAIL', `Error: ${error.message}`, duration);
+        results.addResult(toolName, scenario.name, "FAIL", `Error: ${error.message}`, duration);
       }
     }
   }
@@ -719,17 +820,32 @@ async function main() {
 function substituteParams(params, captured) {
   const json = JSON.stringify(params);
   const substituted = json
-    .replace(/"\{\{capturedJunctionId\}\}"/g, captured.junctionId ? `"${captured.junctionId}"` : '"MISSING_JUNCTION_ID"')
-    .replace(/"\{\{capturedRouteId\}\}"/g, captured.routeId ? `"${captured.routeId}"` : '"MISSING_ROUTE_ID"')
-    .replace(/"\{\{capturedSegmentId\}\}"/g, captured.segmentId ? `"${captured.segmentId}"` : '"MISSING_SEGMENT_ID"');
+    .replace(
+      /"\{\{capturedJunctionId\}\}"/g,
+      captured.junctionId ? `"${captured.junctionId}"` : '"MISSING_JUNCTION_ID"'
+    )
+    .replace(
+      /"\{\{capturedRouteId\}\}"/g,
+      captured.routeId ? `"${captured.routeId}"` : '"MISSING_ROUTE_ID"'
+    )
+    .replace(
+      /"\{\{capturedSegmentId\}\}"/g,
+      captured.segmentId ? `"${captured.segmentId}"` : '"MISSING_SEGMENT_ID"'
+    );
   return JSON.parse(substituted);
 }
 
 // Handle signals
-process.on('SIGINT', () => { console.log('\nInterrupted'); process.exit(1); });
-process.on('SIGTERM', () => { console.log('\nTerminated'); process.exit(1); });
+process.on("SIGINT", () => {
+  console.log("\nInterrupted");
+  process.exit(1);
+});
+process.on("SIGTERM", () => {
+  console.log("\nTerminated");
+  process.exit(1);
+});
 
-main().catch(err => {
+main().catch((err) => {
   console.error(`Unhandled error: ${err.message}`);
   if (VERBOSE) console.error(err.stack);
   process.exit(1);

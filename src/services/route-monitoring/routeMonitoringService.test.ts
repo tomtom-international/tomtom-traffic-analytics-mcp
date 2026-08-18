@@ -90,6 +90,10 @@ describe("Route Monitoring Service", () => {
           routeConfidence: 82,
           detailedSegments: [
             {
+              // Verbatim API fixture. The id is exactly representable as a double
+              // (Number(x) === x) but exceeds MAX_SAFE_INTEGER, so it prints back as
+              // 1186178914586853400 — which is why the API also sends segmentIdStr.
+              // biome-ignore lint/correctness/noPrecisionLoss: exact double; segmentIdStr is authoritative
               segmentId: 1186178914586853376,
               segmentIdStr: "1186178914586853376",
               averageSpeed: 55,

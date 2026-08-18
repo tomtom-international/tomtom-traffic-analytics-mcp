@@ -4,7 +4,7 @@
 		{
 			"label": "MCP TomTom: Start Development Server",
 			"type": "shell",
-			"command": "npm",
+			"command": "pnpm",
 			"args": ["run", "dev"],
 			"group": {
 				"kind": "build",
@@ -33,7 +33,7 @@
 		{
 			"label": "MCP TomTom: Build",
 			"type": "shell",
-			"command": "npm",
+			"command": "pnpm",
 			"args": ["run", "build"],
 			"group": "build",
 			"presentation": {
@@ -46,7 +46,7 @@
 		{
 			"label": "MCP TomTom: Run Setup Script",
 			"type": "shell",
-			"command": "npm",
+			"command": "pnpm",
 			"args": ["run", "setup"],
 			"group": "none",
 			"presentation": {
@@ -59,7 +59,7 @@
 		{
 			"label": "MCP TomTom: Start JavaScript Server",
 			"type": "shell",
-			"command": "npm",
+			"command": "pnpm",
 			"args": ["run", "dev:js"],
 			"group": "test",
 			"presentation": {

@@ -54,11 +54,13 @@ npx @tomtom-org/tomtom-traffic-analytics-mcp
 
 ### Install from source
 
+> This project uses [pnpm](https://pnpm.io) (`>=11`) as its package manager. Install it with `npm install -g pnpm` or `corepack enable`. Linting and formatting are handled by [Biome](https://biomejs.dev).
+
 ```bash
 git clone https://github.com/tomtom-international/tomtom-traffic-analytics-mcp.git
 cd tomtom-traffic-analytics-mcp
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ### Configuration
@@ -194,13 +196,14 @@ src/
 ### Commands
 
 ```bash
-npm run build          # Build TypeScript
-npm test               # Run unit tests
-npm run test:all       # Run all tests (requires API key)
-npm run lint           # Lint code
+pnpm run build         # Build TypeScript
+pnpm test              # Run unit tests
+pnpm run test:all      # Run all tests (requires API key)
+pnpm lint              # Lint code (Biome)
+pnpm format:fix        # Format code (Biome)
 ```
 
-> Unit tests run without API keys. Integration tests (`npm run test:all`) require valid API keys in `.env`.
+> Unit tests run without API keys. Integration tests (`pnpm run test:all`) require valid API keys in `.env`.
 
 ---
 
@@ -219,5 +222,5 @@ This project is licensed under the Apache License 2.0 — see the [LICENSE](LICE
 | Issue | Solution |
 |-------|----------|
 | API key not found | Verify `.env` file exists with required keys |
-| Build errors | Run `npm run build` and check TypeScript errors |
+| Build errors | Run `pnpm run build` and check TypeScript errors |
 | Test failures | Ensure valid API key and check API quota |

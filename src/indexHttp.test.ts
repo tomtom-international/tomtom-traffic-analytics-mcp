@@ -131,8 +131,9 @@ describe("indexHttp", () => {
 
     it("returns 401 when no keys available at all", async () => {
       // Override mock to return no effective keys
-      const { getEffectiveMovePortalKey, getEffectiveApiKey } =
-        await import("./services/base/tomtomClient");
+      const { getEffectiveMovePortalKey, getEffectiveApiKey } = await import(
+        "./services/base/tomtomClient"
+      );
       vi.mocked(getEffectiveMovePortalKey).mockReturnValueOnce(undefined);
       vi.mocked(getEffectiveApiKey).mockReturnValueOnce(undefined);
 
