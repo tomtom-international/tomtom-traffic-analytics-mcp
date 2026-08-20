@@ -45,7 +45,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     Booleans are 0/1 numbers (1 = true). FRC scale (Functional Road Class — lower number = more major road): 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor.
 
     **Compact view (default) — dataset: junctions**
-    Fields: junction_id, name, status (ACTIVE/PENDING_UPDATE/ERROR), geom (GeoJSON Point or Polygon — the junction's location, read directly by turf), country_code (ISO 3166-1 alpha-3, e.g. ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1), num_approaches, num_exits, created_at, last_modified_at, time_zone
+    Fields: junction_id, name, status (ACTIVE/PENDING_UPDATE/ERROR), geom (GeoJSON Point OR Polygon — pass through turf.centroid(j.geom) for distance/nearest work, since turf.distance needs a point), country_code (ISO 3166-1 alpha-3, e.g. ESP/DEU/USA), drive_on_left (0/1), traffic_lights (0/1), num_approaches, num_exits, created_at, last_modified_at, time_zone
 
     **Full view (view="full") — adds datasets: approaches, exits**
     - approaches: junction_id, approach_id, name, road_name, direction (NORTH/SOUTH/EAST/WEST), geom (GeoJSON MultiLineString of the road segments), frc (numeric 0-7), length, one_way_road (0/1), excluded (0/1), drivable (0/1)
@@ -56,7 +56,7 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     - Active junctions: junctions.filter(j => j.status === 'ACTIVE').map(j => ({ id: j.junction_id, name: j.name, country: j.country_code }))
     - Count by country: Object.entries(Object.groupBy(junctions, j => j.country_code)).map(([country, rows]) => ({ country, count: rows.length })).sort((a, b) => b.count - a.count)
     - Find by road (full view): approaches.filter(a => a.road_name?.toLowerCase().includes('main')).map(a => ({ junction: a.junction_id, road: a.road_name }))
-    - Nearest to a point: [...junctions].sort((a, b) => turf.distance(a.geom, [4.9, 52.37]) - turf.distance(b.geom, [4.9, 52.37])).slice(0, 3).map(j => ({ id: j.junction_id, name: j.name, km: +turf.distance(j.geom, [4.9, 52.37]).toFixed(2) }))`,
+    - Nearest to a point: [...junctions].map(j => ({ id: j.junction_id, name: j.name, km: +turf.distance(turf.centroid(j.geom), [4.9, 52.37]).toFixed(2) })).sort((a, b) => a.km - b.km).slice(0, 3)`,
       inputSchema: junctionSearchSchema,
     },
     getJunctionSearchHandler()

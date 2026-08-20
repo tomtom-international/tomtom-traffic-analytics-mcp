@@ -204,6 +204,114 @@ describe("Area Analytics Schema Validation", () => {
       expect(result.success).toBe(true);
     });
 
+    it("accepts a position carrying elevation, which GeoJSON permits", () => {
+      const schema = z.object(areaAnalyticsStatsSchema);
+      // Previously rejected by an exact-length-2 rule, which turned conformant
+      // GeoJSON into a validation failure.
+      const withElevation = {
+        ...validStatsData,
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [4.85, 52.35, 0],
+                  [4.95, 52.35, 0],
+                  [4.95, 52.4, 0],
+                  [4.85, 52.35, 0],
+                ],
+              ],
+            },
+          },
+        ],
+      };
+      expect(schema.safeParse(withElevation).success).toBe(true);
+    });
+
+    it("names the problem when a polygon ring is not closed", () => {
+      const schema = z.object(areaAnalyticsStatsSchema);
+      const unclosed = {
+        ...validStatsData,
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [4.85, 52.35],
+                  [4.95, 52.35],
+                  [4.95, 52.4],
+                  [4.86, 52.36],
+                ],
+              ],
+            },
+          },
+        ],
+      };
+      const result = schema.safeParse(unclosed);
+      expect(result.success).toBe(false);
+      // The message has to say how to fix it: a caller that only learns
+      // "Invalid input at features" cannot correct itself.
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message).join(" ")).toContain("not closed");
+      }
+    });
+
+    it("names the problem when coordinates are nested one level too shallow", () => {
+      const schema = z.object(areaAnalyticsStatsSchema);
+      const shallow = {
+        ...validStatsData,
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              // A single ring where an array of rings belongs — the likeliest
+              // mistake, and the one a bare union error described worst.
+              coordinates: [
+                [4.85, 52.35],
+                [4.95, 52.35],
+                [4.95, 52.4],
+                [4.85, 52.35],
+              ],
+            },
+          },
+        ],
+      };
+      const result = schema.safeParse(shallow);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message).join(" ")).toContain(
+          "at least 4 positions"
+        );
+      }
+    });
+
+    it("reports an unsupported geometry type by name", () => {
+      const schema = z.object(areaAnalyticsStatsSchema);
+      const lineString = {
+        ...validStatsData,
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [[4.85, 52.35]] },
+          },
+        ],
+      };
+      const result = schema.safeParse(lineString);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message).join(" ")).toMatch(/Polygon/);
+      }
+    });
+
     it("should reject name exceeding max length", () => {
       const schema = z.object(areaAnalyticsStatsSchema);
       const invalidData = {
