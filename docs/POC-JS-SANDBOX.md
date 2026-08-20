@@ -231,9 +231,16 @@ of JSON per result.
 - **No accuracy evaluation.** The open question is whether an LLM writes correct JS against
   these datasets as reliably as it writes SQL. That needs a query-level eval over real
   tasks, and it is the thing that should decide this, not the packaging win.
-- **No persistent session.** Every request still builds and tears down its own engine. The
-  16.6 ms follow-up against 487 ms of setup suggests this is where the next win is, and it
-  is orthogonal to the language choice.
+- **Persistent sessions are opt-in, and worth less than the follow-up number suggests.**
+  `TOMTOM_MCP_SANDBOX_REUSE=1` pools loaded sandboxes, keyed by the caller's credentials and a
+  content hash of the data, which takes a repeated junction-archive query from 75 ms to 18 ms.
+  It stays off by default for two reasons. The pool is keyed by the *data*, so the TomTom call
+  still happens every time — against a ~1150 ms archive request, 58 ms is about 5%, and the
+  real benefit is server CPU under concurrency rather than latency. And a reused sandbox is a
+  weaker guarantee than a fresh one: globals a query created are deleted before pooling, but
+  mutation of the guest's own built-ins is not undone, for the next caller holding the same
+  credentials and the same bytes. Skipping the *fetch* is where the remaining latency is, and
+  that is a staleness decision about traffic data rather than a tuning one.
 
 ## Trying it
 
