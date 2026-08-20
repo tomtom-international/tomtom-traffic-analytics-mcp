@@ -128,6 +128,10 @@ export class JsQueryEngine {
   private context: QuickJSContext | null = null;
   private shapes: Record<string, DatasetShape> = {};
   private datasetNames: string[] = [];
+  /** Flattened rows held host-side until a query proves it needs them. */
+  private datasets: Record<string, Record<string, unknown>[]> = {};
+  /** Datasets actually marshalled into the sandbox so far. */
+  private injected = new Set<string>();
   private librariesLoaded = new Set<string>();
 
   /**
@@ -159,8 +163,13 @@ export class JsQueryEngine {
       logger.debug(`Loaded dataset ${name} with ${rows.length} rows`);
     }
     this.datasetNames = Object.keys(datasets);
+    this.datasets = datasets;
 
-    this.injectDatasets(datasets);
+    // Nothing is marshalled yet. Marshalling is the dominant cost of a
+    // sandboxed query and most requests touch a fraction of what was fetched
+    // (a junction archive is three quarters turn_ratios, which a delay query
+    // never reads), so it is deferred until the query text says what it needs.
+    this.prepareDatasetObject();
 
     if (totalRows > JS_QUERY_DEFAULTS.MAX_ROWS_SOFT_LIMIT) {
       const warning = `Large dataset warning: ${totalRows} total rows exceeds soft limit of ${JS_QUERY_DEFAULTS.MAX_ROWS_SOFT_LIMIT}. Query performance may be affected.`;
@@ -172,11 +181,59 @@ export class JsQueryEngine {
   }
 
   /**
-   * Serialise the datasets once and parse them inside the sandbox.
+   * Create the empty dataset object, and guard every name that is not loaded.
    *
-   * Marshalling is the dominant cost of a sandboxed query (a single ~14 MB
-   * payload takes roughly 400ms), so it happens exactly once per engine and
-   * every query then runs against the already-parsed object graph.
+   * The guard is the important half. Without it an un-marshalled dataset would
+   * read as `undefined`, and `undefined.filter(...)` is the silent-wrong
+   * failure this engine is already criticised for. A throwing getter converts
+   * any access the source-scan failed to predict into a loud, explicable error.
+   */
+  private prepareDatasetObject(): void {
+    const guards = this.datasetNames
+      .map((name) => {
+        const message = JSON.stringify(
+          `dataset '${name}' was not loaded because no query mentioned it by name. ` +
+            `Reference it directly (e.g. ${name}.length) rather than through a computed key.`
+        );
+        return `Object.defineProperty(globalThis.__datasets, ${JSON.stringify(name)}, {
+  configurable: true,
+  get: function () { throw new ReferenceError(${message}); }
+});`;
+      })
+      .join("\n");
+
+    this.evalOrThrow(`globalThis.__datasets = {};\n${guards}`, "dataset scaffold");
+  }
+
+  /**
+   * Marshal the datasets these queries need, if they are not already in.
+   *
+   * A dataset is needed when its name appears as an identifier in the query
+   * source. Over-inclusion is harmless — a name inside a comment or string
+   * costs only the transfer — whereas under-inclusion would hide data, so
+   * anything ambiguous resolves to loading it. A query that touches `data`
+   * itself may index it any way it likes, so that loads everything.
+   */
+  private ensureDatasets(sources: string): void {
+    const wantsEverything = /\bdata\b/.test(sources);
+    const needed = this.datasetNames.filter(
+      (name) =>
+        !this.injected.has(name) &&
+        (wantsEverything || new RegExp(`\\b${escapeForRegExp(name)}\\b`).test(sources))
+    );
+    if (needed.length === 0) return;
+
+    const subset: Record<string, Record<string, unknown>[]> = {};
+    for (const name of needed) subset[name] = this.datasets[name];
+    this.injectDatasets(subset);
+  }
+
+  /**
+   * Serialise the given datasets and parse them inside the sandbox.
+   *
+   * Marshalling dominates the cost of a sandboxed query — the guest-side
+   * JSON.parse alone is roughly two thirds of it — so each dataset crosses the
+   * boundary at most once and every later query runs against the parsed graph.
    */
   private injectDatasets(datasets: Record<string, Record<string, unknown>[]>): void {
     const context = this.requireContext();
@@ -190,14 +247,24 @@ export class JsQueryEngine {
       handle.dispose();
     }
 
+    // `delete` first: the name currently holds the throwing guard, and a plain
+    // assignment would run its setter-less getter and fail.
     this.evalOrThrow(
-      "globalThis.__datasets = JSON.parse(globalThis.__datasets_json);" +
-        "delete globalThis.__datasets_json;",
+      `(function () {
+  var incoming = JSON.parse(globalThis.__datasets_json);
+  for (var key in incoming) {
+    delete globalThis.__datasets[key];
+    globalThis.__datasets[key] = incoming[key];
+  }
+  delete globalThis.__datasets_json;
+})();`,
       "dataset injection"
     );
 
+    for (const name of Object.keys(datasets)) this.injected.add(name);
+
     logger.debug(
-      `Marshalled ${(json.length / 1024).toFixed(0)} KB into the sandbox in ${Date.now() - startTime}ms`
+      `Marshalled ${Object.keys(datasets).join(", ")} — ${(json.length / 1024).toFixed(0)} KB into the sandbox in ${Date.now() - startTime}ms`
     );
   }
 
@@ -226,6 +293,7 @@ export class JsQueryEngine {
     queries: Record<string, string>
   ): Promise<Record<string, JsQueryExecutionResult>> {
     const sources = Object.values(queries).join("\n");
+    this.ensureDatasets(sources);
     if (/\bturf\s*\./.test(sources)) this.loadLibrary("turf");
     if (/\bh3\s*\./.test(sources)) this.loadLibrary("h3");
 
@@ -292,7 +360,8 @@ export class JsQueryEngine {
   private compileQuery(source: string): void {
     const context = this.requireContext();
 
-    const asExpression = context.evalCode(buildWrapper(source, this.datasetNames, "expression"));
+    const bindable = this.datasetNames.filter((name) => this.injected.has(name));
+    const asExpression = context.evalCode(buildWrapper(source, bindable, "expression"));
     if (!asExpression.error) {
       asExpression.value.dispose();
       return;
@@ -300,7 +369,7 @@ export class JsQueryEngine {
     const expressionError = describeError(context, asExpression.error);
     asExpression.error.dispose();
 
-    const asStatements = context.evalCode(buildWrapper(source, this.datasetNames, "statements"));
+    const asStatements = context.evalCode(buildWrapper(source, bindable, "statements"));
     if (!asStatements.error) {
       asStatements.value.dispose();
       return;
@@ -326,6 +395,7 @@ export class JsQueryEngine {
    * Tear down the sandbox. Always call this when done to free the WASM heap.
    */
   close(): void {
+    this.datasets = {};
     if (this.context) {
       this.context.dispose();
       this.context = null;
@@ -401,6 +471,15 @@ export function buildWrapper(
 const data = __datasets;
 ${destructure}${body}
 };`;
+}
+
+/**
+ * Escape a dataset name for use in a RegExp. Flattener names are plain
+ * identifiers today, but a name is data and must not be able to smuggle
+ * pattern syntax into the scan.
+ */
+function escapeForRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Turn a sandbox error handle into a single-line message for the caller. */

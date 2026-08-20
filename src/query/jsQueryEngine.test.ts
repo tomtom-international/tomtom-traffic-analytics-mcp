@@ -41,6 +41,83 @@ describe("JsQueryEngine", () => {
 
   afterAll(() => engine.close());
 
+  it("loads only the datasets a query names, and still reports every shape", async () => {
+    // A fresh engine, because the shared one has already loaded both datasets.
+    const e = new JsQueryEngine();
+    await e.initialize(DATA);
+    try {
+      const results = await e.executeQueries({ q: "approaches.length" });
+      expect(value(results.q)).toBe(3);
+      // Shapes are computed host-side, so an unloaded dataset is still described
+      // — that is what lets a model correct a field name without re-fetching.
+      expect(Object.keys(e.getDatasetShapes()).sort()).toEqual(["approaches", "turn_ratios"]);
+    } finally {
+      e.close();
+    }
+  });
+
+  it("loads a dataset named only by a later batch of queries", async () => {
+    const e = new JsQueryEngine();
+    await e.initialize(DATA);
+    try {
+      expect(value((await e.executeQueries({ a: "approaches.length" })).a)).toBe(3);
+      // turn_ratios was skipped by the first batch; the second must still see it.
+      expect(value((await e.executeQueries({ b: "turn_ratios.length" })).b)).toBe(1);
+    } finally {
+      e.close();
+    }
+  });
+
+  it("throws rather than returning undefined for a dataset no query named", async () => {
+    const e = new JsQueryEngine();
+    await e.initialize(DATA);
+    try {
+      // Reaching a dataset through a computed key defeats the source scan. The
+      // guard must make that loud: `undefined.length` would be silent-wrong.
+      const results = await e.executeQueries({
+        sneaky: "const k = 'turn_' + 'ratios'; return globalThis.__datasets[k].length;",
+      });
+      expect(isQueryError(results.sneaky)).toBe(true);
+      expect((results.sneaky as { error: string }).error).toContain("was not loaded");
+      expect((results.sneaky as { error: string }).error).toContain("turn_ratios");
+    } finally {
+      e.close();
+    }
+  });
+
+  it("loads everything when a query uses `data` programmatically", async () => {
+    const e = new JsQueryEngine();
+    await e.initialize(DATA);
+    try {
+      const results = await e.executeQueries({
+        keys: "Object.keys(data).sort()",
+        dynamic: "data['turn_' + 'ratios'].length",
+      });
+      expect(value(results.keys)).toEqual(["approaches", "turn_ratios"]);
+      expect(value(results.dynamic)).toBe(1);
+    } finally {
+      e.close();
+    }
+  });
+
+  it("does not confuse a dataset name with a longer identifier containing it", async () => {
+    const data: FlattenResult = {
+      tables: new Map<string, Record<string, unknown>[]>([
+        ["data_rows", [{ n: 1 }]],
+        ["rows", [{ n: 2 }]],
+      ]),
+    };
+    const e = new JsQueryEngine();
+    await e.initialize(data);
+    try {
+      // "data_rows" contains "rows", but \b must not match inside an identifier.
+      const results = await e.executeQueries({ q: "data_rows.length" });
+      expect(value(results.q)).toBe(1);
+    } finally {
+      e.close();
+    }
+  });
+
   it("evaluates a bare expression", async () => {
     const results = await engine.executeQueries({ q: "approaches.length" });
     expect(value(results.q)).toBe(3);
