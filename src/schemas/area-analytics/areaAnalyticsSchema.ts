@@ -63,7 +63,7 @@ const geoJSONFeatureSchema = z.object({
         .string()
         .optional()
         .describe(
-          "Optional IANA timezone for the region (e.g., 'Europe/Amsterdam'). If set, the API applies a stricter endDate constraint — endDate must be at least ONE FULL DAY older than the latest available day (i.e., effectively ≥ 3 days before today). For the widest date coverage leave this unset so the API uses UTC."
+          "Optional IANA timezone for the region (e.g., 'Europe/Amsterdam'). Setting it costs a day of date coverage; leave unset for UTC and the widest window."
         ),
     })
     .optional(),
@@ -77,7 +77,7 @@ const jsQueriesSchema = z
       'At least one JavaScript query is required. Provide queries like: {"daily_avg": "rows.filter(r => ...)"}',
   })
   .describe(
-    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Stats schema (lite version with restrictions)
@@ -85,7 +85,10 @@ export const areaAnalyticsStatsSchema = {
   name: z.string().min(1).max(250),
   startDate: dateSchema,
   endDate: dateSchema.describe(
-    "End date (must be within 31 days of startDate). Data has a 24–48h processing delay, so endDate must be ≥ 2 days before today in UTC. If `properties.timezone` is set on the feature, the API requires an EXTRA day of margin — endDate must be ≥ 3 days before today. To avoid 400 errors, leave the feature timezone unset (UTC default) for the broadest coverage."
+    // The processing-delay rule is enforced in the handler, which clamps the
+    // window and reports it in metadata.warnings, so it no longer needs
+    // explaining here — it did not work as prose.
+    "End date, within 31 days of startDate. Clamped automatically if it falls inside the 24–48h processing delay."
   ),
   hours: z.array(hourSchema).min(1).max(24),
   frcs: z.array(frcSchema).min(1).max(9),

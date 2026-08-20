@@ -27,10 +27,6 @@ export function createAreaAnalyticsTools(server: McpServer): void {
     {
       description: `Retrieve historical traffic patterns (speed, free-flow speed, congestion, travel time) for one GeoJSON polygon over up to a 31-day window. NOT real-time — data has a 24–48h processing delay. timed_data = time-series across the polygon (trends over hours/days/months); tiled_data = spatial grid cells within the polygon (hotspot locations). Use for trend analysis, peak vs off-peak comparison, and hotspot detection.
 
-    **Date constraint (avoids the most common 400 error):**
-    - Without a feature timezone (UTC default): endDate must be ≥ 2 days before today.
-    - WITH \`properties.timezone\` set on the feature (e.g. "Europe/Amsterdam"): the API applies a stricter rule — endDate must be ≥ 3 days before today. For the broadest coverage, leave the feature timezone UNSET and let the API default to UTC.
-
     REQUIRES js_queries — e.g. {"daily_avg": "timed_data.filter(r => r.aggregation_type === 'daily').map(r => ({ day: r.time, congestion: r.congestion_level }))"}.
 
     **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.

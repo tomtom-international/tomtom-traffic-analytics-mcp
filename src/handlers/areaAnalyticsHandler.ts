@@ -16,6 +16,7 @@
 
 import { logger } from "../utils/logger";
 import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsService";
+import { clampEndDate } from "../services/area-analytics/dateWindow";
 import { AreaAnalyticsStatsRequest } from "../services/area-analytics/types";
 import { JsQueryEngine, flattenAreaAnalyticsResults, JsFilteredResponse } from "../query";
 
@@ -45,6 +46,15 @@ export function getAreaAnalyticsStatsHandler() {
       };
     }
 
+    // Keep the request inside the window the API can answer for. The rule was
+    // documented twice and still produced 400s, so it is enforced rather than
+    // explained; the caller is told through metadata.warnings.
+    const { endDate, warning: dateWarning } = clampEndDate(request.endDate, request.features);
+    if (dateWarning) {
+      logger.warn(`Area Analytics endDate clamped: ${dateWarning}`);
+      request.endDate = endDate;
+    }
+
     const queryEngine = new JsQueryEngine();
 
     try {
@@ -57,6 +67,7 @@ export function getAreaAnalyticsStatsHandler() {
 
       // 3. Load the flattened data into the sandbox
       const warnings = await queryEngine.initialize(flattenedData);
+      if (dateWarning) warnings.unshift(dateWarning);
 
       // 4. Execute JS queries
       const queryResults = await queryEngine.executeQueries(js_queries);
