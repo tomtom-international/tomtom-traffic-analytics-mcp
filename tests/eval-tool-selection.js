@@ -130,6 +130,17 @@ const MAX_STEPS = 5;
  * routing on their own. It is told to be decisive, because a model that always
  * asks a clarifying question would score zero without being wrong.
  */
+/**
+ * Prepended with the server's own `instructions`, which is what a real MCP
+ * client does. Without it the model never sees anything the server states once
+ * globally rather than per tool — so a description trimmed in favour of the
+ * instructions field would look like a regression that no real client would
+ * experience.
+ */
+function systemPromptFor(serverInstructions) {
+  return serverInstructions ? `${serverInstructions}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
+}
+
 const SYSTEM_PROMPT = [
   "You are a traffic analyst assistant with access to TomTom traffic tools.",
   "Answer the user's question by calling the tools available to you.",
@@ -531,7 +542,7 @@ async function runCase(evalCase, ctx, model) {
   const agent = new ToolLoopAgent({
     model,
     tools,
-    instructions: SYSTEM_PROMPT,
+    instructions: systemPromptFor(ctx.serverInstructions),
     stopWhen: [stepCountIs(MAX_STEPS)],
   });
 
@@ -965,13 +976,16 @@ async function connectToServer() {
   const { tools: mcpTools } = await mcpClient.listTools();
   const meta = engineLabel(mcpTools);
 
-  console.log(`Server advertises ${mcpTools.length} tools; engine: ${meta.engine}`);
+  const instructionTokens = Math.round((mcpClient.getInstructions() ?? "").length / 4);
+  console.log(
+    `Server advertises ${mcpTools.length} tools; engine: ${meta.engine}; instructions ~${instructionTokens}t (forwarded to the model)`
+  );
   const missingQueryParam = mcpTools.filter((t) => !queryParamName(t)).map((t) => t.name);
   if (missingQueryParam.length > 0) {
     console.log(`  note: no query parameter found on ${missingQueryParam.join(", ")}`);
   }
 
-  return { mcpClient, mcpTools, meta };
+  return { mcpClient, mcpTools, meta, serverInstructions: mcpClient.getInstructions() ?? "" };
 }
 
 /**
@@ -1047,7 +1061,7 @@ async function main() {
     console.log("\n--dry-run: connecting to the server to validate schemas, no API calls\n");
   }
 
-  const { mcpClient, mcpTools, meta } = await connectToServer();
+  const { mcpClient, mcpTools, meta, serverInstructions } = await connectToServer();
 
   const unknown = unknownToolsIn(selected, mcpTools);
   if (unknown.length > 0) {
@@ -1078,7 +1092,7 @@ async function main() {
     process.exit(1);
   }
 
-  const ctx = { mcpClient, mcpTools, queryParam: meta.param };
+  const ctx = { mcpClient, mcpTools, queryParam: meta.param, serverInstructions };
 
   // Every deployment runs the whole set. A prompt that routes correctly on one
   // model but not another is a real weakness in the descriptions, so the run
