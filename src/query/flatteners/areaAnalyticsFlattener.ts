@@ -43,6 +43,14 @@ interface TiledDataRow {
   region_name: string | null;
   lat: number;
   lon: number;
+  /**
+   * The tile centre as a GeoJSON Point, alongside the raw lat/lon.
+   *
+   * Both are kept on purpose: turf wants [lon, lat] and h3 wants (lat, lng), so
+   * offering `geom` for turf and the scalars for h3 removes the coordinate-order
+   * trap from the common cases rather than documenting it.
+   */
+  geom: { type: "Point"; coordinates: [number, number] };
   speed: number | null;
   free_flow_speed: number | null;
   congestion_level: number | null;
@@ -119,6 +127,7 @@ export function flattenAreaAnalyticsResults(response: AreaAnalyticsReportResults
           region_name: regionName,
           lat: tile.lat,
           lon: tile.lon,
+          geom: { type: "Point" as const, coordinates: [tile.lon, tile.lat] as [number, number] },
           speed: tile.v ?? null,
           free_flow_speed: tile.fv ?? null,
           congestion_level: tile.c ?? null,

@@ -29,6 +29,13 @@ interface JunctionRow {
   junction_id: string;
   name: string | null;
   status: string | null;
+  /**
+   * The junction's own GeoJSON geometry, straight from the API — a Point or a
+   * Polygon. Live GeoJSON rather than lat/lon columns so turf reads it directly:
+   * `turf.distance(j.geom, [4.9, 52.37])` needs no coordinate assembly, and no
+   * chance to swap the pair.
+   */
+  geom: unknown;
   country_code: string | null;
   drive_on_left: number | null; // 0 or 1
   traffic_lights: number | null; // 0 or 1
@@ -48,6 +55,8 @@ interface ApproachRow {
   name: string | null;
   road_name: string | null;
   direction: string | null;
+  /** MultiLineString of the approach's road segments. Full view only. */
+  geom: unknown;
   frc: number | null;
   length: number | null;
   one_way_road: number | null; // 0 or 1
@@ -64,6 +73,8 @@ interface ExitRow {
   name: string | null;
   road_name: string | null;
   direction: string | null;
+  /** MultiLineString of the exit's road segments. Full view only. */
+  geom: unknown;
   frc: number | null;
   one_way_road: number | null; // 0 or 1
   drivable: number | null; // 0 or 1
@@ -90,6 +101,7 @@ export function flattenJunctionDefinitions(
     junction_id: j.id,
     name: j.name ?? null,
     status: j.status ?? null,
+    geom: j.rawJunction?.geometry ?? null,
     country_code: j.junctionModel?.countryCode ?? null,
     drive_on_left:
       j.junctionModel?.driveOnLeft !== undefined ? (j.junctionModel.driveOnLeft ? 1 : 0) : null,
@@ -117,6 +129,7 @@ export function flattenJunctionDefinitions(
             name: a.name ?? null,
             road_name: a.roadName ?? null,
             direction: a.direction ?? null,
+            geom: a.segmentedGeometry ?? null,
             frc: a.frc ?? null,
             length: a.length ?? null,
             one_way_road: a.oneWayRoad !== undefined ? (a.oneWayRoad ? 1 : 0) : null,
@@ -131,6 +144,7 @@ export function flattenJunctionDefinitions(
             name: e.name ?? null,
             road_name: e.roadName ?? null,
             direction: e.direction ?? null,
+            geom: e.segmentedGeometry ?? null,
             frc: e.frc ?? null,
             one_way_road: e.oneWayRoad !== undefined ? (e.oneWayRoad ? 1 : 0) : null,
             drivable: e.drivable !== undefined ? (e.drivable ? 1 : 0) : null,
