@@ -35,9 +35,9 @@ export function createRouteMonitoringTools(server: McpServer): void {
 
     Fetches all routes with current traffic data and loads them into the sandbox.
 
-    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"delayed": "routes.filter(r => r.delay_time > 60)"}.
+    REQUIRES js_queries — e.g. {"delayed": "routes.filter(r => r.delay_time > 60)"}.
 
-    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+    **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
     Booleans are 0/1 numbers (passable=1 means the route is passable).
 
@@ -67,9 +67,9 @@ export function createRouteMonitoringTools(server: McpServer): void {
     {
       description: `Get detailed segment-level traffic analysis for routes. Use tomtom-route-search first to find route IDs. Returns a route-info summary plus one row per road segment with current vs typical speed, confidence, and OpenLR references.
 
-    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"slow_segments": "segments.filter(s => s.relative_speed < 80)"}.
+    REQUIRES js_queries — e.g. {"slow_segments": "segments.filter(s => s.relative_speed < 80)"}.
 
-    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+    **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
     Booleans are 0/1 numbers.
 

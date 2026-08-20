@@ -31,9 +31,9 @@ export function createAreaAnalyticsTools(server: McpServer): void {
     - Without a feature timezone (UTC default): endDate must be ≥ 2 days before today.
     - WITH \`properties.timezone\` set on the feature (e.g. "Europe/Amsterdam"): the API applies a stricter rule — endDate must be ≥ 3 days before today. For the broadest coverage, leave the feature timezone UNSET and let the API default to UTC.
 
-    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"daily_avg": "timed_data.filter(r => r.aggregation_type === 'daily').map(r => ({ day: r.time, congestion: r.congestion_level }))"}.
+    REQUIRES js_queries — e.g. {"daily_avg": "timed_data.filter(r => r.aggregation_type === 'daily').map(r => ({ day: r.time, congestion: r.congestion_level }))"}.
 
-    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+    **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
     **Available datasets:**
     - timed_data: region_name, timezone, level, aggregation_type ('all'|'yearly'|'monthly'|'daily'|'hourly'), time, speed, free_flow_speed, congestion_level (0-100; 0=free flow, 100=standstill), travel_time, network_length

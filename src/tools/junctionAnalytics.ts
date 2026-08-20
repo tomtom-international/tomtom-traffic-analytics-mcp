@@ -38,9 +38,9 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
 
     Fetches ALL junctions (auto-paginating) and loads them into the sandbox.
 
-    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"active": "junctions.filter(j => j.status === 'ACTIVE').map(j => ({ id: j.junction_id, name: j.name }))"}.
+    REQUIRES js_queries — e.g. {"active": "junctions.filter(j => j.status === 'ACTIVE').map(j => ({ id: j.junction_id, name: j.name }))"}.
 
-    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+    **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
     Booleans are 0/1 numbers (1 = true). FRC scale (Functional Road Class — lower number = more major road): 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor.
 
@@ -67,9 +67,9 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     {
       description: `Real-time traffic snapshot for one or more junctions. Returns a single live reading per junction covering approach delays, queue lengths, turn ratios, and stops histogram. Use tomtom-junction-search first to discover junction IDs.
 
-    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"delays": "[...approaches].sort((a, b) => b.delay_sec - a.delay_sec)"}.
+    REQUIRES js_queries — e.g. {"delays": "[...approaches].sort((a, b) => b.delay_sec - a.delay_sec)"}.
 
-    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+    **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
     Booleans are 0/1 numbers (is_closed=1 means the approach is closed). FRC scale: 0=Motorway, 1=Major, 2=OtherMajor, 3=Secondary, 4=LocalConnecting, 5=LocalHigh, 6=Local, 7=LocalMinor.
 
@@ -103,9 +103,9 @@ export function createJunctionAnalyticsTools(server: McpServer): void {
     {
       description: `Download minute-by-minute historical traffic data for junctions over a specified date range (maximum 2 days). Use tomtom-junction-search first to find junction IDs. Use for peak-hour analysis, before/after comparisons, and intra-day pattern detection.
 
-    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"hourly_avg": "Object.entries(Object.groupBy(approaches, a => new Date(a.time).getUTCHours())).map(([hour, rows]) => ({ hour: +hour, avg: rows.reduce((s, r) => s + r.delay_sec, 0) / rows.length }))"}.
+    REQUIRES js_queries — e.g. {"hourly_avg": "Object.entries(Object.groupBy(approaches, a => new Date(a.time).getUTCHours())).map(([hour, rows]) => ({ hour: +hour, avg: rows.reduce((s, r) => s + r.delay_sec, 0) / rows.length }))"}.
 
-    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+    **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
     Booleans are 0/1 numbers (is_closed=1 means the approach is closed). \`time\` is an ISO 8601 string — use \`new Date(r.time)\` for hour/day bucketing.
 

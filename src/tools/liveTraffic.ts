@@ -33,9 +33,9 @@ export function createLiveTrafficTools(server: McpServer): void {
     {
       description: `Get real-time traffic flow information for the road segment closest to given coordinates. Returns one segment per call: current and free-flow speed, current and free-flow travel time, confidence, and road-closure flag.
 
-REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"segment_info": "flow_segment.map(s => ({ frc: s.frc, speed: s.current_speed }))"}.
+REQUIRES js_queries — e.g. {"segment_info": "flow_segment.map(s => ({ frc: s.frc, speed: s.current_speed }))"}.
 
-**Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+**Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
 **Available dataset: flow_segment** (exactly one row)
 Fields: frc (FRC0-FRC6), current_speed, free_flow_speed, current_travel_time, free_flow_travel_time, confidence (0-1, 1=highest quality), road_closure (0/1), openlr, geom (GeoJSON LineString object — pass straight to turf)
@@ -58,9 +58,9 @@ FRC0=Motorway, FRC1=Major, FRC2=OtherMajor, FRC3=Secondary, FRC4=LocalConnecting
     {
       description: `Query live traffic incidents (accidents, jams, closures, roadworks) within one or more named bounding boxes. Returns each active incident in the requested areas with category, delay, magnitude, geometry, and report metadata.
 
-    REQUIRES js_queries parameter: an object mapping named keys to JavaScript — e.g. {"accidents": "incidents.filter(i => i.iconCategory === 'Accident')"}.
+    REQUIRES js_queries — e.g. {"accidents": "incidents.filter(i => i.iconCategory === 'Accident')"}.
 
-    **Runtime: sandboxed JavaScript.** Each query is a single expression, or statements ending in \`return\`. Datasets are plain arrays of objects, bound as locals (also on \`data\`). 5s timeout, 10,000-row and 1 MB result caps. No I/O, no imports. \`Object.groupBy(rows, r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected automatically when your code references them.
+    **Runtime:** sandboxed JavaScript — see the server instructions for the query contract.
 
     **Available dataset: incidents**
     Fields: area_name (set per bounding box, for cross-area queries), id, iconCategory, magnitudeOfDelay, startTime, endTime, from, to, length, delay, roadNumbers (array of strings), timeValidity, probabilityOfOccurrence, numberOfReports, lastReportTime, events (array of {description, code, iconCategory}), geometry_type, geom (GeoJSON object — pass straight to turf)
