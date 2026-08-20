@@ -81,6 +81,13 @@ matters:
   WASM boundary rather than to query execution. A persistent session would make every query
   after the first roughly free — the same argument applies to DuckDB, but the gap is much
   larger for the sandbox.
+- **Since measured, and since reduced.** Staging the transfer shows the cost is almost
+  entirely the guest: on the 19.5 MB payload, host `JSON.stringify` is 37 ms, the copy into
+  WASM 293 ms, and the guest-side `JSON.parse` 707 ms. Sending less is therefore the only
+  lever that matters, and the engine now marshals only the datasets a query names — measured
+  on live data, `tomtom-junction-archive` fell from 11,006 KB / 224 ms to 3,723 KB / 74 ms
+  (3.0x), because two thirds of that payload is `turn_ratios` that a delay query never reads.
+  The figures in the table above predate that change and are the pessimistic case.
 - **This synthetic payload is close to worst case.** Its full-precision random doubles
   inflate the JSON well beyond real API data. Measured against live responses: 5 KB → 1 ms,
   48 KB → 2 ms, 283 KB → 5 ms, and the largest real payload (junction archive, 56,353 rows,
