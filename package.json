@@ -30,6 +30,7 @@
     "test:ui": "vitest --ui",
     "test:comprehensive": "node tests/test-comprehensive.js",
     "test:http": "node tests/test-http-tools.js",
+    "eval:tools": "node tests/eval-tool-selection.js",
     "test:all": "pnpm run test && pnpm run test:comprehensive && pnpm run test:http",
     "type-check": "tsc --noEmit",
     "lint": "biome lint .",
@@ -60,6 +61,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2",
+    "@anthropic-ai/sdk": "^0.117.1",
     "@biomejs/biome": "^2.5.8",
     "@turf/turf": "^7.4.0",
     "@types/cors": "^2.8.19",
