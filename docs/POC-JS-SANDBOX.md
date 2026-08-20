@@ -1,8 +1,9 @@
 # POC: replacing the SQL engine with a sandboxed JavaScript one
 
 **Branch:** `poc/js-sandbox-query` (based on `chore/deps-rolldown-ts6`)
-**Status:** complete and working — 268 unit tests pass, the server starts and registers all
-8 tools, `pnpm run build` produces a self-contained bundle.
+**Status:** complete and working — 268 unit tests pass, 6 of the 8 tools are verified against
+the live APIs (the remaining two need an API key this environment does not have), `pnpm run
+build` produces a self-contained bundle, and the MCPB bundle builds and verifies end to end.
 
 Every analytical tool used to take a `sql_queries` parameter and run it through an
 in-memory DuckDB instance. It now takes `js_queries`: caller-supplied JavaScript evaluated
@@ -37,16 +38,23 @@ All figures measured on this machine (darwin-arm64), not estimated.
 
 | | DuckDB | QuickJS |
 |---|---|---|
-| Engine dependency on disk | 112 MB (`@duckdb/node-bindings-darwin-arm64`) | 3.0 MB (`@jitl/quickjs-singlefile-cjs-release-sync`) |
+| Engine dependency on disk | 114 MB (`@duckdb/*`, 112 MB of it the darwin-arm64 binding) | 3.1 MB (`@jitl/quickjs-*`) |
+| `node_modules` total | 346 MB | 259 MB |
 | Native module | yes, one per platform | none |
 | Runtime download on first use | 58 MB spatial extension, from the internet, into `~/.duckdb` | none |
 | Bundled into `dist/` | no — external, loaded from `node_modules` | yes — WASM, turf and h3 all inlined |
-| `dist/index.esm.js` | — | 3.1 MB, self-contained |
+| `dist/index.esm.js` | 1.27 MB + an external native `require` | 3.14 MB, self-contained |
+| `.mcpb` bundle (darwin-arm64) | 76.5 MB | 42.8 MB |
 
 `build-mcpb.cjs` no longer needs a native runner to resolve a per-platform binding, and
 its `assertDuckDbBindingStaged` check is gone. `verify-mcpb.cjs` now instantiates the
 sandbox instead of probing the binding. The bundle is still per-platform, but for one
 reason only: the Node runtime it embeds.
+
+The 33.7 MB the bundle loses (−44%) is the staged native binding, net of the ~1.9 MB of WASM,
+turf and h3 now inlined into `dist/`. The 58 MB spatial extension is a separate saving, and a
+larger one in practice: `main` loads that extension on *every* `initialize()` — cached here,
+but cold it is an internet download inside a request.
 
 ### Runtime — 57,600 rows (2 days × 20 junctions of archive data), three equivalent queries
 
@@ -98,6 +106,36 @@ costs more than `GROUP BY`. The one tool that got *cheaper* is `tomtom-traffic-i
 (1,232 → 1,106), because `events` and `geom` no longer need `json_extract_string` and
 `ST_GeomFromGeoJSON` explained. Every tool still fits the under-1,000-token budget except
 `tomtom-area-analytics-stats` (1,531), which was already over it at 1,385.
+
+### End-to-end verification — real APIs and the MCPB bundle
+
+Both were listed as not done in the first draft of this document. Both have since been run.
+
+`pnpm run test:comprehensive` against the live TomTom APIs, with the same `.env` keys used to
+run `origin/main` in a parallel worktree:
+
+| Tool | SQL (`main`) | JS (this branch) |
+|---|---|---|
+| `tomtom-junction-search` | PASS `junctions:2` | PASS `junctions:2` |
+| `tomtom-route-search` | PASS `routes:1` | PASS `routes:1` |
+| `tomtom-area-analytics-stats` | PASS `timed_data:51, tiled_data:242` | PASS (same) |
+| `tomtom-junction-live-data` | PASS `approaches:5, turn_ratios:15, stops_histogram:15` | PASS (same) |
+| `tomtom-junction-archive` | PASS `approaches:14400, turn_ratios:41953` | PASS (same) |
+| `tomtom-route-monitoring-details` | PASS `route_info:1, segments:1056` | PASS (same) |
+| `tomtom-traffic-flow-segment` | FAIL — HTTP 403 | FAIL — HTTP 403 |
+| `tomtom-traffic-incidents` | FAIL — HTTP 403 | FAIL — HTTP 403 |
+
+6 of 8 on both engines, and every flattener that ran produced identical row counts on both.
+The two failures are the two tools backed by the public Traffic API (`TOMTOM_API_KEY`), and
+they fail the same way on `main`: the key available here lacks permission for those endpoints.
+Not a regression on this branch, and not something this branch can fix.
+
+`pnpm run test:http` exercises the HTTP transport with per-request API keys: 9 of 11, the same
+two 403s.
+
+`pnpm run build:mcpb` and `pnpm run verify:mcpb` both succeed. Verification unpacks the
+bundle, confirms the launcher and embedded Node runtime are executable, evaluates JavaScript
+in the sandbox, and completes an MCP handshake listing all 8 tools.
 
 ---
 
@@ -179,10 +217,10 @@ of JSON per result.
 
 ## Not done
 
-- **No real-API run.** `pnpm run test:comprehensive` and `test:http` were both updated for
-  the new envelope, but need `TOMTOM_MOVE_PORTAL_KEY` / `TOMTOM_API_KEY` to execute. Only
-  the `--metrics-only` path was exercised here.
-- **No MCPB bundle built or verified.** The scripts were updated, not run.
+- **Two tools never exercised against a real response.** `tomtom-traffic-flow-segment` and
+  `tomtom-traffic-incidents` need a `TOMTOM_API_KEY` carrying public Traffic API permissions;
+  the key available here returns 403 for both, on this branch and on `main` alike. Their
+  flatteners have unit coverage, but no live payload has been through them.
 - **No accuracy evaluation.** The open question is whether an LLM writes correct JS against
   these datasets as reliably as it writes SQL. That needs a query-level eval over real
   tasks, and it is the thing that should decide this, not the packaging win.
@@ -198,4 +236,8 @@ pnpm install
 pnpm test                 # 268 tests, including 16 sandbox-isolation tests
 pnpm run build            # one self-contained 3.1 MB bundle, no native module
 node tests/test-comprehensive.js --metrics-only
+
+pnpm run test:comprehensive                  # needs .env keys; 6/8 without Traffic API access
+pnpm run test:http                           # HTTP transport, per-request keys; 9/11
+pnpm run build:mcpb && pnpm run verify:mcpb  # 42.8 MB bundle, verified end to end
 ```
