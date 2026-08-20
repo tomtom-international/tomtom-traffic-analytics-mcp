@@ -42,29 +42,38 @@
  * them suspicious for the JS one, where an unknown field yields `undefined`
  * rather than an error.
  *
- * Requires ANTHROPIC_API_KEY (or an `ant auth login` profile). TomTom keys are
- * needed only for stage 2 — without them, selection is still measured and the
- * query verdicts are reported as `api_error`.
+ * Models come from the agent-toolkit's Azure setup — see ./eval-model.js — so
+ * this eval and the map-agent scenario suites read the same AZURE_* environment
+ * and exercise the same deployments. Every case runs against EVERY configured
+ * deployment and only passes when all of them route correctly, so a prompt that
+ * happens to work on one model cannot hide a regression on another.
+ *
+ * Requires AZURE_API_KEY and AZURE_RESOURCE_NAME. TomTom keys are needed only
+ * for stage 2 — without them, selection is still measured and the query verdicts
+ * are reported as `api_error`.
  *
  * Usage:
  *   node tests/eval-tool-selection.js [--dry-run] [--verbose] [--case=<id>]
- *                                     [--model=<id>] [--runs=<n>] [--no-execute]
+ *                                     [--models=<a,b>] [--runs=<n>] [--no-execute]
  *
  * Flags:
- *   --dry-run      Validate cases and tool-schema conversion, print the matrix,
- *                  make no API calls at all. Needs no keys.
- *   --case=<id>    Run a single case by id (repeatable, comma-separated).
- *   --model=<id>   Model under evaluation. Default claude-opus-5.
- *   --runs=<n>     Repeat every case n times (default 1). Tool choice is not
- *                  deterministic; >1 turns a pass/fail into a rate.
- *   --no-execute   Stage 1 only. Tools are advertised but never really called,
- *                  so no TomTom quota is spent and no query is ever executed.
- *   --verbose      Print each turn, the arguments, and the query source.
+ *   --dry-run       Validate cases and tool-schema conversion, print the matrix,
+ *                   make no model calls at all. Needs no keys.
+ *   --case=<id>     Run a single case by id (repeatable, comma-separated).
+ *   --models=<a,b>  Deployment ids to evaluate, overriding AZURE_MODEL_IDS /
+ *                   AZURE_DEPLOYMENT_ID.
+ *   --runs=<n>      Repeat every case n times (default 1). Tool choice is not
+ *                   deterministic; >1 turns a pass/fail into a rate.
+ *   --no-execute    Stage 1 only. Tools are advertised but never really called,
+ *                   so no TomTom quota is spent and no query is ever executed.
+ *   --verbose       Print each step, the arguments, and the query source.
  */
 
 import dotenv from "dotenv";
+import { jsonSchema, stepCountIs, tool, ToolLoopAgent } from "ai";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { resolveAzureModels, resolveDeploymentIds } from "./eval-model.js";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
@@ -101,15 +110,19 @@ const value = (name, fallback) => {
 const DRY_RUN = flag("dry-run");
 const VERBOSE = flag("verbose");
 const NO_EXECUTE = flag("no-execute");
-const MODEL = value("model", "claude-opus-5");
+const MODELS_OVERRIDE = value("models", null);
 const RUNS = Number.parseInt(value("runs", "1"), 10);
 const ONLY_CASES = value("case", null)
   ?.split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 
-/** Hard ceiling on tool calls per case, so a confused model cannot loop forever. */
-const MAX_TURNS = 5;
+/**
+ * Hard ceiling on steps per case, so a confused model cannot loop forever.
+ * Matches the agent-toolkit's `maxSteps: 10` order of magnitude but stays
+ * tighter: these prompts need at most a discovery call plus an analysis call.
+ */
+const MAX_STEPS = 5;
 
 /**
  * The evaluator is told nothing about the tools beyond what the server
@@ -138,12 +151,17 @@ const SYSTEM_PROMPT = [
  * `expectFirst` is what makes the ordering guidance testable — the junction and
  * route tools all say some variant of "use the search tool first to discover
  * IDs", and nothing until now checked that the instruction lands.
+ *
+ * Prompts naming a junction use "Nassauplein", which is really in the account's
+ * catalogue. An invented name measures nothing: the model searches, finds no
+ * match, and correctly stops, which scores as a routing MISS while the routing
+ * was in fact right. Keep these names in step with the catalogue.
  */
 const CASES = [
   // --- live vs archive: the pair most likely to be confused -----------------
   {
     id: "live-now",
-    prompt: "What is the delay on each approach at our Amsterdam Zuid junction right now?",
+    prompt: "What is the delay on each approach at our Nassauplein junction right now?",
     expectFirst: ["tomtom-junction-search"],
     expect: ["tomtom-junction-live-data"],
     rejects: ["tomtom-junction-archive"],
@@ -152,7 +170,7 @@ const CASES = [
   {
     id: "archive-yesterday",
     prompt:
-      "Compare yesterday's morning peak against the afternoon peak at our Amsterdam Zuid junction.",
+      "Compare yesterday's morning peak against the afternoon peak at our Nassauplein junction.",
     expectFirst: ["tomtom-junction-search"],
     expect: ["tomtom-junction-archive"],
     rejects: ["tomtom-junction-live-data"],
@@ -238,7 +256,7 @@ const CASES = [
   {
     id: "turn-ratios",
     prompt:
-      "What proportion of traffic turns left versus continues straight at our Amsterdam Zuid junction right now?",
+      "What proportion of traffic turns left versus continues straight at our Nassauplein junction right now?",
     expectFirst: ["tomtom-junction-search"],
     expect: ["tomtom-junction-live-data"],
     why: "turn ratios live on the junction tools; 'right now' makes it the live one",
@@ -279,27 +297,80 @@ const CASES = [
 // ============================================================================
 
 /**
- * MCP advertises `inputSchema`; the Messages API wants `input_schema`. Nothing
- * else is touched — the descriptions and schemas reach the model exactly as the
- * server emits them, because those are the thing under test.
+ * Wraps the server's MCP tools as AI SDK tools.
  *
- * `cache_control` on the final tool caches the whole tool prefix. The tool list
- * is identical across every case and turn, so this is the difference between
- * paying for ~8k tokens of schema once per run and paying for it on every turn.
+ * The descriptions and schemas reach the model exactly as the server emits them
+ * — they are the thing under test, so nothing here rewrites or summarises them.
+ * `jsonSchema()` passes the MCP JSON Schema straight through rather than
+ * round-tripping it through Zod, which would risk changing what the model sees.
+ *
+ * `execute` is where stage 2 happens: the AI SDK drives the tool loop, and each
+ * call is really performed against the MCP server, classified, and recorded via
+ * `onCall` before the result goes back to the model.
  */
-function toAnthropicTools(mcpTools) {
-  const tools = mcpTools.map((t) => ({
-    name: t.name,
-    description: t.description ?? "",
-    input_schema: t.inputSchema,
-  }));
-  if (tools.length > 0) {
-    tools[tools.length - 1] = {
-      ...tools[tools.length - 1],
-      cache_control: { type: "ephemeral" },
-    };
+function toAiSdkTools(mcpTools, hooks) {
+  const tools = {};
+  for (const mcpTool of mcpTools) {
+    tools[mcpTool.name] = tool({
+      description: mcpTool.description ?? "",
+      inputSchema: jsonSchema(mcpTool.inputSchema ?? { type: "object", properties: {} }),
+      execute: (input) => runMcpTool(mcpTool, input, hooks),
+    });
   }
   return tools;
+}
+
+/**
+ * Performs one tool call, records the stage-2 verdict, and returns the text the
+ * model sees. Kept separate from the wrapper so the verdict logic is readable
+ * and the closure stays a one-liner.
+ */
+async function runMcpTool(mcpTool, input, { mcpClient, queryParam, onCall }) {
+  const record = {
+    name: mcpTool.name,
+    input,
+    querySource: extractQuerySource(input, queryParam),
+  };
+
+  if (NO_EXECUTE) {
+    record.verdict = "not_executed";
+    record.detail = "--no-execute";
+    onCall(record);
+    return "Execution is disabled for this evaluation run. Assume the call succeeded and finish your answer.";
+  }
+
+  const { text, isError } = await callMcpTool(mcpClient, mcpTool.name, input);
+  const { verdict, detail } = isError
+    ? { verdict: "api_error", detail: firstLine(text) }
+    : classifyToolResult(text);
+  record.verdict = verdict;
+  record.detail = detail;
+  onCall(record);
+
+  if (VERBOSE) {
+    console.log(`      ${mcpTool.name} -> ${verdict}: ${detail}`);
+    for (const [qName, src] of Object.entries(record.querySource ?? {})) {
+      console.log(`        ${qName}: ${String(src).replace(/\s+/g, " ").slice(0, 200)}`);
+    }
+  }
+
+  // Truncated so one archive response cannot fill the context window. The
+  // verdict above is computed from the full text, never from this copy.
+  return text.slice(0, 8000) || "(empty response)";
+}
+
+/** Calls a tool over MCP, turning a thrown transport error into the same shape. */
+async function callMcpTool(mcpClient, name, args) {
+  try {
+    const res = await mcpClient.callTool({ name, arguments: args });
+    const text = (res.content ?? [])
+      .filter((c) => c.type === "text")
+      .map((c) => c.text)
+      .join("\n");
+    return { text, isError: Boolean(res.isError) };
+  } catch (err) {
+    return { text: err instanceof Error ? err.message : String(err), isError: true };
+  }
 }
 
 /**
@@ -401,148 +472,39 @@ function firstLine(text) {
 // ============================================================================
 
 /**
- * Executes one `tool_use` block and returns both the record used for scoring and
- * the `tool_result` block to hand back to the model.
+ * Runs one case against one model: hand the agent the real tool set and the
+ * prompt, let the AI SDK drive the tool loop, and collect what it called.
  *
- * The two are deliberately produced together: the verdict is computed from the
- * full response text, while the copy sent back to the model is truncated, so
- * scoring never depends on how much context the model was given.
+ * Tool calls are gathered by the `onCall` hook rather than read back off
+ * `result.steps`, because the hook fires in execution order and already carries
+ * the stage-2 verdict computed from the untruncated response.
  */
-async function executeToolUse(use, ctx, turn) {
-  const { mcpClient, toolsByName } = ctx;
-  const record = {
-    name: use.name,
-    input: use.input,
-    turn,
-    querySource: extractQuerySource(use.input, ctx.queryParam),
-  };
+async function runCase(evalCase, ctx, model) {
+  const toolCalls = [];
+  const tools = toAiSdkTools(ctx.mcpTools, {
+    mcpClient: ctx.mcpClient,
+    queryParam: ctx.queryParam,
+    onCall: (record) => toolCalls.push(record),
+  });
 
-  if (NO_EXECUTE) {
-    record.verdict = "not_executed";
-    record.detail = "--no-execute";
-    return {
-      record,
-      result: {
-        type: "tool_result",
-        tool_use_id: use.id,
-        content:
-          "Execution is disabled for this evaluation run. Assume the call succeeded and finish your answer.",
-      },
-    };
-  }
+  const agent = new ToolLoopAgent({
+    model,
+    tools,
+    instructions: SYSTEM_PROMPT,
+    stopWhen: [stepCountIs(MAX_STEPS)],
+  });
 
-  if (!toolsByName.has(use.name)) {
-    record.verdict = "api_error";
-    record.detail = `unknown tool ${use.name}`;
-    return {
-      record,
-      result: {
-        type: "tool_result",
-        tool_use_id: use.id,
-        content: `No such tool: ${use.name}`,
-        is_error: true,
-      },
-    };
-  }
-
-  let text = "";
-  let isError = false;
-  try {
-    const res = await mcpClient.callTool({ name: use.name, arguments: use.input });
-    text = (res.content ?? [])
-      .filter((c) => c.type === "text")
-      .map((c) => c.text)
-      .join("\n");
-    isError = Boolean(res.isError);
-  } catch (err) {
-    text = err instanceof Error ? err.message : String(err);
-    isError = true;
-  }
-
-  const { verdict, detail } = isError
-    ? { verdict: "api_error", detail: firstLine(text) }
-    : classifyToolResult(text);
-  record.verdict = verdict;
-  record.detail = detail;
-
-  if (VERBOSE) {
-    console.log(`      ${use.name} -> ${verdict}: ${detail}`);
-    for (const [qName, src] of Object.entries(record.querySource ?? {})) {
-      console.log(`        ${qName}: ${String(src).replace(/\s+/g, " ").slice(0, 200)}`);
-    }
-  }
+  const result = await agent.generate({
+    messages: [{ role: "user", content: evalCase.prompt }],
+  });
 
   return {
-    record,
-    result: {
-      type: "tool_result",
-      tool_use_id: use.id,
-      // Truncated so one archive response cannot blow up the context.
-      content: text.slice(0, 8000) || "(empty response)",
-      is_error: isError,
-    },
+    toolCalls,
+    stopReason: result.finishReason,
+    finalText: result.text ?? "",
+    steps: result.steps?.length ?? 0,
+    refusal: null,
   };
-}
-
-/**
- * Runs one case: prompt the model with the real tool list, execute whatever it
- * calls, feed the results back, and stop when it answers or runs out of turns.
- *
- * `--no-execute` short-circuits execution with a stub result. The model still
- * sees a well-formed reply so the conversation can continue, but no TomTom
- * request is made and no query is run, which makes stage 1 cheap and offline.
- */
-async function runCase(evalCase, ctx) {
-  const { anthropic, tools } = ctx;
-  const messages = [{ role: "user", content: evalCase.prompt }];
-  const toolCalls = [];
-  let stopReason = null;
-  let finalText = "";
-
-  for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      system: SYSTEM_PROMPT,
-      thinking: { type: "adaptive" },
-      tools,
-      messages,
-    });
-
-    stopReason = response.stop_reason;
-
-    // A safety decline is neither a selection hit nor a miss; record and stop.
-    if (stopReason === "refusal") {
-      return {
-        toolCalls,
-        stopReason,
-        finalText: "",
-        refusal: response.stop_details?.category ?? "unknown",
-      };
-    }
-
-    const toolUses = response.content.filter((b) => b.type === "tool_use");
-    for (const block of response.content) {
-      if (block.type === "text") finalText += block.text;
-    }
-
-    if (toolUses.length === 0) break;
-
-    messages.push({ role: "assistant", content: response.content });
-
-    // Every tool_result for a turn goes back in ONE user message; splitting them
-    // teaches the model to stop calling tools in parallel.
-    const results = [];
-    for (const use of toolUses) {
-      const { record, result } = await executeToolUse(use, ctx, turn);
-      toolCalls.push(record);
-      results.push(result);
-    }
-
-    messages.push({ role: "user", content: results });
-  }
-
-  return { toolCalls, stopReason, finalText, refusal: null };
 }
 
 /** Pulls the query record out of a tool call, whatever the engine calls it. */
@@ -622,8 +584,8 @@ function printMatrix() {
   console.log("=".repeat(100));
 }
 
-function printResults(rows, meta) {
-  console.log(`\n\nRESULTS — ${meta.engine}, model ${MODEL}, ${RUNS} run(s) per case`);
+function printResults(rows, meta, modelId) {
+  console.log(`\n\nRESULTS — ${meta.engine}, ${modelId}, ${RUNS} run(s) per case`);
   console.log("=".repeat(100));
   console.log(` ${pad("Case", 24)}| ${pad("Selection", 10)}| ${pad("Query", 8)}| Detail`);
   console.log(`${"-".repeat(26)}+${"-".repeat(11)}+${"-".repeat(9)}+${"-".repeat(50)}`);
@@ -689,6 +651,45 @@ function printFailures(rows) {
   }
 }
 
+/**
+ * Per-case agreement across deployments. This is the view the agent-toolkit
+ * suites are built around: a case that passes on one model and fails on another
+ * is a weakness in the tool description, not a quirk of one model, and it is
+ * invisible in any single-model report.
+ */
+function printCrossModel(perModel) {
+  const ids = perModel.map((m) => m.id);
+  const caseIds = perModel[0].rows.map((r) => r.id);
+
+  console.log(`\n\nCROSS-MODEL AGREEMENT — ${ids.join(" vs ")}`);
+  console.log("=".repeat(100));
+  console.log(` ${pad("Case", 26)}| ${ids.map((id) => pad(id, 12)).join("| ")}`);
+  console.log(`${"-".repeat(27)}+${ids.map(() => "-".repeat(13)).join("+")}`);
+
+  const disagreed = [];
+  for (const caseId of caseIds) {
+    const statuses = perModel.map(({ rows }) => {
+      const row = rows.find((r) => r.id === caseId);
+      return row ? row.selection.status : "—";
+    });
+    if (new Set(statuses).size > 1) disagreed.push(caseId);
+    console.log(` ${pad(caseId, 26)}| ${statuses.map((st) => pad(st, 12)).join("| ")}`);
+  }
+  console.log("=".repeat(100));
+
+  const allPass = caseIds.filter((caseId) =>
+    perModel.every(({ rows }) => rows.find((r) => r.id === caseId)?.selection.status === "PASS")
+  ).length;
+  console.log(`\n  ${allPass}/${caseIds.length} cases route correctly on EVERY deployment`);
+  if (disagreed.length > 0) {
+    console.log(
+      `  ${disagreed.length} case(s) where deployments disagree: ${disagreed.join(", ")}`
+    );
+    console.log("  A disagreement is a description weakness, not a model quirk — fix the wording.");
+  }
+  console.log();
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -712,13 +713,7 @@ async function connectToServer() {
     console.log(`  note: no query parameter found on ${missingQueryParam.join(", ")}`);
   }
 
-  return {
-    mcpClient,
-    mcpTools,
-    meta,
-    tools: toAnthropicTools(mcpTools),
-    toolsByName: new Map(mcpTools.map((t) => [t.name, t])),
-  };
+  return { mcpClient, mcpTools, meta };
 }
 
 /**
@@ -737,25 +732,18 @@ function unknownToolsIn(cases, mcpTools) {
 }
 
 /**
- * Loads the SDK lazily so --dry-run works in a checkout that has never
- * installed it — which is the case for the DuckDB revision this eval is meant
- * to be run against for comparison.
+ * Resolves the deployments to evaluate. Returns an empty list when Azure is not
+ * configured, matching the agent-toolkit's skip-rather-than-fail behaviour.
  */
-async function createAnthropicClient() {
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
-    console.error("\nANTHROPIC_API_KEY is not set — this eval needs a model to evaluate.");
-    console.error("Set ANTHROPIC_API_KEY, or run `ant auth login`, then re-run.");
-    console.error("Use --dry-run to validate the cases without any API call.");
-    return null;
+function resolveModels() {
+  const models = resolveAzureModels(MODELS_OVERRIDE);
+  if (models.length === 0) {
+    console.error("\nAzure is not configured — this eval needs a model to evaluate.");
+    console.error("Set AZURE_API_KEY and AZURE_RESOURCE_NAME (plus AZURE_DEPLOYMENT_ID or");
+    console.error("AZURE_MODEL_IDS to choose deployments), then re-run.");
+    console.error("Use --dry-run to validate the cases without any model call.");
   }
-  try {
-    const { default: Anthropic } = await import("@anthropic-ai/sdk");
-    return new Anthropic();
-  } catch {
-    console.error("\n@anthropic-ai/sdk is not installed in this checkout.");
-    console.error("Install it (pnpm add -D @anthropic-ai/sdk) or use --dry-run.");
-    return null;
-  }
+  return models;
 }
 
 /**
@@ -763,14 +751,14 @@ async function createAnthropicClient() {
  * is recorded as an ERROR row rather than aborting the run, so one transport
  * hiccup does not discard the results already collected.
  */
-async function runAllCases(selected, ctx) {
+async function runAllCases(selected, ctx, model) {
   const rows = [];
   for (const evalCase of selected) {
     for (let run = 0; run < RUNS; run++) {
       const label = RUNS > 1 ? `${evalCase.id}#${run + 1}` : evalCase.id;
       process.stdout.write(`  ${pad(label, 26)}`);
       try {
-        const outcome = await runCase(evalCase, ctx);
+        const outcome = await runCase(evalCase, ctx, model);
         const scored = scoreCase(evalCase, outcome);
         rows.push({ id: label, ...scored });
         console.log(`${scored.selection.status} / ${scored.query.status}`);
@@ -801,7 +789,7 @@ async function main() {
     console.log("\n--dry-run: connecting to the server to validate schemas, no API calls\n");
   }
 
-  const { mcpClient, mcpTools, meta, tools, toolsByName } = await connectToServer();
+  const { mcpClient, mcpTools, meta } = await connectToServer();
 
   const unknown = unknownToolsIn(selected, mcpTools);
   if (unknown.length > 0) {
@@ -812,31 +800,54 @@ async function main() {
   }
 
   if (DRY_RUN) {
-    console.log(`All ${selected.length} case(s) reference known tools. Schema conversion OK.`);
-    console.log(`Tool prefix cached at: ${tools[tools.length - 1].name}`);
+    console.log(`All ${selected.length} case(s) reference known tools.`);
+    const probe = toAiSdkTools(mcpTools, {
+      mcpClient,
+      queryParam: meta.param,
+      onCall: () => {},
+    });
+    console.log(`Schema conversion OK for ${Object.keys(probe).length} tool(s).`);
+    console.log(
+      `Deployments that would be evaluated: ${resolveDeploymentIds(MODELS_OVERRIDE).join(", ")}`
+    );
     await mcpClient.close();
     process.exit(0);
   }
 
-  const anthropic = await createAnthropicClient();
-  if (!anthropic) {
+  const models = resolveModels();
+  if (models.length === 0) {
     await mcpClient.close();
     process.exit(1);
   }
 
-  const ctx = { anthropic, mcpClient, tools, toolsByName, queryParam: meta.param };
+  const ctx = { mcpClient, mcpTools, queryParam: meta.param };
 
-  const rows = await runAllCases(selected, ctx);
+  // Every deployment runs the whole set. A prompt that routes correctly on one
+  // model but not another is a real weakness in the descriptions, so the run
+  // fails unless all of them pass — the agent-toolkit suites score the same way.
+  const perModel = [];
+  for (const { id, model } of models) {
+    console.log(`\n${id}`);
+    const rows = await runAllCases(selected, ctx, model);
+    perModel.push({ id, rows });
+  }
 
-  printResults(rows, meta);
+  for (const { id, rows } of perModel) {
+    printResults(rows, meta, id);
+  }
+
+  if (perModel.length > 1) printCrossModel(perModel);
+
   await mcpClient.close();
 
   // Selection regressions and query errors both fail the run; API errors do not,
   // since an unusable TomTom key is not a defect in the thing being measured.
-  const hardFailures = rows.filter(
-    (r) =>
-      ["WRONG", "MISS", "NO_CALL", "ERROR"].includes(r.selection.status) ||
-      r.query.status === "ERROR"
+  const hardFailures = perModel.flatMap(({ rows }) =>
+    rows.filter(
+      (r) =>
+        ["WRONG", "MISS", "NO_CALL", "ERROR"].includes(r.selection.status) ||
+        r.query.status === "ERROR"
+    )
   );
   process.exit(hardFailures.length > 0 ? 1 : 0);
 }

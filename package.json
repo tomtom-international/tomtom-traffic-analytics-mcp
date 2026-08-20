@@ -60,8 +60,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@ai-sdk/azure": "^3.0.102",
     "@anthropic-ai/mcpb": "^2.1.2",
-    "@anthropic-ai/sdk": "^0.117.1",
     "@biomejs/biome": "^2.5.8",
     "@turf/turf": "^7.4.0",
     "@types/cors": "^2.8.19",
@@ -69,6 +69,7 @@
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.10",
     "@vitest/ui": "^4.1.10",
+    "ai": "^6.0.258",
     "h3-js": "^4.5.0",
     "rolldown": "^1.2.4",
     "rollup-plugin-license": "^3.7.1",
