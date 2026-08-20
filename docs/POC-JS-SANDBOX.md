@@ -50,20 +50,37 @@ reason only: the Node runtime it embeds.
 
 ### Runtime — 57,600 rows (2 days × 20 junctions of archive data), three equivalent queries
 
+Both engines were measured under the same harness, on the same deterministically generated
+data, in the same session, with both scripts run under `tsx`; median of 3 runs.
+
 | | DuckDB | QuickJS |
 |---|---|---|
-| Create engine + load data | 218 ms | 305 ms |
-| 3 queries (hourly group-by, per-junction ranking, p50/p95) | 17 ms | 82 ms |
-| **Total per request** | **235 ms** | **387 ms** |
-| A follow-up query on the same loaded data | — | 4 ms |
-| Process RSS | 158 MB | 201 MB |
+| Create engine + load data | 107.5 ms | 404.5 ms |
+| 3 queries (hourly group-by, per-junction ranking, p50/p95) | 10.0 ms | 82.9 ms |
+| **Total per request** | **117.8 ms** | **487.4 ms** |
+| A follow-up query on the same loaded data | 4.6 ms | 16.6 ms |
+| Process RSS | 154 MB | 202 MB |
 
-Identical results from both (24 hourly buckets, 20 ranked junctions). QuickJS is ~1.6×
-slower end to end, which is immaterial next to the TomTom API call that precedes it.
+Identical results from both — not merely the same shape (24 hourly buckets, 20 ranked
+junctions) but the same values to 16 significant digits: `p50` `58.550265607680316` and
+`p95` `114.1371059949217` from either engine.
 
-Note the 4 ms follow-up: marshalling dominates, and it is paid once per engine. A
-persistent session would make every query after the first roughly free — the same
-argument applies to DuckDB, but the gap is much larger for the sandbox.
+QuickJS is **~4.1× slower end to end** on this workload. Three things bound how much that
+matters:
+
+- **Marshalling dominates, and it is paid once per engine.** The load step is 404 ms of the
+  487 ms, and the engine's own debug log attributes nearly all of it to JSON crossing the
+  WASM boundary rather than to query execution. A persistent session would make every query
+  after the first roughly free — the same argument applies to DuckDB, but the gap is much
+  larger for the sandbox.
+- **This synthetic payload is close to worst case.** Its full-precision random doubles
+  inflate the JSON well beyond real API data. Measured against live responses: 5 KB → 1 ms,
+  48 KB → 2 ms, 283 KB → 5 ms, and the largest real payload (junction archive, 56,353 rows,
+  11 MB) marshals in **216 ms** — about half the synthetic figure at a comparable row count,
+  because it is about half the bytes.
+- **It is still ~400 ms in front of every request.** The TomTom API call it hides behind took
+  90–1,600 ms in the integration runs, so it is usually the smaller term — but it is not
+  free, and calling it immaterial would overstate the case.
 
 Library injection is lazy, triggered by a `turf.` / `h3.` reference in the query source:
 turf costs ~100 ms to evaluate, h3 ~75 ms, and purely tabular queries pay neither.
@@ -170,8 +187,8 @@ of JSON per result.
   these datasets as reliably as it writes SQL. That needs a query-level eval over real
   tasks, and it is the thing that should decide this, not the packaging win.
 - **No persistent session.** Every request still builds and tears down its own engine. The
-  4 ms follow-up number suggests this is where the next win is, and it is orthogonal to
-  the language choice.
+  16.6 ms follow-up against 487 ms of setup suggests this is where the next win is, and it
+  is orthogonal to the language choice.
 
 ## Trying it
 
