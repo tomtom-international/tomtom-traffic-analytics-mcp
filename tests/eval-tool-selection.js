@@ -347,7 +347,15 @@ async function runMcpTool(mcpTool, input, { mcpClient, queryParam, onCall }) {
   record.detail = detail;
   onCall(record);
 
-  if (VERBOSE) {
+  // A failed query is the one case where the source matters more than the noise,
+  // so print it in FULL and regardless of --verbose. Truncating here once cost a
+  // diagnosis: a ReferenceError was observed with no record of what produced it.
+  if (verdict === "error") {
+    console.log(`\n      ${mcpTool.name} -> ${verdict}: ${detail}`);
+    for (const [qName, src] of Object.entries(record.querySource ?? {})) {
+      console.log(`        ${qName}: ${src}`);
+    }
+  } else if (VERBOSE) {
     console.log(`      ${mcpTool.name} -> ${verdict}: ${detail}`);
     for (const [qName, src] of Object.entries(record.querySource ?? {})) {
       console.log(`        ${qName}: ${String(src).replace(/\s+/g, " ").slice(0, 200)}`);
@@ -557,6 +565,15 @@ function scoreCase(evalCase, outcome) {
     if (empties.length > 0) {
       return { status: "EMPTY", note: empties.map((e) => e.detail).join(" | ") };
     }
+    // A case can succeed on one call and hit an API error on another. Saying
+    // plain "OK" there would hide the half that never ran, so the count travels
+    // with the verdict.
+    if (apiErrors.length > 0) {
+      return {
+        status: "PARTIAL",
+        note: `${ok.length} call(s) returned data, ${apiErrors.length} hit API errors: ${apiErrors[0].detail}`,
+      };
+    }
     return { status: "OK", note: `${ok.length} call(s) returned data` };
   })();
 
@@ -623,6 +640,7 @@ function printQuerySummary(rows) {
   const qErr = tally(rows, "query", "ERROR");
   const qEmpty = tally(rows, "query", "EMPTY");
   const qApi = tally(rows, "query", "API");
+  const qPartial = tally(rows, "query", "PARTIAL");
 
   console.log("\nQUERY QUALITY");
   const executedRows = total - tally(rows, "query", "N/A");
@@ -638,6 +656,10 @@ function printQuerySummary(rows) {
       );
     if (qApi > 0)
       console.log(`  API      ${qApi}/${executedRows}   never reached a query (API/key error)`);
+    if (qPartial > 0)
+      console.log(
+        `  PARTIAL  ${qPartial}/${executedRows}   some calls worked, others hit API errors`
+      );
   }
 }
 
