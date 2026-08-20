@@ -34,7 +34,7 @@ const flowSegmentJsQueriesSchema = z
       'At least one JavaScript query is required. Provide queries like: {"segment_info": "rows.filter(r => ...)"}',
   })
   .describe(
-    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Named bbox schema for multi-area comparison
@@ -57,7 +57,7 @@ const incidentsJsQueriesSchema = z
       'At least one JavaScript query is required. Provide queries like: {"accidents": "rows.filter(r => ...)"}',
   })
   .describe(
-    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // ============================================================================

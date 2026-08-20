@@ -31,7 +31,7 @@ const liveDataJsQueriesSchema = z
       'At least one JavaScript query is required. Provide queries like: {"delays": "rows.filter(r => ...)"}',
   })
   .describe(
-    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Junction live data details schema - requires junction IDs array
@@ -56,7 +56,7 @@ const jsQueriesSchema = z
       'At least one JavaScript query is required. Provide queries like: {"hourly_avg": "rows.filter(r => ...)"}',
   })
   .describe(
-    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Junction archive schema - requires junction IDs array
@@ -83,7 +83,7 @@ const junctionSearchJsQueriesSchema = z
       'At least one JavaScript query is required. Provide queries like: {"active_junctions": "rows.filter(r => ...)"}',
   })
   .describe(
-    'JavaScript expressions evaluated against the loaded datasets, in a sandbox. Object mapping named keys to JS source strings, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Each string is a single expression, or a statement block that ends in `return`.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Junction search schema
