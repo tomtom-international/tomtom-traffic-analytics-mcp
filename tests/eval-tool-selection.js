@@ -340,11 +340,12 @@ async function runMcpTool(mcpTool, input, { mcpClient, queryParam, onCall }) {
   }
 
   const { text, isError } = await callMcpTool(mcpClient, mcpTool.name, input);
-  const { verdict, detail } = isError
+  const { verdict, detail, values } = isError
     ? { verdict: "api_error", detail: firstLine(text) }
     : classifyToolResult(text);
   record.verdict = verdict;
   record.detail = detail;
+  record.values = values ?? {};
   onCall(record);
 
   // A failed query is the one case where the source matters more than the noise,
@@ -437,21 +438,45 @@ function classifyToolResult(rawText) {
 
   const queryErrors = [];
   const emptyQueries = [];
+  const values = {};
   for (const [name, result] of Object.entries(aggregated)) {
     if (result && typeof result === "object" && "error" in result) {
       queryErrors.push(`${name}: ${firstLine(String(result.error))}`);
       continue;
     }
+    values[name] = normaliseQueryValue(result);
     if (isEmptyResult(result)) emptyQueries.push(name);
   }
 
   if (queryErrors.length > 0) {
-    return { verdict: "error", detail: queryErrors.join(" | ") };
+    return { verdict: "error", detail: queryErrors.join(" | "), values };
   }
   if (emptyQueries.length > 0) {
-    return { verdict: "empty", detail: `empty: ${emptyQueries.join(", ")}` };
+    return { verdict: "empty", detail: `empty: ${emptyQueries.join(", ")}`, values };
   }
-  return { verdict: "ok", detail: `${Object.keys(aggregated).length} query/queries returned` };
+  return {
+    verdict: "ok",
+    detail: `${Object.keys(aggregated).length} query/queries returned`,
+    values,
+  };
+}
+
+/**
+ * Presents a query result the same way whichever engine produced it, so a
+ * semantic check can be written once.
+ *
+ * DuckDB returns `{ columns, rows }` with rows as positional arrays; the
+ * sandbox returns `{ value }` with real objects. Zipping columns onto rows means
+ * a check can talk about field names on both revisions.
+ */
+function normaliseQueryValue(result) {
+  if (!result || typeof result !== "object") return result;
+  if (Array.isArray(result.rows) && Array.isArray(result.columns)) {
+    return result.rows.map((row) =>
+      Object.fromEntries(result.columns.map((col, i) => [col, row[i]]))
+    );
+  }
+  return "value" in result ? result.value : result;
 }
 
 /**
@@ -461,6 +486,14 @@ function classifyToolResult(rawText) {
  */
 function isEmptyResult(result) {
   if (result === null || result === undefined) return true;
+
+  // The DuckDB revision returns { columns, rows, rowCount } rather than
+  // { value }. Without this, a query that matched nothing would score OK there
+  // and EMPTY here, and the cross-revision comparison would be meaningless.
+  if (result && typeof result === "object" && Array.isArray(result.rows)) {
+    return result.rows.length === 0;
+  }
+
   const v = result && typeof result === "object" && "value" in result ? result.value : result;
   if (v === null || v === undefined) return true;
   if (Array.isArray(v)) return v.length === 0;
@@ -524,6 +557,161 @@ function extractQuerySource(input, queryParam) {
 }
 
 // ============================================================================
+// STAGE 3: DOES THE ANSWER MAKE SENSE?
+// ============================================================================
+
+/**
+ * Stages 1 and 2 establish that the model picked the right tool and that its
+ * code ran and returned something. Neither says the answer is RIGHT: a query
+ * that averages the wrong field, or sorts ascending when the prompt said
+ * "worst", passes both. That is the plausible-but-wrong failure the design doc
+ * warns about, and catching it needs a per-case expectation.
+ *
+ * These checks are deliberately shape-and-plausibility level, not proofs. They
+ * assert the things that would be wrong if the model had misread the datasets —
+ * that the answer refers to junctions that exist, that a ranking really is
+ * ordered, that an hour-of-day is an hour of day. They are written against the
+ * normalised value, so the same check runs on both engines.
+ *
+ * Cases with no `check` are reported as `—`: not verified rather than verified.
+ */
+
+/** Every value any query returned for this case, flattened. */
+function allValues(toolCalls) {
+  return toolCalls.flatMap((c) => Object.values(c.values ?? {}));
+}
+
+/** Collects numeric leaves, so a check need not guess the model's field names. */
+function numbersIn(value, depth = 0) {
+  if (depth > 4) return [];
+  if (typeof value === "number" && Number.isFinite(value)) return [value];
+  if (Array.isArray(value)) return value.flatMap((v) => numbersIn(v, depth + 1));
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap((v) => numbersIn(v, depth + 1));
+  }
+  return [];
+}
+
+/** True when the case's output mentions any of these strings anywhere. */
+function mentionsAny(toolCalls, needles) {
+  const blob = JSON.stringify(allValues(toolCalls)).toLowerCase();
+  return needles.some((n) => blob.includes(n.toLowerCase()));
+}
+
+/** The longest array any query returned — usually the answer to a "rank/list" prompt. */
+function largestArray(toolCalls) {
+  let best = null;
+  for (const value of allValues(toolCalls)) {
+    if (Array.isArray(value) && (best === null || value.length > best.length)) best = value;
+  }
+  return best;
+}
+
+/**
+ * Checks a ranking really is ordered. Picks the numeric field that varies across
+ * items and asserts it is non-increasing, so it works whatever the model named
+ * the column. Returns null when there is nothing to check — two equal values
+ * cannot be out of order.
+ */
+function checkDescending(rows) {
+  if (!Array.isArray(rows) || rows.length < 2) return null;
+  const keys = Object.keys(rows[0] ?? {}).filter((k) => typeof rows[0][k] === "number");
+  for (const key of keys) {
+    const series = rows.map((r) => r[key]).filter((n) => typeof n === "number");
+    if (series.length !== rows.length) continue;
+    if (new Set(series).size === 1) continue;
+    const sorted = [...series].every((_, i) => i === 0 || series[i - 1] >= series[i]);
+    if (!sorted) return `"${key}" is not ordered worst-first: [${series.join(", ")}]`;
+    return null;
+  }
+  return null;
+}
+
+/** The junctions and route that really exist in this account, for reality checks. */
+const KNOWN_JUNCTION_HINTS = ["nassauplein", "nassaukade", "jacob catskade"];
+const KNOWN_ROUTE_HINTS = ["barna-girona", "137571"];
+
+/**
+ * Per-case semantic expectations, keyed by case id. Absent = not verified.
+ * Written tolerantly on purpose: they must not fail a correct answer just
+ * because the model chose different field names.
+ */
+const CHECKS = {
+  "discover-junctions": (calls) =>
+    mentionsAny(calls, KNOWN_JUNCTION_HINTS)
+      ? null
+      : "result never names a junction that exists in the catalogue",
+
+  "discover-routes": (calls) =>
+    mentionsAny(calls, KNOWN_ROUTE_HINTS)
+      ? null
+      : "result never names the monitored route (barna-girona / 137571)",
+
+  "route-detail": (calls) =>
+    mentionsAny(calls, KNOWN_ROUTE_HINTS)
+      ? null
+      : "segment breakdown does not reference the monitored route",
+
+  "live-now": (calls) => {
+    const delays = numbersIn(allValues(calls));
+    if (delays.length === 0) return "no numeric delay anywhere in the result";
+    // Approach delays are seconds. Anything past an hour means a unit or field mix-up.
+    return delays.some((n) => n >= 0 && n <= 3600)
+      ? null
+      : `no plausible delay-in-seconds value; saw [${delays.slice(0, 5).join(", ")}]`;
+  },
+
+  "archive-intraday-pattern": (calls) => {
+    const nums = numbersIn(allValues(calls));
+    return nums.some((n) => Number.isInteger(n) && n >= 0 && n <= 23)
+      ? null
+      : "no hour-of-day (0-23) in a result that should be grouped by hour";
+  },
+
+  "grouped-aggregate": (calls) => {
+    const rows = largestArray(calls);
+    if (!Array.isArray(rows)) return "no array to rank";
+    if (rows.length > 3) return `asked for the worst three, returned ${rows.length}`;
+    return checkDescending(rows);
+  },
+
+  "percentile-query": (calls) => {
+    const nums = numbersIn(allValues(calls));
+    if (nums.length === 0) return "no numeric percentile in the result";
+    return nums.some((n) => n >= 0 && n <= 3600)
+      ? null
+      : `no plausible delay-in-seconds percentile; saw [${nums.slice(0, 5).join(", ")}]`;
+  },
+};
+
+/**
+ * Runs the case's check, if it has one. A check only runs when there was output
+ * to inspect: blaming the model for a wrong answer it never got to produce
+ * would confuse an API failure with a reasoning failure.
+ */
+function scoreSemantics(evalCase, outcome) {
+  const check = CHECKS[evalCase.id];
+  if (!check) return { status: "—", note: "no expectation defined" };
+  if (allValues(outcome.toolCalls).length === 0) {
+    return { status: "N/A", note: "no output to check" };
+  }
+  // If ANY call hit an API error, the case never assembled the data its answer
+  // needed, and judging what came back would blame the model for a 404. Seen
+  // for real: an archive 404 left a percentile prompt with nothing to compute
+  // from, and the check called the model wrong for not producing one.
+  const apiFailed = outcome.toolCalls.filter((c) => c.verdict === "api_error");
+  if (apiFailed.length > 0) {
+    return { status: "N/A", note: `incomplete data (${apiFailed.length} API error(s))` };
+  }
+  try {
+    const problem = check(outcome.toolCalls);
+    return problem ? { status: "WRONG", note: problem } : { status: "SANE", note: "passes" };
+  } catch (err) {
+    return { status: "N/A", note: `check threw: ${firstLine(String(err))}` };
+  }
+}
+
+// ============================================================================
 // SCORING
 // ============================================================================
 
@@ -577,7 +765,7 @@ function scoreCase(evalCase, outcome) {
     return { status: "OK", note: `${ok.length} call(s) returned data` };
   })();
 
-  return { selection, query, called };
+  return { selection, query, semantics: scoreSemantics(evalCase, outcome), called };
 }
 
 // ============================================================================
@@ -604,18 +792,32 @@ function printMatrix() {
 function printResults(rows, meta, modelId) {
   console.log(`\n\nRESULTS — ${meta.engine}, ${modelId}, ${RUNS} run(s) per case`);
   console.log("=".repeat(100));
-  console.log(` ${pad("Case", 24)}| ${pad("Selection", 10)}| ${pad("Query", 8)}| Detail`);
-  console.log(`${"-".repeat(26)}+${"-".repeat(11)}+${"-".repeat(9)}+${"-".repeat(50)}`);
+  console.log(
+    ` ${pad("Case", 24)}| ${pad("Selection", 10)}| ${pad("Query", 8)}| ${pad("Sane", 6)}| Detail`
+  );
+  console.log(
+    `${"-".repeat(26)}+${"-".repeat(11)}+${"-".repeat(9)}+${"-".repeat(7)}+${"-".repeat(40)}`
+  );
   for (const r of rows) {
+    // Show whichever problem is furthest upstream: a wrong tool explains a bad
+    // query, and a failed query explains a missing answer.
+    const detail =
+      r.selection.status !== "PASS"
+        ? r.selection.note
+        : r.semantics.status === "WRONG"
+          ? r.semantics.note
+          : r.query.note;
     console.log(
-      ` ${pad(r.id, 24)}| ${pad(r.selection.status, 10)}| ${pad(r.query.status, 8)}| ${firstLine(
-        r.selection.status === "PASS" ? r.query.note : r.selection.note
-      )}`
+      ` ${pad(r.id, 24)}| ${pad(r.selection.status, 10)}| ${pad(r.query.status, 8)}| ${pad(
+        r.semantics.status,
+        6
+      )}| ${firstLine(detail)}`
     );
   }
   console.log("=".repeat(100));
   printSelectionSummary(rows);
   printQuerySummary(rows);
+  printSemanticSummary(rows);
   printFailures(rows);
   console.log();
 }
@@ -663,13 +865,39 @@ function printQuerySummary(rows) {
   }
 }
 
+function printSemanticSummary(rows) {
+  const tally = (val) => rows.filter((r) => r.semantics.status === val).length;
+  const checked = tally("SANE") + tally("WRONG");
+  console.log("\nANSWER SANITY (stage 3)");
+  if (checked === 0) {
+    console.log(`  nothing checkable ran (${rows.length} case(s))`);
+  } else {
+    console.log(`  SANE     ${tally("SANE")}/${checked}   answer is plausible for the prompt`);
+    if (tally("WRONG") > 0) {
+      console.log(
+        `  WRONG    ${tally("WRONG")}/${checked}   ran and returned, but the answer is wrong`
+      );
+    }
+  }
+  const unchecked = rows.length - checked;
+  if (unchecked > 0) {
+    console.log(
+      `  ${unchecked}/${rows.length} case(s) carry no expectation — not verified, not passed`
+    );
+  }
+}
+
 function printFailures(rows) {
-  const failures = rows.filter((r) => r.selection.status !== "PASS" || r.query.status === "ERROR");
+  const failures = rows.filter(
+    (r) =>
+      r.selection.status !== "PASS" || r.query.status === "ERROR" || r.semantics.status === "WRONG"
+  );
   if (failures.length === 0) return;
   console.log("\nNEEDS ATTENTION");
   for (const f of failures) {
     console.log(`  - ${f.id}: selection=${f.selection.status} (${f.selection.note})`);
     if (f.query.status === "ERROR") console.log(`      query error: ${f.query.note}`);
+    if (f.semantics.status === "WRONG") console.log(`      wrong answer: ${f.semantics.note}`);
   }
 }
 
@@ -868,7 +1096,8 @@ async function main() {
     rows.filter(
       (r) =>
         ["WRONG", "MISS", "NO_CALL", "ERROR"].includes(r.selection.status) ||
-        r.query.status === "ERROR"
+        r.query.status === "ERROR" ||
+        r.semantics.status === "WRONG"
     )
   );
   process.exit(hardFailures.length > 0 ? 1 : 0);
