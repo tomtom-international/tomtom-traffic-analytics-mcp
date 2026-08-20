@@ -703,6 +703,14 @@ function scoreSemantics(evalCase, outcome) {
   if (apiFailed.length > 0) {
     return { status: "N/A", note: `incomplete data (${apiFailed.length} API error(s))` };
   }
+  // Same reasoning for a query that raised: the answer was never produced, so
+  // whatever else came back is not it. Observed for real — a ranking query
+  // errored and the check judged a leftover three-row debug sample for
+  // descending order, reporting a wrong answer that did not exist.
+  const raised = outcome.toolCalls.filter((c) => c.verdict === "error");
+  if (raised.length > 0) {
+    return { status: "N/A", note: `answer query raised (${raised.length})` };
+  }
   try {
     const problem = check(outcome.toolCalls);
     return problem ? { status: "WRONG", note: problem } : { status: "SANE", note: "passes" };
