@@ -3,8 +3,10 @@
  * Licensed under the Apache License, Version 2.0
  */
 
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
-import { JsQueryEngine, buildWrapper } from "./jsQueryEngine";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearSandboxPoolForTests, JsQueryEngine, buildWrapper } from "./jsQueryEngine";
+import { runWithSessionContext } from "../services/base/tomtomClient";
+import { logger } from "../utils/logger";
 import { type FlattenResult, isQueryError, type JsQuerySuccessResult } from "./types";
 
 vi.mock("../utils/logger", () => ({
@@ -31,6 +33,119 @@ function value(result: ReturnType<typeof isQueryError> extends never ? never : a
   return (result as JsQuerySuccessResult).value;
 }
 
+describe("JsQueryEngine sandbox reuse", () => {
+  const FLAG = "TOMTOM_MCP_SANDBOX_REUSE";
+
+  beforeEach(() => {
+    process.env[FLAG] = "1";
+    clearSandboxPoolForTests();
+  });
+
+  afterEach(() => {
+    delete process.env[FLAG];
+    clearSandboxPoolForTests();
+  });
+
+  it("is off unless the flag is set", async () => {
+    delete process.env[FLAG];
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    first.close();
+
+    const second = new JsQueryEngine();
+    await second.initialize(DATA);
+    try {
+      // Nothing was pooled, so the second engine had to load the data itself.
+      expect(value((await second.executeQueries({ q: "approaches.length" })).q)).toBe(3);
+    } finally {
+      second.close();
+    }
+  });
+
+  it("reuses a loaded sandbox for identical data", async () => {
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    await first.executeQueries({ q: "approaches.length" });
+    first.close();
+
+    const second = new JsQueryEngine();
+    await second.initialize(DATA);
+    try {
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Reused a loaded sandbox"));
+      // The reused sandbox answers without reloading anything.
+      expect(value((await second.executeQueries({ q: "approaches.length" })).q)).toBe(3);
+    } finally {
+      second.close();
+    }
+  });
+
+  it("does not reuse a sandbox when the data differs", async () => {
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    first.close();
+
+    const other: FlattenResult = {
+      tables: new Map<string, Record<string, unknown>[]>([["approaches", [{ junction_id: "J9" }]]]),
+    };
+    const second = new JsQueryEngine();
+    await second.initialize(other);
+    try {
+      // Keyed on a full content hash, so changed data can never answer from a
+      // stale sandbox — the one failure mode that would be worse than the cost.
+      expect(value((await second.executeQueries({ q: "approaches.length" })).q)).toBe(1);
+    } finally {
+      second.close();
+    }
+  });
+
+  it("still keeps guest globals from leaking into the reusing caller", async () => {
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    await first.executeQueries({ q: "globalThis.stash = 'secret'; return 1;" });
+    first.close();
+
+    const second = new JsQueryEngine();
+    await second.initialize(DATA);
+    try {
+      // The whole basis on which reuse is defensible: the sandbox is the same
+      // object, so anything the last query left on the global must be gone.
+      expect(value((await second.executeQueries({ q: "typeof globalThis.stash" })).q)).toBe(
+        "undefined"
+      );
+    } finally {
+      second.close();
+    }
+  });
+
+  it("never shares a sandbox between different credentials", async () => {
+    await runWithSessionContext("tenant-a-move-key", "tenant-a-key", async () => {
+      const e = new JsQueryEngine();
+      await e.initialize(DATA);
+      await e.executeQueries({ q: "approaches.length" });
+      e.close();
+    });
+
+    // The logger mock is shared across this file, so clear it before asserting
+    // on an absence — an earlier test legitimately logged a reuse.
+    vi.mocked(logger.debug).mockClear();
+
+    await runWithSessionContext("tenant-b-move-key", "tenant-b-key", async () => {
+      const e = new JsQueryEngine();
+      await e.initialize(DATA);
+      try {
+        // Same bytes, different caller: the fingerprint includes the credentials,
+        // so tenant B gets its own sandbox rather than tenant A's.
+        expect(logger.debug).not.toHaveBeenCalledWith(
+          expect.stringContaining("Reused a loaded sandbox")
+        );
+        expect(value((await e.executeQueries({ q: "approaches.length" })).q)).toBe(3);
+      } finally {
+        e.close();
+      }
+    });
+  });
+});
+
 describe("JsQueryEngine", () => {
   let engine: JsQueryEngine;
 
@@ -42,7 +157,9 @@ describe("JsQueryEngine", () => {
   afterAll(() => engine.close());
 
   it("loads only the datasets a query names, and still reports every shape", async () => {
-    // A fresh engine, because the shared one has already loaded both datasets.
+    // A fresh sandbox: these tests describe the first-load path, and a pooled
+    // sandbox may legitimately already hold datasets an earlier request needed.
+    clearSandboxPoolForTests();
     const e = new JsQueryEngine();
     await e.initialize(DATA);
     try {
@@ -57,6 +174,7 @@ describe("JsQueryEngine", () => {
   });
 
   it("loads a dataset named only by a later batch of queries", async () => {
+    clearSandboxPoolForTests();
     const e = new JsQueryEngine();
     await e.initialize(DATA);
     try {
@@ -69,6 +187,7 @@ describe("JsQueryEngine", () => {
   });
 
   it("throws rather than returning undefined for a dataset no query named", async () => {
+    clearSandboxPoolForTests();
     const e = new JsQueryEngine();
     await e.initialize(DATA);
     try {
@@ -86,6 +205,7 @@ describe("JsQueryEngine", () => {
   });
 
   it("loads everything when a query uses `data` programmatically", async () => {
+    clearSandboxPoolForTests();
     const e = new JsQueryEngine();
     await e.initialize(DATA);
     try {

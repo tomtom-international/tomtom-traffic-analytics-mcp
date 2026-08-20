@@ -73,6 +73,17 @@ export const JS_QUERY_DEFAULTS = {
    * reduce/map/filter pipelines these queries are made of.
    */
   MAX_STACK_SIZE_BYTES: 256 * 1024,
+  /**
+   * Sandbox reuse across requests. OFF by default, and deliberately so: a
+   * reused sandbox is a weaker isolation guarantee than a fresh one, and the
+   * saving is small next to the TomTom call it sits behind. See ENGINE_REUSE
+   * in jsQueryEngine.ts for what reuse does and does not protect.
+   */
+  REUSE_ENABLED_ENV: "TOMTOM_MCP_SANDBOX_REUSE",
+  /** Most sandboxes kept alive at once. Each holds its own WASM heap. */
+  REUSE_MAX_SANDBOXES: 2,
+  /** How long an idle sandbox may be reused before it is disposed. */
+  REUSE_TTL_MS: 5 * 60 * 1000,
 } as const;
 
 /** Type guard to check if a query result contains an error */

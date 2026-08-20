@@ -21,6 +21,8 @@ import {
   type QuickJSRuntime,
   type QuickJSWASMModule,
 } from "quickjs-emscripten-core";
+import { createHash } from "node:crypto";
+import { getEffectiveApiKey, getEffectiveMovePortalKey } from "../services/base/tomtomClient";
 import { logger } from "../utils/logger";
 import {
   type DatasetShape,
@@ -43,6 +45,111 @@ function getWasmModule(): Promise<QuickJSWASMModule> {
     wasmModulePromise = newQuickJSWASMModuleFromVariant(variant);
   }
   return wasmModulePromise;
+}
+
+/**
+ * Sandbox reuse.
+ *
+ * Marshalling is the dominant cost of a sandboxed query, and a follow-up
+ * question about the same data pays it again for nothing — a query against an
+ * already-loaded sandbox is roughly 4ms against ~75ms of setup. Reuse keeps a
+ * loaded sandbox alive so the second request skips that work.
+ *
+ * It is OFF unless `TOMTOM_MCP_SANDBOX_REUSE=1`, for two honest reasons.
+ *
+ * The saving is smaller than it looks. The TomTom call in front of it is
+ * 100-900ms and still happens on every request, because the pool is keyed by
+ * the data itself rather than by the request — nothing here serves a stale
+ * traffic reading. On a repeated junction-archive call it removes ~75ms from
+ * ~1150ms. Its real value is server CPU under concurrency, not user latency.
+ *
+ * And a reused sandbox is a weaker guarantee than a fresh one. Entries are
+ * keyed by the caller's credentials as well as the data, so nothing is ever
+ * shared between tenants, and globals a query created are deleted before the
+ * sandbox goes back in the pool. What is *not* undone is mutation of the
+ * guest's own built-ins: a query that assigns to `Array.prototype` leaves that
+ * behind for the next user of the same sandbox, who is the same tenant looking
+ * at the same data. A fresh context is the only complete answer, and a fresh
+ * context is what this trades away.
+ */
+interface PooledSandbox {
+  runtime: QuickJSRuntime;
+  context: QuickJSContext;
+  shapes: Record<string, DatasetShape>;
+  datasetNames: string[];
+  datasets: Record<string, Record<string, unknown>[]>;
+  injected: Set<string>;
+  librariesLoaded: Set<string>;
+  baselineGlobals: string[];
+  warnings: string[];
+  inUse: boolean;
+  expiresAt: number;
+}
+
+const sandboxPool = new Map<string, PooledSandbox>();
+
+function reuseEnabled(): boolean {
+  const flag = process.env[JS_QUERY_DEFAULTS.REUSE_ENABLED_ENV];
+  return flag === "1" || flag === "true";
+}
+
+/**
+ * Identity of a loaded sandbox: whose credentials it was loaded for, and
+ * exactly which bytes it holds.
+ *
+ * The credential half keeps tenants apart in HTTP mode, where keys arrive per
+ * request. The data half must be a full content hash — keying on row counts or
+ * a sample would let changed data collide with a stale sandbox and answer from
+ * the wrong numbers, which is far worse than the work it would save.
+ */
+function fingerprint(datasetJson: Record<string, string>): string {
+  const hash = createHash("sha1");
+  hash.update(getEffectiveMovePortalKey() ?? "");
+  hash.update("\u0000");
+  hash.update(getEffectiveApiKey() ?? "");
+  for (const name of Object.keys(datasetJson).sort()) {
+    hash.update("\u0000");
+    hash.update(name);
+    hash.update("\u0000");
+    hash.update(datasetJson[name]);
+  }
+  return hash.digest("hex");
+}
+
+/** Drop expired entries, and the oldest idle ones once over the cap. */
+function evictSandboxes(): void {
+  const now = Date.now();
+  for (const [key, entry] of sandboxPool) {
+    if (!entry.inUse && entry.expiresAt <= now) {
+      disposeSandbox(entry);
+      sandboxPool.delete(key);
+    }
+  }
+  while (sandboxPool.size > JS_QUERY_DEFAULTS.REUSE_MAX_SANDBOXES) {
+    const victim = [...sandboxPool.entries()]
+      .filter(([, entry]) => !entry.inUse)
+      .sort((a, b) => a[1].expiresAt - b[1].expiresAt)[0];
+    if (!victim) return;
+    disposeSandbox(victim[1]);
+    sandboxPool.delete(victim[0]);
+  }
+}
+
+function disposeSandbox(entry: PooledSandbox): void {
+  try {
+    entry.context.dispose();
+    entry.runtime.dispose();
+  } catch (error) {
+    logger.warn(`Failed to dispose a pooled sandbox: ${String(error)}`);
+  }
+}
+
+/** Empty the pool. Test-only seam, and a clean shutdown hook. */
+export function clearSandboxPoolForTests(): void {
+  for (const [key, entry] of sandboxPool) {
+    disposeSandbox(entry);
+    sandboxPool.delete(key);
+  }
 }
 
 /** Reset the cached module. Test-only seam. */
@@ -133,6 +240,14 @@ export class JsQueryEngine {
   /** Datasets actually marshalled into the sandbox so far. */
   private injected = new Set<string>();
   private librariesLoaded = new Set<string>();
+  /** Own-property names of the guest global after setup, used to undo a query's globals. */
+  private baselineGlobals: string[] = [];
+  /** Pool key, set only when this engine's sandbox is eligible for reuse. */
+  private poolKey: string | null = null;
+  /** Pre-serialised datasets, kept so a pool miss does not stringify twice. */
+  private datasetJson: Record<string, string> = {};
+  /** Warnings belonging to the sandbox, so a reusing caller gets the same ones. */
+  private pooledWarnings: string[] = [];
 
   /**
    * Create the sandbox and load the flattened datasets into it.
@@ -140,6 +255,21 @@ export class JsQueryEngine {
   async initialize(data: FlattenResult): Promise<string[]> {
     const warnings: string[] = [];
     const startTime = Date.now();
+
+    // Serialising per dataset rather than in one blob: the strings are what the
+    // fingerprint is computed from AND what gets injected, so a pool miss does
+    // not pay for stringify twice.
+    if (reuseEnabled()) {
+      for (const [name, rows] of data.tables) this.datasetJson[name] = JSON.stringify(rows);
+      this.poolKey = fingerprint(this.datasetJson);
+      const pooled = sandboxPool.get(this.poolKey);
+      if (pooled && !pooled.inUse && pooled.expiresAt > Date.now()) {
+        pooled.inUse = true;
+        this.adopt(pooled);
+        logger.debug(`Reused a loaded sandbox (${this.injected.size} dataset(s) already in)`);
+        return pooled.warnings;
+      }
+    }
 
     const wasmModule = await getWasmModule();
     this.runtime = wasmModule.newRuntime();
@@ -177,7 +307,62 @@ export class JsQueryEngine {
       logger.warn(warning);
     }
 
+    this.captureBaselineGlobals();
+    this.pooledWarnings = warnings;
     return warnings;
+  }
+
+  /** Take over a pooled sandbox's state. The handle is new; the sandbox is not. */
+  private adopt(pooled: PooledSandbox): void {
+    this.runtime = pooled.runtime;
+    this.context = pooled.context;
+    this.shapes = pooled.shapes;
+    this.datasetNames = pooled.datasetNames;
+    this.datasets = pooled.datasets;
+    this.injected = pooled.injected;
+    this.librariesLoaded = pooled.librariesLoaded;
+    this.baselineGlobals = pooled.baselineGlobals;
+    this.pooledWarnings = pooled.warnings;
+  }
+
+  /**
+   * Record which globals belong to the sandbox itself, so anything a query adds
+   * can be told apart from it later. Refreshed after a library loads, since turf
+   * and h3 legitimately add globals of their own.
+   */
+  private captureBaselineGlobals(): void {
+    const context = this.requireContext();
+    const result = context.evalCode("JSON.stringify(Object.getOwnPropertyNames(globalThis))");
+    if (result.error) {
+      result.error.dispose();
+      this.baselineGlobals = [];
+      return;
+    }
+    this.baselineGlobals = JSON.parse(context.getString(result.value)) as string[];
+    result.value.dispose();
+  }
+
+  /**
+   * Delete everything a query put on the guest global.
+   *
+   * This is what makes reuse defensible: without it the next request on this
+   * sandbox would see the previous one's globals. It does not undo mutation of
+   * the guest's built-in prototypes — see the note on the pool above.
+   */
+  private resetUserGlobals(): void {
+    const keep = JSON.stringify(this.baselineGlobals);
+    this.evalOrThrow(
+      `(function () {
+  var keep = ${keep};
+  var allowed = {};
+  for (var i = 0; i < keep.length; i++) allowed[keep[i]] = true;
+  var names = Object.getOwnPropertyNames(globalThis);
+  for (var j = 0; j < names.length; j++) {
+    if (!allowed[names[j]]) { try { delete globalThis[names[j]]; } catch (e) {} }
+  }
+})();`,
+      "sandbox reset"
+    );
   }
 
   /**
@@ -238,7 +423,11 @@ export class JsQueryEngine {
   private injectDatasets(datasets: Record<string, Record<string, unknown>[]>): void {
     const context = this.requireContext();
     const startTime = Date.now();
-    const json = JSON.stringify(datasets);
+    const names = Object.keys(datasets);
+    // Reuse the strings made for the fingerprint rather than serialising again.
+    const json = names.every((name) => this.datasetJson[name] !== undefined)
+      ? `{${names.map((name) => `${JSON.stringify(name)}:${this.datasetJson[name]}`).join(",")}}`
+      : JSON.stringify(datasets);
 
     const handle = context.newString(json);
     try {
@@ -280,6 +469,8 @@ export class JsQueryEngine {
     const base64 = name === "turf" ? TURF_BUNDLE_BASE64 : H3_BUNDLE_BASE64;
     this.evalOrThrow(Buffer.from(base64, "base64").toString("utf8"), `${name} bundle`);
     this.librariesLoaded.add(name);
+    // turf and h3 add globals of their own; they are part of the sandbox now.
+    this.captureBaselineGlobals();
     logger.debug(`Injected ${name} into the sandbox in ${Date.now() - startTime}ms`);
   }
 
@@ -395,7 +586,43 @@ export class JsQueryEngine {
    * Tear down the sandbox. Always call this when done to free the WASM heap.
    */
   close(): void {
+    // A pooled sandbox is handed back rather than torn down: its loaded data is
+    // the whole point. Everything a query added to the global is deleted first.
+    const poolKey = this.poolKey;
+    if (poolKey && this.runtime && this.context) {
+      try {
+        this.resetUserGlobals();
+        sandboxPool.set(poolKey, {
+          runtime: this.runtime,
+          context: this.context,
+          shapes: this.shapes,
+          datasetNames: this.datasetNames,
+          datasets: this.datasets,
+          injected: this.injected,
+          librariesLoaded: this.librariesLoaded,
+          baselineGlobals: this.baselineGlobals,
+          warnings: this.pooledWarnings,
+          inUse: false,
+          expiresAt: Date.now() + JS_QUERY_DEFAULTS.REUSE_TTL_MS,
+        });
+        this.runtime = null;
+        this.context = null;
+        this.poolKey = null;
+        this.datasetJson = {};
+        evictSandboxes();
+        return;
+      } catch (error) {
+        // A sandbox that cannot be reset is not safe to hand on. Fall through
+        // and dispose it, so a failed reset costs performance, never isolation.
+        logger.warn(`Sandbox reset failed, disposing instead of pooling: ${String(error)}`);
+        this.poolKey = null;
+        sandboxPool.delete(poolKey);
+      }
+    }
+
     this.datasets = {};
+    this.datasetJson = {};
+
     if (this.context) {
       this.context.dispose();
       this.context = null;
