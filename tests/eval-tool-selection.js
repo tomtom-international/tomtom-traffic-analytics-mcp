@@ -784,7 +784,13 @@ function scoreCase(evalCase, outcome) {
     return { status: "OK", note: `${ok.length} call(s) returned data` };
   })();
 
-  return { selection, query, semantics: scoreSemantics(evalCase, outcome), called };
+  return {
+    selection,
+    query,
+    semantics: scoreSemantics(evalCase, outcome),
+    called,
+    calls: outcome.toolCalls.map((c) => c.verdict),
+  };
 }
 
 // ============================================================================
@@ -836,6 +842,7 @@ function printResults(rows, meta, modelId) {
   console.log("=".repeat(100));
   printSelectionSummary(rows);
   printQuerySummary(rows);
+  printExecutionCoverage(rows);
   printSemanticSummary(rows);
   printFailures(rows);
   console.log();
@@ -882,6 +889,32 @@ function printQuerySummary(rows) {
         `  PARTIAL  ${qPartial}/${executedRows}   some calls worked, others hit API errors`
       );
   }
+}
+
+/**
+ * How much generated JavaScript actually ran.
+ *
+ * The per-case verdicts describe the case, not the calls inside it, so without
+ * this the share of runs that never reached the sandbox — an API error, or no
+ * tool call at all — has to be reconstructed by hand. A routing-only run is not
+ * evidence about query quality, and the report should say so itself.
+ */
+function printExecutionCoverage(rows) {
+  const calls = rows.flatMap((r) => r.calls ?? []);
+  const ran = calls.filter((v) => v === "ok" || v === "empty" || v === "error").length;
+  const blocked = calls.filter((v) => v === "api_error").length;
+  const skipped = calls.filter((v) => v === "not_executed").length;
+
+  console.log("\nQUERY EXECUTION COVERAGE");
+  if (calls.length === 0) {
+    console.log("  no tool calls were made");
+    return;
+  }
+  console.log(`  ${ran}/${calls.length} tool call(s) executed the model's JavaScript`);
+  if (blocked > 0) {
+    console.log(`  ${blocked} never reached the sandbox (API error) — routing measured, query not`);
+  }
+  if (skipped > 0) console.log(`  ${skipped} not executed (--no-execute)`);
 }
 
 function printSemanticSummary(rows) {
