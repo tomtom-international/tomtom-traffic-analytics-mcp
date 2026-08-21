@@ -23,7 +23,7 @@ describe("Route Monitoring Schemas", () => {
     it("should validate correct get route details data with single-element routeIds", () => {
       const validData = {
         routeIds: ["123"],
-        sql_queries: { slow_segments: "SELECT segment_id FROM segments WHERE current_speed < 20" },
+        js_queries: { slow_segments: "SELECT segment_id FROM segments WHERE current_speed < 20" },
       };
 
       const result = z.object(getRouteDetailsSchema).safeParse(validData);
@@ -33,17 +33,17 @@ describe("Route Monitoring Schemas", () => {
     it("should validate correct get route details data with multiple routeIds", () => {
       const validData = {
         routeIds: ["123", "456"],
-        sql_queries: { compare: "SELECT route_id, delay_time FROM route_info" },
+        js_queries: { compare: "SELECT route_id, delay_time FROM route_info" },
       };
 
       const result = z.object(getRouteDetailsSchema).safeParse(validData);
       expect(result.success).toBe(true);
     });
 
-    it("should reject empty sql_queries", () => {
+    it("should reject empty js_queries", () => {
       const invalidData = {
         routeIds: ["123"],
-        sql_queries: {},
+        js_queries: {},
       };
 
       const result = z.object(getRouteDetailsSchema).safeParse(invalidData);
@@ -53,7 +53,7 @@ describe("Route Monitoring Schemas", () => {
     it("should reject more than 20 route IDs", () => {
       const invalidData = {
         routeIds: Array.from({ length: 21 }, (_, i) => `route-${i}`),
-        sql_queries: { test: "SELECT 1" },
+        js_queries: { test: "SELECT 1" },
       };
 
       const result = z.object(getRouteDetailsSchema).safeParse(invalidData);
@@ -62,25 +62,25 @@ describe("Route Monitoring Schemas", () => {
   });
 
   describe("routeSearchSchema", () => {
-    it("should validate search request with sql_queries", () => {
+    it("should validate search request with js_queries", () => {
       const validData = {
-        sql_queries: { delayed: "SELECT * FROM routes WHERE delay_time > 60" },
+        js_queries: { delayed: "SELECT * FROM routes WHERE delay_time > 60" },
       };
 
       const result = z.object(routeSearchSchema).safeParse(validData);
       expect(result.success).toBe(true);
     });
 
-    it("should reject empty sql_queries", () => {
+    it("should reject empty js_queries", () => {
       const invalidData = {
-        sql_queries: {},
+        js_queries: {},
       };
 
       const result = z.object(routeSearchSchema).safeParse(invalidData);
       expect(result.success).toBe(false);
     });
 
-    it("should reject missing sql_queries", () => {
+    it("should reject missing js_queries", () => {
       const invalidData = {};
 
       const result = z.object(routeSearchSchema).safeParse(invalidData);

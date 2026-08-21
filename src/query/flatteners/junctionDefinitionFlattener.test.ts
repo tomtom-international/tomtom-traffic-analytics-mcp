@@ -134,6 +134,21 @@ describe("flattenJunctionDefinitions", () => {
       expect(row.time_zone).toBe("Europe/Berlin");
     });
 
+    it("exposes the junction's own geometry as live GeoJSON", () => {
+      const result = flattenJunctionDefinitions([mockJunction], "compact");
+      const [junction] = result.tables.get("junctions") as Record<string, unknown>[];
+      // A Point object rather than lat/lon columns, so turf reads it directly and
+      // there is no [lon, lat] pair for a query to assemble the wrong way round.
+      expect(junction.geom).toEqual({ type: "Point", coordinates: [19.447, 51.727] });
+    });
+
+    it("leaves geom null when the API returned no geometry", () => {
+      const withoutGeometry = { ...mockJunction, rawJunction: undefined } as never;
+      const result = flattenJunctionDefinitions([withoutGeometry], "compact");
+      const [junction] = result.tables.get("junctions") as Record<string, unknown>[];
+      expect(junction.geom).toBeNull();
+    });
+
     it("should handle junctions without junctionModel", () => {
       const result = flattenJunctionDefinitions([mockJunctionNoModel], "compact");
       const rows = result.tables.get("junctions")!;
@@ -158,6 +173,19 @@ describe("flattenJunctionDefinitions", () => {
   });
 
   describe("full view", () => {
+    it("carries approach and exit geometry", () => {
+      const result = flattenJunctionDefinitions([mockJunction], "full");
+      const [approach] = result.tables.get("approaches") as Record<string, unknown>[];
+      const [exit] = result.tables.get("exits") as Record<string, unknown>[];
+      // MultiLineString, so turf.length() and turf.booleanIntersects() work on a
+      // road's real shape rather than a single representative point.
+      expect(approach.geom).toEqual({
+        type: "MultiLineString",
+        coordinates: [[[19.45, 51.77]]],
+      });
+      expect(exit.geom).toEqual({ type: "MultiLineString", coordinates: [[[19.45, 51.77]]] });
+    });
+
     it("should produce junctions, approaches, and exits tables", () => {
       const result = flattenJunctionDefinitions([mockJunction], "full");
       expect(result.tables.has("junctions")).toBe(true);

@@ -182,7 +182,7 @@ function parseResponse(result) {
  * Validate the core SqlFilteredResponse shape, metadata fields, and query results.
  * Returns { valid, message, details } with specific failure reasons.
  */
-function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
+function validateFilteredResponse(result, expectedToolName, options = {}) {
   try {
     const data = parseResponse(result);
 
@@ -199,8 +199,8 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
         `metadata.queries_executed should be >= 1, got: ${data.metadata.queries_executed}`
       );
     }
-    if (!data.metadata.raw_row_counts || typeof data.metadata.raw_row_counts !== "object") {
-      return fail("metadata.raw_row_counts is missing or not an object");
+    if (!data.metadata.dataset_shapes || typeof data.metadata.dataset_shapes !== "object") {
+      return fail("metadata.dataset_shapes is missing or not an object");
     }
     if (data.metadata.parameters === undefined) {
       return fail("metadata.parameters is missing");
@@ -216,7 +216,7 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
       return fail("aggregated_data has no query results");
     }
 
-    // Validate each query result has { columns, rows, rowCount }
+    // Each result is either { value, rowCount?, truncated? } or { error }.
     const queryErrors = [];
     for (const name of queryNames) {
       const qr = data.aggregated_data[name];
@@ -224,30 +224,17 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
         queryErrors.push(`${name}: null result`);
         continue;
       }
-      if (!Array.isArray(qr.columns)) queryErrors.push(`${name}: missing columns array`);
-      if (!Array.isArray(qr.rows)) queryErrors.push(`${name}: missing rows array`);
-      if (typeof qr.rowCount !== "number") queryErrors.push(`${name}: missing rowCount`);
-
-      // Verify rows match rowCount
-      if (
-        Array.isArray(qr.rows) &&
-        typeof qr.rowCount === "number" &&
-        qr.rows.length !== qr.rowCount
-      ) {
-        queryErrors.push(`${name}: rows.length (${qr.rows.length}) != rowCount (${qr.rowCount})`);
+      if (qr.error) {
+        queryErrors.push(`${name}: query failed \u2014 ${qr.error}`);
+        continue;
       }
-
-      // Verify each row has same length as columns
-      if (Array.isArray(qr.columns) && Array.isArray(qr.rows) && qr.rows.length > 0) {
-        const colLen = qr.columns.length;
-        for (let i = 0; i < Math.min(qr.rows.length, 3); i++) {
-          // Check first 3 rows
-          if (qr.rows[i].length !== colLen) {
-            queryErrors.push(
-              `${name}: row[${i}] has ${qr.rows[i].length} values, expected ${colLen} columns`
-            );
-          }
-        }
+      if (!("value" in qr)) queryErrors.push(`${name}: missing value`);
+      if (Array.isArray(qr.value) && typeof qr.rowCount !== "number") {
+        queryErrors.push(`${name}: array result without rowCount`);
+      }
+      // An untruncated array result must report its own length.
+      if (Array.isArray(qr.value) && !qr.truncated && qr.value.length !== qr.rowCount) {
+        queryErrors.push(`${name}: value.length (${qr.value.length}) != rowCount (${qr.rowCount})`);
       }
     }
 
@@ -255,23 +242,26 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
       return fail(`Query result errors: ${queryErrors.join("; ")}`);
     }
 
-    // --- Expected columns validation (if provided) ---
-    if (options.expectedColumns) {
-      for (const [queryName, expectedCols] of Object.entries(options.expectedColumns)) {
+    // --- Expected fields validation (if provided) ---
+    // Checks the keys of the first object in an array result, which is the JS
+    // equivalent of asserting on the column list of a SQL result set.
+    if (options.expectedFields) {
+      for (const [queryName, expectedFields] of Object.entries(options.expectedFields)) {
         const qr = data.aggregated_data[queryName];
-        if (!qr) {
+        if (!qr || !Array.isArray(qr.value) || qr.value.length === 0) {
           continue;
         }
-        for (const col of expectedCols) {
-          if (!qr.columns.includes(col)) {
+        const fields = Object.keys(qr.value[0]);
+        for (const field of expectedFields) {
+          if (!fields.includes(field)) {
             queryErrors.push(
-              `${queryName}: expected column "${col}" not found in [${qr.columns.join(", ")}]`
+              `${queryName}: expected field "${field}" not found in [${fields.join(", ")}]`
             );
           }
         }
       }
       if (queryErrors.length > 0) {
-        return fail(`Column validation: ${queryErrors.join("; ")}`);
+        return fail(`Field validation: ${queryErrors.join("; ")}`);
       }
     }
 
@@ -279,16 +269,18 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
     if (options.expectNonEmpty) {
       for (const queryName of options.expectNonEmpty) {
         const qr = data.aggregated_data[queryName];
-        if (qr && qr.rowCount === 0) {
-          return fail(`Query "${queryName}" returned 0 rows (expected non-empty)`);
+        if (!qr) continue;
+        const empty = Array.isArray(qr.value) ? qr.value.length === 0 : qr.value == null;
+        if (empty) {
+          return fail(`Query "${queryName}" returned no data (expected non-empty)`);
         }
       }
     }
 
     // Build summary
-    const rowCounts = data.metadata.raw_row_counts;
-    const tables = Object.entries(rowCounts)
-      .map(([t, c]) => `${t}:${c}`)
+    const shapes = data.metadata.dataset_shapes;
+    const tables = Object.entries(shapes)
+      .map(([t, shape]) => `${t}:${shape.rows}`)
       .join(", ");
     const warnings = data.metadata.warnings;
 
@@ -297,9 +289,11 @@ function validateSqlFilteredResponse(result, expectedToolName, options = {}) {
       msg += ` (${warnings.length} warnings)`;
     }
 
-    // Append query result counts
     const resultSummary = queryNames
-      .map((n) => `${n}:${data.aggregated_data[n]?.rowCount ?? 0}r`)
+      .map((n) => {
+        const value = data.aggregated_data[n]?.value;
+        return `${n}:${Array.isArray(value) ? `${value.length}r` : typeof value}`;
+      })
       .join(", ");
     msg += ` | results: {${resultSummary}}`;
 
@@ -348,15 +342,16 @@ const TEST_EXECUTION_ORDER = [
 const COMPREHENSIVE_TEST_SCENARIOS = {
   "tomtom-junction-search": [
     {
-      name: "Search junction definitions with SQL",
+      name: "Search junction definitions with JS",
       params: {
-        sql_queries: {
-          all_junctions: "SELECT junction_id, name, status FROM junctions LIMIT 5",
+        js_queries: {
+          all_junctions:
+            "junctions.slice(0, 5).map(j => ({ junction_id: j.junction_id, name: j.name, status: j.status }))",
         },
       },
       captureId: "junctionId",
       validateOptions: {
-        expectedColumns: { all_junctions: ["junction_id", "name", "status"] },
+        expectedFields: { all_junctions: ["junction_id", "name", "status"] },
         expectNonEmpty: ["all_junctions"],
       },
     },
@@ -364,15 +359,16 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
 
   "tomtom-route-search": [
     {
-      name: "Search all monitored routes with SQL",
+      name: "Search all monitored routes with JS",
       params: {
-        sql_queries: {
-          all_routes: "SELECT route_id, route_name, route_status, delay_time FROM routes",
+        js_queries: {
+          all_routes:
+            "routes.map(r => ({ route_id: r.route_id, route_name: r.route_name, route_status: r.route_status, delay_time: r.delay_time }))",
         },
       },
       captureId: "routeId",
       validateOptions: {
-        expectedColumns: { all_routes: ["route_id", "route_name", "route_status"] },
+        expectedFields: { all_routes: ["route_id", "route_name", "route_status"] },
         expectNonEmpty: ["all_routes"],
       },
     },
@@ -385,12 +381,13 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
         point: { latitude: 52.374, longitude: 4.8897 },
         style: "absolute",
         zoom: 12,
-        sql_queries: {
-          segment_info: "SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment",
+        js_queries: {
+          segment_info:
+            "flow_segment.map(s => ({ frc: s.frc, current_speed: s.current_speed, free_flow_speed: s.free_flow_speed, confidence: s.confidence }))",
         },
       },
       validateOptions: {
-        expectedColumns: {
+        expectedFields: {
           segment_info: ["frc", "current_speed", "free_flow_speed", "confidence"],
         },
         expectNonEmpty: ["segment_info"],
@@ -405,14 +402,17 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
         bboxes: [{ name: "Amsterdam", bbox: "4.85,52.35,4.95,52.40" }],
         language: "en-US",
         maxResults: 10,
-        sql_queries: {
+        js_queries: {
           summary:
-            "SELECT iconCategory, COUNT(*) as count FROM incidents GROUP BY iconCategory ORDER BY count DESC",
-          all_incidents: "SELECT id, iconCategory, delay FROM incidents LIMIT 5",
+            "Object.entries(Object.groupBy(incidents, i => i.iconCategory)).map(([iconCategory, rows]) => ({ iconCategory, count: rows.length })).sort((a, b) => b.count - a.count)",
+          all_incidents:
+            "incidents.slice(0, 5).map(i => ({ id: i.id, iconCategory: i.iconCategory, delay: i.delay }))",
+          within_1km:
+            "incidents.filter(i => turf.distance(turf.centroid(i.geom), [4.9, 52.375], { units: 'kilometers' }) < 1).length",
         },
       },
       validateOptions: {
-        expectedColumns: {
+        expectedFields: {
           summary: ["iconCategory", "count"],
           all_incidents: ["id", "iconCategory", "delay"],
         },
@@ -450,13 +450,13 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
             },
           },
         ],
-        sql_queries: {
+        js_queries: {
           daily_trend:
-            "SELECT time::DATE as day, ROUND(AVG(congestion_level), 2) as avg_congestion FROM timed_data WHERE aggregation_type = 'daily' GROUP BY day ORDER BY day",
+            "Object.entries(Object.groupBy(timed_data.filter(r => r.aggregation_type === 'daily'), r => r.time.slice(0, 10))).map(([day, rows]) => ({ day, avg_congestion: +(rows.reduce((s, r) => s + r.congestion_level, 0) / rows.length).toFixed(2) })).sort((a, b) => a.day.localeCompare(b.day))",
         },
       },
       validateOptions: {
-        expectedColumns: { daily_trend: ["day", "avg_congestion"] },
+        expectedFields: { daily_trend: ["day", "avg_congestion"] },
         expectNonEmpty: ["daily_trend"],
       },
     },
@@ -470,14 +470,14 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
       params: {
         junctionIds: ["{{capturedJunctionId}}"],
         includeGeometry: false,
-        sql_queries: {
+        js_queries: {
           approach_summary:
-            "SELECT approach_id, delay_sec, travel_time_sec, queue_length_meters FROM approaches ORDER BY delay_sec DESC",
+            "[...approaches].sort((a, b) => b.delay_sec - a.delay_sec).map(a => ({ approach_id: a.approach_id, delay_sec: a.delay_sec, travel_time_sec: a.travel_time_sec, queue_length_meters: a.queue_length_meters }))",
         },
       },
       dependsOn: "junctionId",
       validateOptions: {
-        expectedColumns: { approach_summary: ["approach_id", "delay_sec", "travel_time_sec"] },
+        expectedFields: { approach_summary: ["approach_id", "delay_sec", "travel_time_sec"] },
       },
     },
   ],
@@ -489,33 +489,35 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
         junctionIds: ["{{capturedJunctionId}}"],
         from: recentDates.from,
         to: recentDates.to,
-        sql_queries: {
+        js_queries: {
           avg_delay:
-            "SELECT approach_id, ROUND(AVG(delay_sec), 2) as avg_delay FROM approaches GROUP BY approach_id ORDER BY avg_delay DESC",
+            "Object.entries(Object.groupBy(approaches, a => a.approach_id)).map(([approach_id, rows]) => ({ approach_id, avg_delay: +(rows.reduce((s, r) => s + r.delay_sec, 0) / rows.length).toFixed(2) })).sort((a, b) => b.avg_delay - a.avg_delay)",
+          p95_delay:
+            "const d = approaches.map(a => a.delay_sec).filter(v => v != null).sort((x, y) => x - y); return { p50: d[Math.floor(d.length * 0.5)], p95: d[Math.floor(d.length * 0.95)] };",
         },
       },
       dependsOn: "junctionId",
       validateOptions: {
-        expectedColumns: { avg_delay: ["approach_id", "avg_delay"] },
+        expectedFields: { avg_delay: ["approach_id", "avg_delay"] },
       },
     },
   ],
 
   "tomtom-route-monitoring-details": [
     {
-      name: "Get detailed route analysis with SQL",
+      name: "Get detailed route analysis with JS",
       params: {
         routeIds: ["{{capturedRouteId}}"],
-        sql_queries: {
+        js_queries: {
           route_summary:
-            "SELECT route_name, travel_time, delay_time, ROUND(route_confidence, 2) as confidence FROM route_info",
+            "route_info.map(r => ({ route_name: r.route_name, travel_time: r.travel_time, delay_time: r.delay_time, confidence: +r.route_confidence.toFixed(2) }))",
           slow_segments:
-            "SELECT segment_id, current_speed, typical_speed FROM segments WHERE current_speed < typical_speed * 0.7 ORDER BY current_speed LIMIT 10",
+            "segments.filter(s => s.current_speed < s.typical_speed * 0.7).sort((a, b) => a.current_speed - b.current_speed).slice(0, 10).map(s => ({ segment_id: s.segment_id, current_speed: s.current_speed, typical_speed: s.typical_speed }))",
         },
       },
       dependsOn: "routeId",
       validateOptions: {
-        expectedColumns: {
+        expectedFields: {
           route_summary: ["route_name", "travel_time", "delay_time", "confidence"],
         },
         expectNonEmpty: ["route_summary"],
@@ -530,7 +532,7 @@ const COMPREHENSIVE_TEST_SCENARIOS = {
 
 const validators = {
   "tomtom-junction-search": (result, scenario, captured) => {
-    const validation = validateSqlFilteredResponse(
+    const validation = validateFilteredResponse(
       result,
       "tomtom-junction-search",
       scenario.validateOptions
@@ -542,7 +544,7 @@ const validators = {
   },
 
   "tomtom-route-search": (result, scenario, captured) => {
-    const validation = validateSqlFilteredResponse(
+    const validation = validateFilteredResponse(
       result,
       "tomtom-route-search",
       scenario.validateOptions
@@ -554,7 +556,7 @@ const validators = {
   },
 
   "tomtom-traffic-flow-segment": (result, scenario) => {
-    return validateSqlFilteredResponse(
+    return validateFilteredResponse(
       result,
       "tomtom-traffic-flow-segment",
       scenario.validateOptions
@@ -562,15 +564,11 @@ const validators = {
   },
 
   "tomtom-traffic-incidents": (result, scenario) => {
-    return validateSqlFilteredResponse(
-      result,
-      "tomtom-traffic-incidents",
-      scenario.validateOptions
-    );
+    return validateFilteredResponse(result, "tomtom-traffic-incidents", scenario.validateOptions);
   },
 
   "tomtom-area-analytics-stats": (result, scenario) => {
-    return validateSqlFilteredResponse(
+    return validateFilteredResponse(
       result,
       "tomtom-area-analytics-stats",
       scenario.validateOptions
@@ -578,19 +576,15 @@ const validators = {
   },
 
   "tomtom-junction-live-data": (result, scenario) => {
-    return validateSqlFilteredResponse(
-      result,
-      "tomtom-junction-live-data",
-      scenario.validateOptions
-    );
+    return validateFilteredResponse(result, "tomtom-junction-live-data", scenario.validateOptions);
   },
 
   "tomtom-junction-archive": (result, scenario) => {
-    return validateSqlFilteredResponse(result, "tomtom-junction-archive", scenario.validateOptions);
+    return validateFilteredResponse(result, "tomtom-junction-archive", scenario.validateOptions);
   },
 
   "tomtom-route-monitoring-details": (result, scenario) => {
-    return validateSqlFilteredResponse(
+    return validateFilteredResponse(
       result,
       "tomtom-route-monitoring-details",
       scenario.validateOptions
@@ -601,16 +595,14 @@ const validators = {
 /**
  * Extract an ID from the first query result to use in Phase 2 tests
  */
-function captureIdFromResult(result, columnName, captureKey, captured) {
+function captureIdFromResult(result, fieldName, captureKey, captured) {
   try {
     const data = parseResponse(result);
     for (const [, queryResult] of Object.entries(data.aggregated_data || {})) {
-      if (queryResult && queryResult.columns && queryResult.rows) {
-        const idIdx = queryResult.columns.indexOf(columnName);
-        if (idIdx >= 0 && queryResult.rows.length > 0 && queryResult.rows[0][idIdx]) {
-          captured[captureKey] = String(queryResult.rows[0][idIdx]);
-          return;
-        }
+      const rows = queryResult?.value;
+      if (Array.isArray(rows) && rows.length > 0 && rows[0] && rows[0][fieldName] != null) {
+        captured[captureKey] = String(rows[0][fieldName]);
+        return;
       }
     }
   } catch {

@@ -23,14 +23,15 @@ export const junctionDefinitionListSchema = {
   includeGeometry: z.boolean().optional(),
 };
 
-// SQL queries schema for filtering live data responses
-const liveDataSqlQueriesSchema = z
+// JavaScript queries schema for filtering live data responses
+const liveDataJsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
-    message: 'At least one SQL query is required. Provide queries like: {"delays": "SELECT ..."}',
+    message:
+      'At least one JavaScript query is required. Provide queries like: {"delays": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Junction live data details schema - requires junction IDs array
@@ -39,23 +40,23 @@ export const junctionLiveDataDetailsSchema = {
     .array(z.string())
     .min(1)
     .max(20)
-    .describe("Up to 20 IDs; data merged for cross-junction SQL"),
+    .describe("Up to 20 IDs; data merged for cross-junction queries"),
   includeGeometry: z
     .boolean()
     .optional()
     .describe("Set true to populate junction_metadata, approach_metadata, exit_metadata tables"),
-  sql_queries: liveDataSqlQueriesSchema,
+  js_queries: liveDataJsQueriesSchema,
 };
 
-// SQL queries schema for filtering large responses
-const sqlQueriesSchema = z
+// JavaScript queries schema for filtering large responses
+const jsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"hourly_avg": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"hourly_avg": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Junction archive schema - requires junction IDs array
@@ -64,25 +65,25 @@ export const junctionArchiveSchema = {
     .array(z.string())
     .min(1)
     .max(20)
-    .describe("Up to 20 IDs; data merged for cross-junction SQL"),
+    .describe("Up to 20 IDs; data merged for cross-junction queries"),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   to: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
     .describe("Optional end date; API limited to a 2-day range"),
-  sql_queries: sqlQueriesSchema,
+  js_queries: jsQueriesSchema,
 };
 
-// SQL queries schema for junction search
-const junctionSearchSqlQueriesSchema = z
+// JavaScript queries schema for junction search
+const junctionSearchJsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"active_junctions": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"active_junctions": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Junction search schema
@@ -94,7 +95,7 @@ export const junctionSearchSchema = {
     .describe(
       "Table detail level. 'compact' (default): junctions table only. 'full': adds approaches and exits tables for structural search."
     ),
-  sql_queries: junctionSearchSqlQueriesSchema,
+  js_queries: junctionSearchJsQueriesSchema,
 };
 
 // Combined schemas export

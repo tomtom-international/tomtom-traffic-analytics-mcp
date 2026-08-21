@@ -91,7 +91,6 @@ describe("flattenAreaAnalyticsResults", () => {
     expect(row.lat).toBe(51.0);
     expect(row.lon).toBe(19.0);
     expect(row.speed).toBe(40);
-    expect(row.point_geom).toBeNull();
   });
 
   it("should handle empty features", () => {

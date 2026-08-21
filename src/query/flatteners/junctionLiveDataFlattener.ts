@@ -18,7 +18,7 @@ import { FlattenResult } from "../types";
 import { JunctionLiveData } from "../../services/junction-analytics/types";
 
 /**
- * Flattened live approach row for SQL table
+ * Flattened live approach row
  */
 interface LiveApproachRow {
   junction_id: string;
@@ -34,7 +34,7 @@ interface LiveApproachRow {
 }
 
 /**
- * Flattened turn ratio row for SQL table
+ * Flattened turn ratio row
  */
 interface LiveTurnRatioRow {
   junction_id: string;
@@ -46,7 +46,7 @@ interface LiveTurnRatioRow {
 }
 
 /**
- * Flattened stops histogram row for SQL table
+ * Flattened stops histogram row
  */
 interface StopsHistogramRow {
   junction_id: string;
@@ -56,7 +56,7 @@ interface StopsHistogramRow {
 }
 
 /**
- * Flattened junction metadata row for SQL table
+ * Flattened junction metadata row
  */
 interface JunctionMetadataRow {
   junction_id: string;
@@ -67,7 +67,7 @@ interface JunctionMetadataRow {
 }
 
 /**
- * Flattened approach metadata row for SQL table
+ * Flattened approach metadata row
  */
 interface ApproachMetadataRow {
   junction_id: string;
@@ -83,7 +83,7 @@ interface ApproachMetadataRow {
 }
 
 /**
- * Flattened exit metadata row for SQL table
+ * Flattened exit metadata row
  */
 interface ExitMetadataRow {
   junction_id: string;
@@ -97,7 +97,7 @@ interface ExitMetadataRow {
 }
 
 /**
- * Flatten JunctionLiveData into SQL-queryable tables
+ * Flatten JunctionLiveData into queryable datasets
  *
  * Creates up to 6 tables:
  * - approaches: One row per approach with live metrics

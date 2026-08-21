@@ -15,9 +15,8 @@
  */
 
 // Unpacks the built .mcpb and runs the server out of it, the way a user's machine would.
-// Building a bundle is not evidence that it runs: the failure this exists to catch — a
-// missing or mismatched @duckdb/node-bindings-<platform>-<arch> — packs perfectly and
-// only throws when a tool first touches the SQL engine.
+// Building a bundle is not evidence that it runs: a bundle whose query engine cannot
+// start packs perfectly and only throws when a tool first evaluates a query.
 //
 // Everything here goes through the bundle's *own* embedded Node runtime and launcher,
 // never this process's node, because that is what Claude Desktop invokes.
@@ -39,16 +38,28 @@ const BUNDLE = path.join(
   `tomtom-traffic-analytics-mcp-${TARGET}.mcpb`
 );
 
-// Run in a child rather than in this process: loading the binding maps a native library
-// in, and Windows keeps a handle on it for the lifetime of whichever process did so,
-// which then cannot delete the extracted bundle. A child releases it on exit, so the
-// ~40 MB staging directory does not accumulate in the temp dir on every run.
-const DUCKDB_PROBE = `
+// Run in a child rather than in this process so the extracted bundle can be deleted
+// afterwards on every platform, and so a WASM abort cannot take the verifier with it.
+//
+// Instantiating the sandbox is the check: the QuickJS WASM module is compiled into the
+// app bundle, and a truncated or mis-packed bundle fails here rather than at first use.
+const SANDBOX_PROBE = `
   const path = require("node:path");
-  const { DuckDBInstance } = require(path.join(process.argv[1], "node_modules", "@duckdb", "node-api"));
-  DuckDBInstance.create(":memory:")
-    .then((instance) => instance.connect())
-    .then((connection) => connection.run("SELECT 1"))
+  const { newQuickJSWASMModuleFromVariant } = require(
+    path.join(process.argv[1], "node_modules", "quickjs-emscripten-core")
+  );
+  const variant = require(
+    path.join(process.argv[1], "node_modules", "@jitl", "quickjs-singlefile-cjs-release-sync")
+  );
+  newQuickJSWASMModuleFromVariant(variant.default ?? variant)
+    .then((mod) => {
+      const vm = mod.newContext();
+      const result = vm.unwrapResult(vm.evalCode("[1, 2, 3].reduce((a, b) => a + b, 0)"));
+      const total = vm.getNumber(result);
+      result.dispose();
+      vm.dispose();
+      if (total !== 6) throw new Error("sandbox returned " + total + ", expected 6");
+    })
     .catch((err) => {
       console.error(err.stack || err.message);
       process.exit(1);
@@ -83,16 +94,16 @@ function assertExecutable(...files) {
   }
 }
 
-// Loading the binding directly gives a precise error; reaching it only through the server
-// would surface the same fault as a generic tool failure. Uses the bundle's own runtime,
-// since the ABI it was built against is the one that has to match.
-function assertDuckDbRunsSql(dir) {
+// Exercising the sandbox directly gives a precise error; reaching it only through the
+// server would surface the same fault as a generic tool failure. Uses the bundle's own
+// runtime, since that is the one that has to load the WASM module.
+function assertSandboxEvaluates(dir) {
   const appDir = path.join(dir, "bin", "app");
   try {
-    execFileSync(bundledNode(dir), ["-e", DUCKDB_PROBE, appDir], { stdio: "pipe" });
+    execFileSync(bundledNode(dir), ["-e", SANDBOX_PROBE, appDir], { stdio: "pipe" });
   } catch (err) {
     const detail = err.stderr?.toString() || err.stdout?.toString() || err.message;
-    throw new Error(`the bundled duckdb native binding could not run SQL:\n${detail}`);
+    throw new Error(`the bundled QuickJS sandbox could not evaluate JavaScript:\n${detail}`);
   }
 }
 
@@ -187,8 +198,8 @@ async function main() {
     assertExecutable(launcher, bundledNode(dir));
     console.log("  ✓ Launcher and embedded Node runtime are executable");
 
-    assertDuckDbRunsSql(dir);
-    console.log("  ✓ duckdb native binding executes SQL");
+    assertSandboxEvaluates(dir);
+    console.log("  ✓ QuickJS sandbox evaluates JavaScript");
 
     const responses = await handshake(launcher);
     const initialize = responses.find((r) => r.id === 1);

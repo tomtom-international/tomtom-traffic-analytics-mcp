@@ -5,18 +5,21 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockSqlEngine = {
+const mockQueryEngine = {
   initialize: vi.fn().mockResolvedValue([]),
   executeQueries: vi.fn().mockResolvedValue({
     test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
   }),
-  getTableRowCounts: vi.fn().mockReturnValue({ routes: 3 }),
+  getDatasetShapes: vi.fn().mockReturnValue({ routes: 3 }),
   close: vi.fn(),
 };
 
-vi.mock("../sql", () => ({
-  SqlFilterEngine: vi.fn(function () {
-    return mockSqlEngine;
+vi.mock("../query", () => ({
+  // The handlers pass this to executeQueries, so a factory mock has to provide
+  // it or the import fails and every case reports isError.
+  MODEL_FACING_RESULT_LIMITS: { maxRows: 10000, maxBytes: 1_000_000 },
+  JsQueryEngine: vi.fn(function () {
+    return mockQueryEngine;
   }),
   flattenRouteList: vi
     .fn()
@@ -46,11 +49,11 @@ import { getRoutes, getRouteDetails } from "../services/route-monitoring/routeMo
 describe("routeMonitoringHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSqlEngine.initialize.mockResolvedValue([]);
-    mockSqlEngine.executeQueries.mockResolvedValue({
+    mockQueryEngine.initialize.mockResolvedValue([]);
+    mockQueryEngine.executeQueries.mockResolvedValue({
       test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
     });
-    mockSqlEngine.getTableRowCounts.mockReturnValue({ routes: 3 });
+    mockQueryEngine.getDatasetShapes.mockReturnValue({ routes: 3 });
   });
 
   const handlers = createRouteMonitoringHandlers();
@@ -58,15 +61,15 @@ describe("routeMonitoringHandler", () => {
   describe("searchRoutes", () => {
     const handler = handlers.searchRoutes;
 
-    it("returns error when sql_queries is missing", async () => {
+    it("returns error when js_queries is missing", async () => {
       const result = await handler({});
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.error).toContain("sql_queries parameter is REQUIRED");
+      expect(parsed.error).toContain("js_queries parameter is REQUIRED");
     });
 
     it("returns successful response with totalRoutes", async () => {
-      const result = await handler({ sql_queries: { q: "SELECT * FROM routes" } });
+      const result = await handler({ js_queries: { q: "SELECT * FROM routes" } });
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.metadata.tool).toBe("tomtom-route-search");
@@ -76,13 +79,13 @@ describe("routeMonitoringHandler", () => {
 
     it("returns isError when service throws", async () => {
       vi.mocked(getRoutes).mockRejectedValueOnce(new Error("API error"));
-      const result = await handler({ sql_queries: { q: "SELECT 1" } });
+      const result = await handler({ js_queries: { q: "SELECT 1" } });
       expect(result.isError).toBe(true);
     });
 
-    it("always calls sqlEngine.close()", async () => {
-      await handler({ sql_queries: { q: "SELECT 1" } });
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+    it("always calls queryEngine.close()", async () => {
+      await handler({ js_queries: { q: "SELECT 1" } });
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
   });
 
@@ -90,24 +93,24 @@ describe("routeMonitoringHandler", () => {
     const handler = handlers.getRouteDetails;
     const validParams = {
       routeIds: ["r1"],
-      sql_queries: { q: "SELECT * FROM segments" },
+      js_queries: { q: "SELECT * FROM segments" },
     };
 
     it("returns error when routeIds exceed 20", async () => {
       const ids = Array.from({ length: 21 }, (_, i) => `r${i}`);
-      const result = await handler({ routeIds: ids, sql_queries: { q: "SELECT 1" } });
+      const result = await handler({ routeIds: ids, js_queries: { q: "SELECT 1" } });
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.error).toContain("Maximum 20");
     });
 
-    it("returns error when sql_queries is missing", async () => {
+    it("returns error when js_queries is missing", async () => {
       const result = await handler({ routeIds: ["r1"] });
       expect(result.isError).toBe(true);
     });
 
     it("calls getRouteDetails for each route ID", async () => {
-      await handler({ routeIds: ["r1", "r2"], sql_queries: { q: "SELECT 1" } });
+      await handler({ routeIds: ["r1", "r2"], js_queries: { q: "SELECT 1" } });
       expect(getRouteDetails).toHaveBeenCalledTimes(2);
       expect(getRouteDetails).toHaveBeenCalledWith("r1");
       expect(getRouteDetails).toHaveBeenCalledWith("r2");
@@ -121,10 +124,10 @@ describe("routeMonitoringHandler", () => {
       expect(parsed.metadata.parameters.routeCount).toBe(1);
     });
 
-    it("always calls sqlEngine.close()", async () => {
+    it("always calls queryEngine.close()", async () => {
       vi.mocked(getRouteDetails).mockRejectedValueOnce(new Error("fail"));
       await handler(validParams);
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
   });
 });

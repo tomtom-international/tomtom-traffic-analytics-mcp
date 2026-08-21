@@ -18,8 +18,13 @@ import { FlattenResult } from "../types";
 import { TrafficFlowSegmentResponse } from "../../services/live-traffic/types";
 
 /**
- * Flattened flow segment row for SQL table
+ * Flattened flow segment row
  */
+interface GeoJsonLineString {
+  type: "LineString";
+  coordinates: number[][];
+}
+
 interface FlowSegmentRow {
   frc: string | null;
   current_speed: number | null;
@@ -28,14 +33,13 @@ interface FlowSegmentRow {
   free_flow_travel_time: number | null;
   confidence: number | null;
   road_closure: number | null;
-  coordinates: string | null;
   openlr: string | null;
-  geom_geojson: string | null; // Full GeoJSON geometry for ST_GeomFromGeoJSON
-  geom: null; // Placeholder for native GEOMETRY (populated by engine)
+  /** GeoJSON LineString, ready to hand straight to turf. */
+  geom: GeoJsonLineString | null;
 }
 
 /**
- * Flatten TrafficFlowSegmentResponse into SQL-queryable table
+ * Flatten TrafficFlowSegmentResponse into a queryable dataset
  *
  * Creates one table:
  * - flow_segment: Single row with flow data for the queried segment
@@ -49,10 +53,10 @@ export function flattenTrafficFlowSegment(response: TrafficFlowSegmentResponse):
   // Build a valid RFC 7946 GeoJSON LineString. The TomTom Flow Segment API
   // returns each point as a { latitude, longitude } object, but GeoJSON
   // requires coordinates as flat [longitude, latitude] arrays — without this
-  // mapping, ST_GeomFromGeoJSON(geom_geojson) cannot parse the value.
-  const geojsonGeometry = response.coordinates
+  // mapping, turf cannot read the value.
+  const geojsonGeometry: GeoJsonLineString | null = response.coordinates
     ? {
-        type: "LineString",
+        type: "LineString" as const,
         coordinates: response.coordinates.map((c) => [c.longitude, c.latitude]),
       }
     : null;
@@ -65,10 +69,8 @@ export function flattenTrafficFlowSegment(response: TrafficFlowSegmentResponse):
     free_flow_travel_time: response.freeFlowTravelTime ?? null,
     confidence: response.confidence ?? null,
     road_closure: response.roadClosure != null ? (response.roadClosure ? 1 : 0) : null,
-    coordinates: response.coordinates ? JSON.stringify(response.coordinates) : null,
     openlr: response.openlr ?? null,
-    geom_geojson: geojsonGeometry ? JSON.stringify(geojsonGeometry) : null, // Full GeoJSON for spatial queries
-    geom: null, // Populated by SqlFilterEngine
+    geom: geojsonGeometry, // GeoJSON object — turf.length(row.geom), turf.booleanIntersects(...)
   };
 
   tables.set("flow_segment", [flowRow] as unknown as Record<string, unknown>[]);

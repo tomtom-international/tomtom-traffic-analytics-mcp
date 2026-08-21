@@ -21,32 +21,31 @@ import {
 } from "../services/live-traffic/liveTrafficService";
 import { TrafficFlowSegmentRequest } from "../services/live-traffic/types";
 import {
-  SqlFilterEngine,
+  JsQueryEngine,
+  MODEL_FACING_RESULT_LIMITS,
   flattenTrafficFlowSegment,
   flattenTrafficIncidents,
-  TRAFFIC_FLOW_SEGMENT_SCHEMA,
-  TRAFFIC_INCIDENTS_SCHEMA,
-  SqlFilteredResponse,
-} from "../sql";
+  JsFilteredResponse,
+} from "../query";
 
 /**
- * Handler for getting flow segment data with SQL filtering
+ * Handler for getting flow segment data with sandboxed JS filtering
  *
- * Requires sql_queries parameter to filter/aggregate the response data.
+ * Requires js_queries parameter to filter/aggregate the response data.
  * This prevents context window overflow when working with LLM agents.
  */
 export function getFlowSegmentDataHandler() {
   return async (params: any) => {
     logger.info("Processing flow segment data request");
 
-    const { sql_queries, ...requestParams } = params;
+    const { js_queries, ...requestParams } = params;
     const request = requestParams as TrafficFlowSegmentRequest;
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the flow segment data. " +
-        'Example: {"segment_info": "SELECT frc, current_speed, free_flow_speed, confidence FROM flow_segment"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the flow segment data. " +
+        'Example: {"segment_info": "flow_segment.map(s => ({ frc: s.frc, speed: s.current_speed, freeFlow: s.free_flow_speed }))"}';
       logger.error(`❌ Flow segment data request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
@@ -54,7 +53,7 @@ export function getFlowSegmentDataHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       // 1. Fetch raw data from API
@@ -64,17 +63,17 @@ export function getFlowSegmentDataHandler() {
       // 2. Flatten JSON to relational tables
       const flattenedData = flattenTrafficFlowSegment(rawResult);
 
-      // 3. Initialize SQL engine with schema and data
-      const warnings = await sqlEngine.initialize(TRAFFIC_FLOW_SEGMENT_SCHEMA, flattenedData);
+      // 3. Load the flattened data into the sandbox
+      const warnings = await queryEngine.initialize(flattenedData);
 
-      // 4. Execute SQL queries
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 4. Execute JS queries
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
-      // 5. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
       // 6. Build filtered response
-      const response: SqlFilteredResponse = {
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-traffic-flow-segment",
           parameters: {
@@ -82,15 +81,15 @@ export function getFlowSegmentDataHandler() {
             style: request.style,
             zoom: request.zoom,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `✅ Flow segment data processed with SQL filtering (${Object.keys(sql_queries).length} queries)`
+        `✅ Flow segment data processed with sandboxed JS filtering (${Object.keys(js_queries).length} queries)`
       );
       return {
         content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
@@ -108,7 +107,7 @@ export function getFlowSegmentDataHandler() {
       };
     } finally {
       // Always clean up database resources
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }
@@ -125,17 +124,17 @@ async function getTrafficByBbox(bbox?: string, options: any = {}) {
 }
 
 /**
- * Handler factory function for traffic incidents with SQL filtering
+ * Handler factory function for traffic incidents with sandboxed JS filtering
  *
  * Fetches incidents for one or more named bounding boxes in parallel and merges
- * into a single database for cross-area SQL comparisons.
+ * into a single database for cross-area comparisons.
  *
- * Requires sql_queries parameter to filter/aggregate the response data.
+ * Requires js_queries parameter to filter/aggregate the response data.
  * This prevents context window overflow when working with LLM agents.
  */
 export function createTrafficIncidentsHandler() {
   return async (params: any) => {
-    const { sql_queries, bboxes, ...requestParams } = params;
+    const { js_queries, bboxes, ...requestParams } = params;
 
     const areas: Array<{ name: string; bbox: string }> = bboxes;
 
@@ -148,11 +147,11 @@ export function createTrafficIncidentsHandler() {
       };
     }
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the traffic incidents. " +
-        'Example: {"accidents": "SELECT id, iconCategory, delay FROM incidents WHERE iconCategory = \'Accident\'"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the traffic incidents. " +
+        'Example: {"accidents": "incidents.filter(i => i.iconCategory === \'Accident\').map(i => ({ id: i.id, delay: i.delay }))"}';
       logger.error(`❌ Traffic incidents request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
@@ -160,7 +159,7 @@ export function createTrafficIncidentsHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       const options = {
@@ -202,34 +201,34 @@ export function createTrafficIncidentsHandler() {
         }
       }
 
-      // 3. Initialize SQL engine with schema and merged data
-      const warnings = await sqlEngine.initialize(TRAFFIC_INCIDENTS_SCHEMA, {
+      // 3. Load the merged data into the sandbox
+      const warnings = await queryEngine.initialize({
         tables: mergedTables,
       });
 
-      // 4. Execute SQL queries across combined dataset
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 4. Execute JS queries across combined dataset
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
-      // 5. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
       // 6. Build filtered response
-      const response: SqlFilteredResponse = {
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-traffic-incidents",
           parameters: {
             areas: areas.map((a) => a.name),
             areaCount: areas.length,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `✅ Traffic incidents processed with SQL filtering: ${areas.length} areas (${Object.keys(sql_queries).length} queries)`
+        `✅ Traffic incidents processed with sandboxed JS filtering: ${areas.length} areas (${Object.keys(js_queries).length} queries)`
       );
       return {
         content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }],
@@ -242,7 +241,7 @@ export function createTrafficIncidentsHandler() {
       };
     } finally {
       // Always clean up database resources
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }

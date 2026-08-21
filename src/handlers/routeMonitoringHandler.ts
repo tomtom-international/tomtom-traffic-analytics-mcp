@@ -17,13 +17,12 @@
 import { logger } from "../utils/logger";
 import { getRoutes, getRouteDetails } from "../services/route-monitoring/routeMonitoringService";
 import {
-  SqlFilterEngine,
+  JsQueryEngine,
+  MODEL_FACING_RESULT_LIMITS,
   flattenRouteMonitoringDetails,
-  ROUTE_MONITORING_SCHEMA,
   flattenRouteList,
-  ROUTE_LIST_SCHEMA,
-  SqlFilteredResponse,
-} from "../sql";
+  JsFilteredResponse,
+} from "../query";
 
 /**
  * Factory function that creates route monitoring handlers
@@ -36,24 +35,24 @@ export function createRouteMonitoringHandlers() {
 }
 
 /**
- * Handler for searching routes with SQL filtering
+ * Handler for searching routes with sandboxed JS filtering
  *
- * Fetches all routes, flattens into SQL tables, and executes
+ * Fetches all routes, flattens into datasets, and executes
  * user queries for efficient filtering.
  *
- * Requires sql_queries parameter.
+ * Requires js_queries parameter.
  */
 function createRouteSearchHandler() {
-  return async (params: { sql_queries?: Record<string, string> }) => {
-    const { sql_queries } = params;
+  return async (params: { js_queries?: Record<string, string> }) => {
+    const { js_queries } = params;
 
     logger.info("Route search");
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the routes. " +
-        'Example: {"delayed_routes": "SELECT route_id, route_name, delay_time FROM routes WHERE delay_time > 60 ORDER BY delay_time DESC"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the routes. " +
+        'Example: {"delayed_routes": "routes.filter(r => r.delay_time > 60).sort((a, b) => b.delay_time - a.delay_time)"}';
       logger.error(`Route search request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
@@ -61,40 +60,40 @@ function createRouteSearchHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       // 1. Fetch all routes
       const allRoutes = await getRoutes();
 
-      // 2. Flatten into SQL table
+      // 2. Flatten into a dataset
       const flattenedData = flattenRouteList(allRoutes);
 
-      // 3. Initialize SQL engine with schema and data
-      const warnings = await sqlEngine.initialize(ROUTE_LIST_SCHEMA, flattenedData);
+      // 3. Load the flattened data into the sandbox
+      const warnings = await queryEngine.initialize(flattenedData);
 
-      // 4. Execute SQL queries
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 4. Execute JS queries
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
-      // 5. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
       // 6. Build filtered response
-      const response: SqlFilteredResponse = {
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-route-search",
           parameters: {
             totalRoutes: allRoutes.length,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `Route search completed: ${allRoutes.length} routes (${Object.keys(sql_queries).length} queries)`
+        `Route search completed: ${allRoutes.length} routes (${Object.keys(js_queries).length} queries)`
       );
       return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
     } catch (error: any) {
@@ -104,23 +103,23 @@ function createRouteSearchHandler() {
         isError: true,
       };
     } finally {
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }
 
 /**
- * Handler for getting detailed route information with SQL filtering
+ * Handler for getting detailed route information with sandboxed JS filtering
  *
  * Fetches details for one or more routes in parallel and merges into
- * a single database for cross-route SQL comparisons.
+ * a single database for cross-route comparisons.
  *
- * Requires sql_queries parameter to filter/aggregate the segment data.
+ * Requires js_queries parameter to filter/aggregate the segment data.
  * This prevents context window overflow when working with LLM agents.
  */
 function createGetRouteDetailsHandler() {
-  return async (params: { routeIds: string[]; sql_queries?: Record<string, string> }) => {
-    const { routeIds, sql_queries } = params;
+  return async (params: { routeIds: string[]; js_queries?: Record<string, string> }) => {
+    const { routeIds, js_queries } = params;
 
     const ids: string[] = routeIds;
 
@@ -137,11 +136,11 @@ function createGetRouteDetailsHandler() {
       `Fetching detailed route information for ${ids.length} route(s): ${ids.join(", ")}`
     );
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the route details. " +
-        'Example: {"slow_segments": "SELECT segment_id, current_speed, typical_speed FROM segments WHERE current_speed < typical_speed * 0.5 ORDER BY current_speed"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the route details. " +
+        'Example: {"slow_segments": "segments.filter(s => s.current_speed < s.typical_speed * 0.5).sort((a, b) => a.current_speed - b.current_speed)"}';
       logger.error(`❌ Route details request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
@@ -149,7 +148,7 @@ function createGetRouteDetailsHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       // 1. Fetch all routes in PARALLEL
@@ -173,34 +172,34 @@ function createGetRouteDetailsHandler() {
         }
       }
 
-      // 3. Initialize SQL engine with schema and merged data
-      const warnings = await sqlEngine.initialize(ROUTE_MONITORING_SCHEMA, {
+      // 3. Load the merged data into the sandbox
+      const warnings = await queryEngine.initialize({
         tables: mergedTables,
       });
 
-      // 4. Execute SQL queries across combined dataset
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 4. Execute JS queries across combined dataset
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
-      // 5. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
       // 6. Build filtered response
-      const response: SqlFilteredResponse = {
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-route-monitoring-details",
           parameters: {
             routeIds: ids,
             routeCount: ids.length,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `✅ Route details processed with SQL filtering: ${ids.length} routes (${Object.keys(sql_queries).length} queries)`
+        `✅ Route details processed with sandboxed JS filtering: ${ids.length} routes (${Object.keys(js_queries).length} queries)`
       );
       return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
     } catch (error: any) {
@@ -211,7 +210,7 @@ function createGetRouteDetailsHandler() {
       };
     } finally {
       // Always clean up database resources
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }

@@ -18,8 +18,10 @@ import { FlattenResult } from "../types";
 import { TrafficIncidentsResult } from "../../services/live-traffic/types";
 import { mapIconCategory, mapMagnitudeOfDelay } from "./mappings";
 
+type Incident = NonNullable<TrafficIncidentsResult["incidents"]>[number];
+
 /**
- * Flattened incident row for SQL table
+ * Flattened incident row
  */
 interface IncidentRow {
   area_name: string | null; // Area identifier for multi-bbox comparison queries
@@ -32,20 +34,20 @@ interface IncidentRow {
   to: string | null;
   length: number | null;
   delay: number | null;
-  roadNumbers: string | null;
+  roadNumbers: string[] | null;
   timeValidity: string | null;
   probabilityOfOccurrence: string | null;
   numberOfReports: number | null;
   lastReportTime: string | null;
-  events: string | null; // JSON-serialised array of {description, code, iconCategory}
+  /** Live array of {description, code, iconCategory} — no JSON parsing needed. */
+  events: Incident["properties"]["events"] | null;
   geometry_type: string;
-  coordinates: string;
-  geom_geojson: string | null; // Full GeoJSON geometry for ST_GeomFromGeoJSON
-  geom: null; // Placeholder for native GEOMETRY (populated by engine)
+  /** GeoJSON geometry, ready to hand straight to turf. */
+  geom: Incident["geometry"] | null;
 }
 
 /**
- * Flatten TrafficIncidentsResult into SQL-queryable table
+ * Flatten TrafficIncidentsResult into a queryable dataset
  *
  * Creates one table:
  * - incidents: One row per traffic incident
@@ -71,9 +73,7 @@ export function flattenTrafficIncidents(
     to: incident.properties.to ?? null,
     length: incident.properties.length ?? null,
     delay: incident.properties.delay ?? null,
-    roadNumbers: incident.properties.roadNumbers
-      ? JSON.stringify(incident.properties.roadNumbers)
-      : null,
+    roadNumbers: incident.properties.roadNumbers ? incident.properties.roadNumbers : null,
     timeValidity:
       typeof incident.properties.timeValidity === "string"
         ? incident.properties.timeValidity
@@ -81,11 +81,9 @@ export function flattenTrafficIncidents(
     probabilityOfOccurrence: incident.properties.probabilityOfOccurrence ?? null,
     numberOfReports: incident.properties.numberOfReports ?? null,
     lastReportTime: incident.properties.lastReportTime ?? null,
-    events: incident.properties.events ? JSON.stringify(incident.properties.events) : null,
+    events: incident.properties.events ?? null,
     geometry_type: incident.geometry.type,
-    coordinates: JSON.stringify(incident.geometry.coordinates),
-    geom_geojson: JSON.stringify(incident.geometry), // Full GeoJSON for spatial queries
-    geom: null, // Populated by SqlFilterEngine
+    geom: incident.geometry, // GeoJSON object — turf.booleanPointInPolygon(row.geom, area)
   }));
 
   tables.set("incidents", incidentRows as unknown as Record<string, unknown>[]);

@@ -30,21 +30,22 @@ The package manager is **pnpm** (`>=11`); linting and formatting are handled by 
 
 ## Architecture
 
-This is an MCP (Model Context Protocol) server that exposes TomTom traffic APIs as tools for LLM assistants. It uses DuckDB for in-memory SQL filtering of API responses.
+This is an MCP (Model Context Protocol) server that exposes TomTom traffic APIs as tools for LLM assistants. It filters API responses by evaluating caller-supplied JavaScript in a QuickJS WASM sandbox, with turf and h3 available for geospatial work.
 
 ### 4-Layer Pattern
 
-Every tool follows: **Tool → Handler → Service → SQL Engine**
+Every tool follows: **Tool → Handler → Service → Query Engine**
 
 1. **Tools** (`src/tools/*.ts`) — Register tools via `server.registerTool(name, { description, inputSchema: zodSchema }, handler)`. Grouped by domain: `liveTraffic`, `areaAnalytics`, `junctionAnalytics`, `routeMonitoring`.
 
-2. **Handlers** (`src/handlers/*.ts`) — Orchestrate the flow: validate `sql_queries` → call service → flatten response → init SQL engine → execute queries → return filtered results. Always close `SqlFilterEngine` in a `finally` block.
+2. **Handlers** (`src/handlers/*.ts`) — Orchestrate the flow: validate `js_queries` → call service → flatten response → init the sandbox → execute queries → return filtered results. Always close `JsQueryEngine` in a `finally` block.
 
 3. **Services** (`src/services/*/`) — HTTP calls to TomTom APIs via two Axios clients in `src/services/base/tomtomClient.ts`: `trafficAPIClient` (uses `TOMTOM_API_KEY`) and `movePortalAPIClient` (uses `TOMTOM_MOVE_PORTAL_KEY`).
 
-4. **SQL Layer** (`src/sql/`) — `SqlFilterEngine` creates an in-memory DuckDB instance, loads flattened data into tables, and executes user-provided SQL queries.
-   - **Flatteners** (`src/sql/flatteners/`) convert nested API JSON → flat relational rows
-   - **Schemas** (`src/sql/schemas/`) define table structures (`TableDefinition[]`)
+4. **Query Layer** (`src/query/`) — `JsQueryEngine` creates a QuickJS WASM sandbox, marshals the flattened datasets into it once, and evaluates user-provided JavaScript against them.
+   - **Flatteners** (`src/query/flatteners/`) convert nested API JSON → flat arrays of objects
+   - **Vendor** (`src/query/vendor/`) holds turf and h3 as base64 IIFE bundles, injected into the sandbox on demand; regenerate with `node scripts/build-sandbox-libs.mjs`
+   - Dataset shapes are derived from the data at runtime, so there are no table definitions to maintain
 
 ### Server Initialization
 
@@ -62,15 +63,17 @@ Wire cost = tool name + description + serialized JSON Schema (from Zod `.describ
 
 ### Token Cost Optimization
 - Tool descriptions = brief purpose + constraints only
-- Schema `.describe()` strings = tables, columns, examples (single source of truth)
+- Schema `.describe()` strings = datasets, fields, examples (single source of truth)
 - Measure with: `node tests/test-comprehensive.js --metrics-only`
 - Test files assert on description text — update tests when changing descriptions
 
-### sql_queries Is Mandatory
-Every tool requires a `sql_queries` parameter (record of named SQL queries). This prevents dumping full API responses into LLM context. Handlers validate its presence before proceeding.
+### js_queries Is Mandatory
+Every tool requires a `js_queries` parameter (record of named JavaScript queries). This prevents dumping full API responses into LLM context. Handlers validate its presence before proceeding.
+
+A query is a single expression, or a statement block ending in `return`. The engine decides which by compiling the expression form first and falling back to the statement form — never by pattern-matching the source, because a `return` inside a string literal fools any such heuristic.
 
 ### Multi-Area Comparison
-The traffic incidents handler supports multiple named bounding boxes. It fetches areas in parallel, flattens each with an `area_name` column, merges into one database, and enables cross-area SQL queries.
+The traffic incidents handler supports multiple named bounding boxes. It fetches areas in parallel, flattens each with an `area_name` field, merges them into one dataset, and enables cross-area queries.
 
 ### Schemas Export Pattern
 Zod schemas are exported as plain objects (not wrapped in `z.object()`). The tool registration wraps them: `server.registerTool(name, { description, inputSchema: zodSchemaObject }, handler)`.
@@ -86,9 +89,10 @@ Configured via `.env` (see `.env.example`):
 - Unit tests: 20 files in `src/**/*.test.ts`, vitest globals enabled (no imports needed for `describe`/`it`/`expect`)
 - Mocks must be set up BEFORE importing the module under test (`vi.mock()` is hoisted, but direct assignments like `console.error = vi.fn()` are not)
 - Service tests mock `trafficAPIClient`/`movePortalAPIClient` and `logger`
+- The sandbox has its own suites: `src/query/jsQueryEngine.test.ts` (behaviour) and `jsQueryEngine.security.test.ts` (isolation and resource limits)
 - Tool tests mock handler modules and verify `server.registerTool()` was called with correct names/schemas
 - Integration tests (`tests/test-comprehensive.js`) hit real APIs — need `.env` keys
 
 ## Build
 
-`pnpm run build` runs TypeScript declarations (`tsc --emitDeclarationOnly`) then Rolldown bundling (ESM + CJS, `rolldown.config.js`). Rolldown resolves node modules, CJS interop, JSON and TypeScript natively, so there is no plugin chain apart from `rollup-plugin-license`, which emits `dist/THIRD_PARTY.txt`.
+`pnpm run build` runs TypeScript declarations (`tsc --emitDeclarationOnly`) then Rolldown bundling (ESM + CJS, `rolldown.config.js`). Rolldown resolves node modules, CJS interop, JSON and TypeScript natively, so there is no plugin chain apart from `rollup-plugin-license`, which emits `dist/THIRD_PARTY.txt`. The QuickJS WASM module and the turf/h3 bundles are inlined into `dist/`, so the output is self-contained with no native binding and no side files.

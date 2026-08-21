@@ -5,18 +5,21 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockSqlEngine = {
+const mockQueryEngine = {
   initialize: vi.fn().mockResolvedValue([]),
   executeQueries: vi.fn().mockResolvedValue({
     test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
   }),
-  getTableRowCounts: vi.fn().mockReturnValue({ timed_data: 10 }),
+  getDatasetShapes: vi.fn().mockReturnValue({ timed_data: 10 }),
   close: vi.fn(),
 };
 
-vi.mock("../sql", () => ({
-  SqlFilterEngine: vi.fn(function () {
-    return mockSqlEngine;
+vi.mock("../query", () => ({
+  // The handlers pass this to executeQueries, so a factory mock has to provide
+  // it or the import fails and every case reports isError.
+  MODEL_FACING_RESULT_LIMITS: { maxRows: 10000, maxBytes: 1_000_000 },
+  JsQueryEngine: vi.fn(function () {
+    return mockQueryEngine;
   }),
   flattenAreaAnalyticsResults: vi
     .fn()
@@ -38,11 +41,11 @@ import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsS
 describe("areaAnalyticsHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSqlEngine.initialize.mockResolvedValue([]);
-    mockSqlEngine.executeQueries.mockResolvedValue({
+    mockQueryEngine.initialize.mockResolvedValue([]);
+    mockQueryEngine.executeQueries.mockResolvedValue({
       test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
     });
-    mockSqlEngine.getTableRowCounts.mockReturnValue({ timed_data: 10 });
+    mockQueryEngine.getDatasetShapes.mockReturnValue({ timed_data: 10 });
   });
 
   const handler = getAreaAnalyticsStatsHandler();
@@ -69,19 +72,19 @@ describe("areaAnalyticsHandler", () => {
         },
       },
     ],
-    sql_queries: { test_query: "SELECT * FROM timed_data" },
+    js_queries: { test_query: "SELECT * FROM timed_data" },
   };
 
-  it("returns error when sql_queries is missing", async () => {
-    const { sql_queries, ...paramsWithout } = validParams;
+  it("returns error when js_queries is missing", async () => {
+    const { js_queries, ...paramsWithout } = validParams;
     const result = await handler(paramsWithout);
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.error).toContain("sql_queries parameter is REQUIRED");
+    expect(parsed.error).toContain("js_queries parameter is REQUIRED");
   });
 
-  it("returns error when sql_queries is empty object", async () => {
-    const result = await handler({ ...validParams, sql_queries: {} });
+  it("returns error when js_queries is empty object", async () => {
+    const result = await handler({ ...validParams, js_queries: {} });
     expect(result.isError).toBe(true);
   });
 
@@ -95,7 +98,7 @@ describe("areaAnalyticsHandler", () => {
       startDate: "2024-01-01",
       endDate: "2024-01-15",
     });
-    expect(parsed.metadata.raw_row_counts).toEqual({ timed_data: 10 });
+    expect(parsed.metadata.dataset_shapes).toEqual({ timed_data: 10 });
     expect(parsed.metadata.queries_executed).toBe(1);
     expect(parsed.aggregated_data).toBeDefined();
   });
@@ -108,14 +111,14 @@ describe("areaAnalyticsHandler", () => {
     expect(parsed.error).toBe("API failure");
   });
 
-  it("always calls sqlEngine.close()", async () => {
+  it("always calls queryEngine.close()", async () => {
     await handler(validParams);
-    expect(mockSqlEngine.close).toHaveBeenCalled();
+    expect(mockQueryEngine.close).toHaveBeenCalled();
   });
 
-  it("calls sqlEngine.close() even on error", async () => {
+  it("calls queryEngine.close() even on error", async () => {
     vi.mocked(getAreaAnalyticsStats).mockRejectedValueOnce(new Error("fail"));
     await handler(validParams);
-    expect(mockSqlEngine.close).toHaveBeenCalled();
+    expect(mockQueryEngine.close).toHaveBeenCalled();
   });
 });

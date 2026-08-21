@@ -36,7 +36,20 @@ const SERVER_INSTRUCTIONS = `TomTom traffic analytics over TomTom Traffic and Mo
 
 Junction and route workflows are 2-phase: always call the search tool first to obtain IDs, then pass those IDs to the analysis tool.
 
-Each tool's description carries its own column list, SQL examples, DuckDB dialect notes and conventions (FRC scale, boolean 0/1 semantics, spatial column usage, etc.) — read the relevant tool's description before constructing queries.`;
+**Query runtime — applies to every tool, stated once here rather than in all eight descriptions.**
+Every tool requires a \`js_queries\` parameter: an object mapping result names to JavaScript source
+strings. Each query is a single expression, or statements ending in \`return\`. The flattened
+datasets are plain arrays of objects, bound as locals and also present on \`data\`. Runs in a
+sandbox: no I/O, no imports, 5s timeout, 10,000-row and 1 MB result caps. \`Object.groupBy(rows,
+r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected
+automatically when your code references them. The only names in scope are the datasets listed in
+the tool's description; nothing else about the response is reachable from inside a query. After a
+call, the reply you receive carries \`metadata.dataset_shapes\` — row counts and field names per
+dataset — so a query that guessed a field wrong can be corrected from the reply without
+re-fetching.
+
+Each tool's description carries only what is specific to it: its datasets and fields, its API
+constraints, and worked examples. Read the relevant tool's description before writing queries.`;
 
 /**
  * Factory function that creates and configures a TomTom Traffic Analytics MCP Server instance

@@ -21,36 +21,33 @@ import {
   getAllJunctionDefinitions,
 } from "../services/junction-analytics/junctionAnalyticsService";
 import {
-  SqlFilterEngine,
+  JsQueryEngine,
+  MODEL_FACING_RESULT_LIMITS,
   flattenJunctionArchive,
-  JUNCTION_ARCHIVE_SCHEMA,
   flattenJunctionLiveData,
-  JUNCTION_LIVE_DATA_SCHEMA,
   flattenJunctionDefinitions,
-  JUNCTION_DEFINITION_COMPACT_SCHEMA,
-  JUNCTION_DEFINITION_FULL_SCHEMA,
-  SqlFilteredResponse,
-} from "../sql";
+  JsFilteredResponse,
+} from "../query";
 
 /**
- * Junction search handler with SQL filtering
+ * Junction search handler with sandboxed JS filtering
  *
  * Fetches ALL junction definitions (auto-paginating), flattens into
- * SQL tables, and executes user queries for efficient filtering.
+ * datasets, and executes user queries for efficient filtering.
  *
- * Requires sql_queries parameter.
+ * Requires js_queries parameter.
  */
 export function getJunctionSearchHandler() {
   return async (params: any) => {
-    const { view = "compact", sql_queries } = params;
+    const { view = "compact", js_queries } = params;
 
     logger.info(`Junction search (view: ${view})`);
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the junction definitions. " +
-        'Example: {"active_junctions": "SELECT junction_id, name, status FROM junctions WHERE status = \'ACTIVE\'"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the junction definitions. " +
+        'Example: {"active_junctions": "junctions.filter(j => j.status === \'ACTIVE\').map(j => ({ id: j.junction_id, name: j.name }))"}';
       logger.error(`Junction search request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
@@ -58,7 +55,7 @@ export function getJunctionSearchHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       // 1. Fetch ALL junctions (auto-paginating). `includeGeometry: true` is
@@ -68,39 +65,35 @@ export function getJunctionSearchHandler() {
       //    flattener falls back to null/0 for every junction.
       const allJunctions = await getAllJunctionDefinitions({ includeGeometry: true });
 
-      // 2. Flatten into SQL tables based on view
+      // 2. Flatten into datasets based on view
       const flattenedData = flattenJunctionDefinitions(allJunctions, view);
 
-      // 3. Select schema based on view
-      const schema =
-        view === "full" ? JUNCTION_DEFINITION_FULL_SCHEMA : JUNCTION_DEFINITION_COMPACT_SCHEMA;
+      // 3. Load the flattened data into the sandbox
+      const warnings = await queryEngine.initialize(flattenedData);
 
-      // 4. Initialize SQL engine with schema and data
-      const warnings = await sqlEngine.initialize(schema, flattenedData);
+      // 4. Execute JS queries
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
-      // 5. Execute SQL queries
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
-      // 6. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
-
-      // 7. Build filtered response
-      const response: SqlFilteredResponse = {
+      // 6. Build filtered response
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-search",
           parameters: {
             view,
             totalJunctions: allJunctions.length,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `Junction search completed: ${allJunctions.length} junctions (${Object.keys(sql_queries).length} queries, view: ${view})`
+        `Junction search completed: ${allJunctions.length} junctions (${Object.keys(js_queries).length} queries, view: ${view})`
       );
       return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
     } catch (error: any) {
@@ -110,23 +103,23 @@ export function getJunctionSearchHandler() {
         isError: true,
       };
     } finally {
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }
 
 /**
- * Get junction live data details handler with SQL filtering
+ * Get junction live data details handler with sandboxed JS filtering
  *
  * Fetches live data for one or more junctions in parallel and merges into
- * a single database for cross-junction SQL comparisons.
+ * a single database for cross-junction comparisons.
  *
- * Requires sql_queries parameter to filter/aggregate the live data.
+ * Requires js_queries parameter to filter/aggregate the live data.
  * This prevents context window overflow when working with LLM agents.
  */
 export function getJunctionLiveDataDetailsHandler() {
   return async (params: any) => {
-    const { junctionIds, sql_queries, ...options } = params;
+    const { junctionIds, js_queries, ...options } = params;
 
     const ids: string[] = junctionIds;
 
@@ -141,11 +134,11 @@ export function getJunctionLiveDataDetailsHandler() {
 
     logger.info(`📊 Fetching junction live data for ${ids.length} junction(s): ${ids.join(", ")}`);
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the live data. " +
-        'Example: {"delayed_approaches": "SELECT approach_id, delay_sec, queue_length_meters FROM approaches ORDER BY delay_sec DESC LIMIT 5"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the live data. " +
+        'Example: {"delayed_approaches": "[...approaches].sort((a, b) => b.delay_sec - a.delay_sec).slice(0, 5)"}';
       logger.error(`❌ Junction live data request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
@@ -153,7 +146,7 @@ export function getJunctionLiveDataDetailsHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       // 1. Fetch all junctions in PARALLEL
@@ -179,19 +172,19 @@ export function getJunctionLiveDataDetailsHandler() {
         }
       }
 
-      // 3. Initialize SQL engine with schema and merged data
-      const warnings = await sqlEngine.initialize(JUNCTION_LIVE_DATA_SCHEMA, {
+      // 3. Load the merged data into the sandbox
+      const warnings = await queryEngine.initialize({
         tables: mergedTables,
       });
 
-      // 4. Execute SQL queries across combined dataset
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 4. Execute JS queries across combined dataset
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
-      // 5. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
       // 6. Build filtered response
-      const response: SqlFilteredResponse = {
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-live-data",
           parameters: {
@@ -199,15 +192,15 @@ export function getJunctionLiveDataDetailsHandler() {
             junctionCount: ids.length,
             includeGeometry: options.includeGeometry,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `✅ Junction live data processed with SQL filtering: ${ids.length} junctions (${Object.keys(sql_queries).length} queries)`
+        `✅ Junction live data processed with sandboxed JS filtering: ${ids.length} junctions (${Object.keys(js_queries).length} queries)`
       );
       return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
     } catch (error: any) {
@@ -218,23 +211,23 @@ export function getJunctionLiveDataDetailsHandler() {
       };
     } finally {
       // Always clean up database resources
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }
 
 /**
- * Get junction archive handler with SQL filtering
+ * Get junction archive handler with sandboxed JS filtering
  *
  * Fetches archive data for one or more junctions in parallel and merges into
- * a single database for cross-junction SQL comparisons.
+ * a single database for cross-junction comparisons.
  *
- * Requires sql_queries parameter to filter/aggregate the large response data.
+ * Requires js_queries parameter to filter/aggregate the large response data.
  * This prevents context window overflow when working with LLM agents.
  */
 export function getJunctionArchiveHandler() {
   return async (params: any) => {
-    const { junctionIds, sql_queries, ...options } = params;
+    const { junctionIds, js_queries, ...options } = params;
 
     const ids: string[] = junctionIds;
 
@@ -251,11 +244,11 @@ export function getJunctionArchiveHandler() {
       `📦 Fetching junction archive for ${ids.length} junction(s): ${ids.join(", ")} (${options.from} to ${options.to || "latest"})`
     );
 
-    // Validate sql_queries is provided (mandatory)
-    if (!sql_queries || typeof sql_queries !== "object" || Object.keys(sql_queries).length === 0) {
+    // Validate js_queries is provided (mandatory)
+    if (!js_queries || typeof js_queries !== "object" || Object.keys(js_queries).length === 0) {
       const errorMsg =
-        "sql_queries parameter is REQUIRED. Provide at least one SQL query to filter/aggregate the archive data. " +
-        'Example: {"avg_delay": "SELECT approach_id, AVG(delay_sec) as avg_delay FROM approaches GROUP BY approach_id"}';
+        "js_queries parameter is REQUIRED. Provide at least one JavaScript expression to filter/aggregate the archive data. " +
+        'Example: {"avg_delay": "Object.entries(Object.groupBy(approaches, a => a.approach_id)).map(([id, rows]) => ({ id, avg: rows.reduce((s, r) => s + r.delay_sec, 0) / rows.length }))"}';
       logger.error(`❌ Junction archive request rejected: ${errorMsg}`);
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ error: errorMsg }) }],
@@ -263,7 +256,7 @@ export function getJunctionArchiveHandler() {
       };
     }
 
-    const sqlEngine = new SqlFilterEngine();
+    const queryEngine = new JsQueryEngine();
 
     try {
       // 1. Fetch all junctions in PARALLEL
@@ -291,19 +284,19 @@ export function getJunctionArchiveHandler() {
         }
       }
 
-      // 3. Initialize SQL engine with schema and merged data
-      const warnings = await sqlEngine.initialize(JUNCTION_ARCHIVE_SCHEMA, {
+      // 3. Load the merged data into the sandbox
+      const warnings = await queryEngine.initialize({
         tables: mergedTables,
       });
 
-      // 4. Execute SQL queries across combined dataset
-      const queryResults = await sqlEngine.executeQueries(sql_queries);
+      // 4. Execute JS queries across combined dataset
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
-      // 5. Get row counts for metadata
-      const rowCounts = sqlEngine.getTableRowCounts();
+      // 5. Describe the loaded datasets for metadata
+      const shapes = queryEngine.getDatasetShapes();
 
       // 6. Build filtered response
-      const response: SqlFilteredResponse = {
+      const response: JsFilteredResponse = {
         metadata: {
           tool: "tomtom-junction-archive",
           parameters: {
@@ -312,15 +305,15 @@ export function getJunctionArchiveHandler() {
             from: options.from,
             to: options.to,
           },
-          raw_row_counts: rowCounts,
-          queries_executed: Object.keys(sql_queries).length,
+          dataset_shapes: shapes,
+          queries_executed: Object.keys(js_queries).length,
           warnings: warnings.length > 0 ? warnings : undefined,
         },
         aggregated_data: queryResults,
       };
 
       logger.info(
-        `✅ Junction archive processed with SQL filtering: ${ids.length} junctions (${Object.keys(sql_queries).length} queries)`
+        `✅ Junction archive processed with sandboxed JS filtering: ${ids.length} junctions (${Object.keys(js_queries).length} queries)`
       );
       return { content: [{ type: "text" as const, text: JSON.stringify(response, null, 2) }] };
     } catch (error: any) {
@@ -331,7 +324,7 @@ export function getJunctionArchiveHandler() {
       };
     } finally {
       // Always clean up database resources
-      sqlEngine.close();
+      queryEngine.close();
     }
   };
 }

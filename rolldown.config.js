@@ -25,12 +25,7 @@
 import { defineConfig } from "rolldown";
 import license from "rollup-plugin-license";
 
-const sharedExternal = [
-  "@duckdb/node-api",
-  "@duckdb/node-bindings",
-  /^@duckdb\/node-bindings-/, // All platform-specific bindings
-  "async_hooks",
-];
+const sharedExternal = ["async_hooks"];
 
 /** Input options shared by both entry points. */
 const sharedInput = {

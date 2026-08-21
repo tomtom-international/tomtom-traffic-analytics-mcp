@@ -21,7 +21,7 @@ import {
 } from "../../services/area-analytics/types";
 
 /**
- * Flattened timed data row for SQL table
+ * Flattened timed data row
  */
 interface TimedDataRow {
   region_name: string | null;
@@ -37,18 +37,25 @@ interface TimedDataRow {
 }
 
 /**
- * Flattened tiled data row for SQL table
+ * Flattened tiled data row
  */
 interface TiledDataRow {
   region_name: string | null;
   lat: number;
   lon: number;
+  /**
+   * The tile centre as a GeoJSON Point, alongside the raw lat/lon.
+   *
+   * Both are kept on purpose: turf wants [lon, lat] and h3 wants (lat, lng), so
+   * offering `geom` for turf and the scalars for h3 removes the coordinate-order
+   * trap from the common cases rather than documenting it.
+   */
+  geom: { type: "Point"; coordinates: [number, number] };
   speed: number | null;
   free_flow_speed: number | null;
   congestion_level: number | null;
   travel_time: number | null;
   network_length: number | null;
-  point_geom: null; // Placeholder for native GEOMETRY (populated by engine using ST_Point(lon, lat))
 }
 
 /**
@@ -76,7 +83,7 @@ function flattenTimedDataItem(
 }
 
 /**
- * Flatten AreaAnalyticsReportResults into SQL-queryable tables
+ * Flatten AreaAnalyticsReportResults into queryable datasets
  *
  * Creates two tables:
  * - timed_data: One row per time aggregation per region (flattened from nested timedData)
@@ -120,12 +127,12 @@ export function flattenAreaAnalyticsResults(response: AreaAnalyticsReportResults
           region_name: regionName,
           lat: tile.lat,
           lon: tile.lon,
+          geom: { type: "Point" as const, coordinates: [tile.lon, tile.lat] as [number, number] },
           speed: tile.v ?? null,
           free_flow_speed: tile.fv ?? null,
           congestion_level: tile.c ?? null,
           travel_time: tile.t ?? null,
           network_length: tile.l ?? null,
-          point_geom: null, // Populated by SqlFilterEngine using ST_Point(lon, lat)
         });
       }
     }

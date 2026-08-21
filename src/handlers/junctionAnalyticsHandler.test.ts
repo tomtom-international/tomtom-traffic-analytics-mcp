@@ -5,18 +5,21 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockSqlEngine = {
+const mockQueryEngine = {
   initialize: vi.fn().mockResolvedValue([]),
   executeQueries: vi.fn().mockResolvedValue({
     test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
   }),
-  getTableRowCounts: vi.fn().mockReturnValue({ junctions: 5 }),
+  getDatasetShapes: vi.fn().mockReturnValue({ junctions: 5 }),
   close: vi.fn(),
 };
 
-vi.mock("../sql", () => ({
-  SqlFilterEngine: vi.fn(function () {
-    return mockSqlEngine;
+vi.mock("../query", () => ({
+  // The handlers pass this to executeQueries, so a factory mock has to provide
+  // it or the import fails and every case reports isError.
+  MODEL_FACING_RESULT_LIMITS: { maxRows: 10000, maxBytes: 1_000_000 },
+  JsQueryEngine: vi.fn(function () {
+    return mockQueryEngine;
   }),
   flattenJunctionDefinitions: vi
     .fn()
@@ -58,30 +61,30 @@ import {
   getJunctionLiveData,
   getJunctionArchive,
 } from "../services/junction-analytics/junctionAnalyticsService";
-import { flattenJunctionDefinitions } from "../sql";
+import { flattenJunctionDefinitions } from "../query";
 
 describe("junctionAnalyticsHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSqlEngine.initialize.mockResolvedValue([]);
-    mockSqlEngine.executeQueries.mockResolvedValue({
+    mockQueryEngine.initialize.mockResolvedValue([]);
+    mockQueryEngine.executeQueries.mockResolvedValue({
       test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
     });
-    mockSqlEngine.getTableRowCounts.mockReturnValue({ junctions: 5 });
+    mockQueryEngine.getDatasetShapes.mockReturnValue({ junctions: 5 });
   });
 
   describe("getJunctionSearchHandler", () => {
     const handler = getJunctionSearchHandler();
 
-    it("returns error when sql_queries is missing", async () => {
+    it("returns error when js_queries is missing", async () => {
       const result = await handler({ view: "compact" });
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.error).toContain("sql_queries parameter is REQUIRED");
+      expect(parsed.error).toContain("js_queries parameter is REQUIRED");
     });
 
     it("returns successful response with metadata", async () => {
-      const result = await handler({ sql_queries: { q: "SELECT * FROM junctions" } });
+      const result = await handler({ js_queries: { q: "SELECT * FROM junctions" } });
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.metadata.tool).toBe("tomtom-junction-search");
@@ -91,24 +94,24 @@ describe("junctionAnalyticsHandler", () => {
     });
 
     it("defaults view to compact", async () => {
-      await handler({ sql_queries: { q: "SELECT 1" } });
+      await handler({ js_queries: { q: "SELECT 1" } });
       expect(flattenJunctionDefinitions).toHaveBeenCalledWith(expect.anything(), "compact");
     });
 
     it("passes full view to flattener", async () => {
-      await handler({ view: "full", sql_queries: { q: "SELECT 1" } });
+      await handler({ view: "full", js_queries: { q: "SELECT 1" } });
       expect(flattenJunctionDefinitions).toHaveBeenCalledWith(expect.anything(), "full");
     });
 
     it("returns isError when service throws", async () => {
       vi.mocked(getAllJunctionDefinitions).mockRejectedValueOnce(new Error("fetch failed"));
-      const result = await handler({ sql_queries: { q: "SELECT 1" } });
+      const result = await handler({ js_queries: { q: "SELECT 1" } });
       expect(result.isError).toBe(true);
     });
 
-    it("always calls sqlEngine.close()", async () => {
-      await handler({ sql_queries: { q: "SELECT 1" } });
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+    it("always calls queryEngine.close()", async () => {
+      await handler({ js_queries: { q: "SELECT 1" } });
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
   });
 
@@ -116,24 +119,24 @@ describe("junctionAnalyticsHandler", () => {
     const handler = getJunctionLiveDataDetailsHandler();
     const validParams = {
       junctionIds: ["j1"],
-      sql_queries: { q: "SELECT * FROM approaches" },
+      js_queries: { q: "SELECT * FROM approaches" },
     };
 
     it("returns error when junctionIds exceed 20", async () => {
       const ids = Array.from({ length: 21 }, (_, i) => `j${i}`);
-      const result = await handler({ junctionIds: ids, sql_queries: { q: "SELECT 1" } });
+      const result = await handler({ junctionIds: ids, js_queries: { q: "SELECT 1" } });
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.error).toContain("Maximum 20");
     });
 
-    it("returns error when sql_queries is missing", async () => {
+    it("returns error when js_queries is missing", async () => {
       const result = await handler({ junctionIds: ["j1"] });
       expect(result.isError).toBe(true);
     });
 
     it("calls getJunctionLiveData for each junction ID in parallel", async () => {
-      const params = { junctionIds: ["j1", "j2", "j3"], sql_queries: { q: "SELECT 1" } };
+      const params = { junctionIds: ["j1", "j2", "j3"], js_queries: { q: "SELECT 1" } };
       await handler(params);
       expect(getJunctionLiveData).toHaveBeenCalledTimes(3);
       expect(getJunctionLiveData).toHaveBeenCalledWith("j1", expect.anything());
@@ -149,10 +152,10 @@ describe("junctionAnalyticsHandler", () => {
       expect(parsed.metadata.parameters.junctionCount).toBe(1);
     });
 
-    it("always calls sqlEngine.close()", async () => {
+    it("always calls queryEngine.close()", async () => {
       vi.mocked(getJunctionLiveData).mockRejectedValueOnce(new Error("fail"));
       await handler(validParams);
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
   });
 
@@ -162,7 +165,7 @@ describe("junctionAnalyticsHandler", () => {
       junctionIds: ["j1"],
       from: "2024-01-01",
       to: "2024-01-02",
-      sql_queries: { q: "SELECT * FROM approaches" },
+      js_queries: { q: "SELECT * FROM approaches" },
     };
 
     it("returns error when junctionIds exceed 20", async () => {
@@ -170,12 +173,12 @@ describe("junctionAnalyticsHandler", () => {
       const result = await handler({
         junctionIds: ids,
         from: "2024-01-01",
-        sql_queries: { q: "SELECT 1" },
+        js_queries: { q: "SELECT 1" },
       });
       expect(result.isError).toBe(true);
     });
 
-    it("returns error when sql_queries is missing", async () => {
+    it("returns error when js_queries is missing", async () => {
       const result = await handler({ junctionIds: ["j1"], from: "2024-01-01" });
       expect(result.isError).toBe(true);
     });
@@ -193,9 +196,9 @@ describe("junctionAnalyticsHandler", () => {
       expect(parsed.metadata.parameters.to).toBe("2024-01-02");
     });
 
-    it("always calls sqlEngine.close()", async () => {
+    it("always calls queryEngine.close()", async () => {
       await handler(validParams);
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
   });
 });

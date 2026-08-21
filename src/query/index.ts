@@ -14,24 +14,22 @@
  * limitations under the License.
  */
 
-// Core SQL engine
-export { SqlFilterEngine } from "./sqlFilterEngine";
+// Core sandboxed JavaScript engine
+export { JsQueryEngine, buildWrapper, resetWasmModuleForTests } from "./jsQueryEngine";
 
 // Type definitions
 export type {
-  SqlColumnType,
-  ColumnDefinition,
-  TableDefinition,
   FlattenResult,
-  SqlQueryResult,
-  SqlQueryErrorResult,
-  SqlQueryExecutionResult,
-  SqlFilterMetadata,
-  SqlFilteredResponse,
+  DatasetShape,
+  JsQuerySuccessResult,
+  JsQueryErrorResult,
+  JsQueryExecutionResult,
+  JsFilteredResponse,
+  QueryExecutionOptions,
 } from "./types";
 
 // Values and utilities from types
-export { SQL_FILTER_DEFAULTS, isQueryError } from "./types";
+export { JS_QUERY_DEFAULTS, MODEL_FACING_RESULT_LIMITS, isQueryError } from "./types";
 
 // Flatteners
 export {
@@ -44,22 +42,3 @@ export {
   flattenJunctionDefinitions,
   flattenRouteList,
 } from "./flatteners";
-
-// Schemas
-export {
-  JUNCTION_ARCHIVE_SCHEMA,
-  JUNCTION_ARCHIVE_SQL_EXAMPLES,
-  AREA_ANALYTICS_SCHEMA,
-  AREA_ANALYTICS_SQL_EXAMPLES,
-  ROUTE_MONITORING_SCHEMA,
-  ROUTE_MONITORING_SQL_EXAMPLES,
-  JUNCTION_LIVE_DATA_SCHEMA,
-  JUNCTION_LIVE_DATA_SQL_EXAMPLES,
-  TRAFFIC_INCIDENTS_SCHEMA,
-  TRAFFIC_INCIDENTS_SQL_EXAMPLES,
-  TRAFFIC_FLOW_SEGMENT_SCHEMA,
-  TRAFFIC_FLOW_SEGMENT_SQL_EXAMPLES,
-  JUNCTION_DEFINITION_COMPACT_SCHEMA,
-  JUNCTION_DEFINITION_FULL_SCHEMA,
-  ROUTE_LIST_SCHEMA,
-} from "./schemas";

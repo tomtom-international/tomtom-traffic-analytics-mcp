@@ -18,7 +18,7 @@ import { FlattenResult } from "../types";
 import { RouteBasicInfo } from "../../services/route-monitoring/types";
 
 /**
- * Flattened route list row for SQL table
+ * Flattened route list row
  */
 interface RouteListRow {
   route_id: number;
@@ -34,7 +34,7 @@ interface RouteListRow {
 }
 
 /**
- * Flatten route list into a SQL-queryable table
+ * Flatten route list into a queryable dataset
  *
  * Creates a single routes table with summary info for all routes.
  * Route data is already compact so no view parameter is needed.

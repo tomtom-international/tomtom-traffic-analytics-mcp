@@ -5,18 +5,21 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockSqlEngine = {
+const mockQueryEngine = {
   initialize: vi.fn().mockResolvedValue([]),
   executeQueries: vi.fn().mockResolvedValue({
     test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
   }),
-  getTableRowCounts: vi.fn().mockReturnValue({ flow_segment: 1 }),
+  getDatasetShapes: vi.fn().mockReturnValue({ flow_segment: 1 }),
   close: vi.fn(),
 };
 
-vi.mock("../sql", () => ({
-  SqlFilterEngine: vi.fn(function () {
-    return mockSqlEngine;
+vi.mock("../query", () => ({
+  // The handlers pass this to executeQueries, so a factory mock has to provide
+  // it or the import fails and every case reports isError.
+  MODEL_FACING_RESULT_LIMITS: { maxRows: 10000, maxBytes: 1_000_000 },
+  JsQueryEngine: vi.fn(function () {
+    return mockQueryEngine;
   }),
   flattenTrafficFlowSegment: vi
     .fn()
@@ -46,11 +49,11 @@ import {
 describe("liveTrafficHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSqlEngine.initialize.mockResolvedValue([]);
-    mockSqlEngine.executeQueries.mockResolvedValue({
+    mockQueryEngine.initialize.mockResolvedValue([]);
+    mockQueryEngine.executeQueries.mockResolvedValue({
       test_query: { columns: ["col1"], rows: [["val1"]], rowCount: 1 },
     });
-    mockSqlEngine.getTableRowCounts.mockReturnValue({ flow_segment: 1 });
+    mockQueryEngine.getDatasetShapes.mockReturnValue({ flow_segment: 1 });
   });
 
   describe("getFlowSegmentDataHandler", () => {
@@ -59,10 +62,10 @@ describe("liveTrafficHandler", () => {
       point: { latitude: 52.37, longitude: 4.89 },
       style: "absolute",
       zoom: 10,
-      sql_queries: { test_query: "SELECT * FROM flow_segment" },
+      js_queries: { test_query: "SELECT * FROM flow_segment" },
     };
 
-    it("returns error when sql_queries is missing", async () => {
+    it("returns error when js_queries is missing", async () => {
       const result = await handler({
         point: { latitude: 52, longitude: 4 },
         style: "absolute",
@@ -70,11 +73,11 @@ describe("liveTrafficHandler", () => {
       });
       const parsed = JSON.parse(result.content[0].text);
       expect(result.isError).toBe(true);
-      expect(parsed.error).toContain("sql_queries parameter is REQUIRED");
+      expect(parsed.error).toContain("js_queries parameter is REQUIRED");
     });
 
-    it("returns error when sql_queries is empty object", async () => {
-      const result = await handler({ ...validParams, sql_queries: {} });
+    it("returns error when js_queries is empty object", async () => {
+      const result = await handler({ ...validParams, js_queries: {} });
       expect(result.isError).toBe(true);
     });
 
@@ -88,7 +91,7 @@ describe("liveTrafficHandler", () => {
         style: "absolute",
         zoom: 10,
       });
-      expect(parsed.metadata.raw_row_counts).toEqual({ flow_segment: 1 });
+      expect(parsed.metadata.dataset_shapes).toEqual({ flow_segment: 1 });
       expect(parsed.metadata.queries_executed).toBe(1);
       expect(parsed.aggregated_data).toBeDefined();
     });
@@ -101,19 +104,19 @@ describe("liveTrafficHandler", () => {
       expect(parsed.error).toBe("API down");
     });
 
-    it("always calls sqlEngine.close()", async () => {
+    it("always calls queryEngine.close()", async () => {
       await handler(validParams);
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
 
-    it("calls sqlEngine.close() even on error", async () => {
+    it("calls queryEngine.close() even on error", async () => {
       vi.mocked(getFlowSegmentData).mockRejectedValueOnce(new Error("fail"));
       await handler(validParams);
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
 
     it("includes warnings in metadata when present", async () => {
-      mockSqlEngine.initialize.mockResolvedValueOnce(["Schema warning: extra columns"]);
+      mockQueryEngine.initialize.mockResolvedValueOnce(["Schema warning: extra columns"]);
       const result = await handler(validParams);
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.metadata.warnings).toEqual(["Schema warning: extra columns"]);
@@ -124,7 +127,7 @@ describe("liveTrafficHandler", () => {
     const handler = createTrafficIncidentsHandler();
     const validParams = {
       bboxes: [{ name: "Downtown", bbox: "-122.42,37.77,-122.40,37.79" }],
-      sql_queries: { test_query: "SELECT * FROM incidents" },
+      js_queries: { test_query: "SELECT * FROM incidents" },
     };
 
     it("returns error when bboxes exceed 10", async () => {
@@ -132,13 +135,13 @@ describe("liveTrafficHandler", () => {
         name: `area${i}`,
         bbox: "0,0,1,1",
       }));
-      const result = await handler({ bboxes: tooManyBboxes, sql_queries: { q: "SELECT 1" } });
+      const result = await handler({ bboxes: tooManyBboxes, js_queries: { q: "SELECT 1" } });
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.error).toContain("Maximum 10");
     });
 
-    it("returns error when sql_queries is missing", async () => {
+    it("returns error when js_queries is missing", async () => {
       const result = await handler({ bboxes: [{ name: "a", bbox: "0,0,1,1" }] });
       expect(result.isError).toBe(true);
     });
@@ -149,14 +152,14 @@ describe("liveTrafficHandler", () => {
           { name: "Area1", bbox: "0,0,1,1" },
           { name: "Area2", bbox: "2,2,3,3" },
         ],
-        sql_queries: { q: "SELECT * FROM incidents" },
+        js_queries: { q: "SELECT * FROM incidents" },
       };
       await handler(params);
       expect(getTrafficIncidents).toHaveBeenCalledTimes(2);
     });
 
     it("returns successful response with multi-area metadata", async () => {
-      mockSqlEngine.getTableRowCounts.mockReturnValue({ incidents: 2 });
+      mockQueryEngine.getDatasetShapes.mockReturnValue({ incidents: 2 });
       const result = await handler(validParams);
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse(result.content[0].text);
@@ -171,9 +174,9 @@ describe("liveTrafficHandler", () => {
       expect(result.isError).toBe(true);
     });
 
-    it("always calls sqlEngine.close()", async () => {
+    it("always calls queryEngine.close()", async () => {
       await handler(validParams);
-      expect(mockSqlEngine.close).toHaveBeenCalled();
+      expect(mockQueryEngine.close).toHaveBeenCalled();
     });
   });
 });

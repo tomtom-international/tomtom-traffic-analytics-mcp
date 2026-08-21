@@ -40,22 +40,63 @@ const dateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .describe("Date in YYYY-MM-DD format");
 
+/**
+ * One coordinate. GeoJSON permits an optional third element for elevation, so
+ * `[lon, lat, alt]` is valid input and must not be rejected — the previous
+ * exact-length-2 rule turned conformant GeoJSON into `Invalid input at
+ * features`, a message that tells the caller nothing it can act on.
+ */
+const coordinateSchema = z
+  .array(z.number())
+  .min(2, { message: "each position needs at least [longitude, latitude]" })
+  .max(3, {
+    message: "a position is [longitude, latitude] with an optional third elevation value",
+  });
+
+/**
+ * A linear ring: at least four positions, first identical to last.
+ *
+ * Checked here rather than left to the API because "unclosed ring" is a fixable
+ * mistake and the message says how to fix it. Compare the bare path-only error
+ * the caller used to get.
+ */
+const linearRingSchema = z
+  .array(coordinateSchema)
+  .min(4, { message: "a polygon ring needs at least 4 positions, the last repeating the first" })
+  .refine(
+    (ring) => {
+      const first = ring[0];
+      const last = ring[ring.length - 1];
+      return first?.[0] === last?.[0] && first?.[1] === last?.[1];
+    },
+    { message: "polygon ring is not closed — repeat the first position as the last" }
+  );
+
 // GeoJSON Polygon geometry
 const polygonGeometrySchema = z.object({
   type: z.literal("Polygon"),
-  coordinates: z.array(z.array(z.array(z.number()).length(2))),
+  coordinates: z
+    .array(linearRingSchema)
+    .min(1, { message: "Polygon coordinates are an array of rings: [[[lon,lat],...,[lon,lat]]]" }),
 });
 
 // GeoJSON MultiPolygon geometry
 const multiPolygonGeometrySchema = z.object({
   type: z.literal("MultiPolygon"),
-  coordinates: z.array(z.array(z.array(z.array(z.number()).length(2)))),
+  coordinates: z.array(z.array(linearRingSchema)).min(1, {
+    message: "MultiPolygon coordinates are an array of polygons, each an array of rings",
+  }),
 });
 
 // GeoJSON Feature
 const geoJSONFeatureSchema = z.object({
   type: z.literal("Feature"),
-  geometry: z.union([polygonGeometrySchema, multiPolygonGeometrySchema]),
+  // Discriminated on `type` rather than a plain union: a plain union reports a
+  // generic "Invalid input" when both branches fail, which is what a Polygon
+  // nested one level too shallow used to produce. Discriminating means the
+  // Polygon branch's own message survives, and that message says what shape is
+  // expected.
+  geometry: z.discriminatedUnion("type", [polygonGeometrySchema, multiPolygonGeometrySchema]),
   properties: z
     .object({
       name: z.string().optional(),
@@ -63,21 +104,21 @@ const geoJSONFeatureSchema = z.object({
         .string()
         .optional()
         .describe(
-          "Optional IANA timezone for the region (e.g., 'Europe/Amsterdam'). If set, the API applies a stricter endDate constraint — endDate must be at least ONE FULL DAY older than the latest available day (i.e., effectively ≥ 3 days before today). For the widest date coverage leave this unset so the API uses UTC."
+          "Optional IANA timezone for the region (e.g., 'Europe/Amsterdam'). Setting it costs a day of date coverage; leave unset for UTC and the widest window."
         ),
     })
     .optional(),
 });
 
-// SQL queries schema for filtering large responses
-const sqlQueriesSchema = z
+// JavaScript queries schema for filtering large responses
+const jsQueriesSchema = z
   .record(z.string(), z.string())
   .refine((obj) => Object.keys(obj).length > 0, {
     message:
-      'At least one SQL query is required. Provide queries like: {"daily_avg": "SELECT ..."}',
+      'At least one JavaScript query is required. Provide queries like: {"daily_avg": "rows.filter(r => ...)"}',
   })
   .describe(
-    'SQL queries to run against the loaded tables. Object mapping named keys to DuckDB SELECT strings, e.g. {"my_query": "SELECT ... FROM table_name"}.'
+    'Named JavaScript queries over the datasets this tool loads, e.g. {"my_query": "dataset_name.filter(r => r.value > 0).length"}. Contract in the server instructions.'
   );
 
 // Stats schema (lite version with restrictions)
@@ -85,7 +126,10 @@ export const areaAnalyticsStatsSchema = {
   name: z.string().min(1).max(250),
   startDate: dateSchema,
   endDate: dateSchema.describe(
-    "End date (must be within 31 days of startDate). Data has a 24–48h processing delay, so endDate must be ≥ 2 days before today in UTC. If `properties.timezone` is set on the feature, the API requires an EXTRA day of margin — endDate must be ≥ 3 days before today. To avoid 400 errors, leave the feature timezone unset (UTC default) for the broadest coverage."
+    // The processing-delay rule is enforced in the handler, which clamps the
+    // window and reports it in metadata.warnings, so it no longer needs
+    // explaining here — it did not work as prose.
+    "End date, within 31 days of startDate. Clamped automatically if it falls inside the 24–48h processing delay."
   ),
   hours: z.array(hourSchema).min(1).max(24),
   frcs: z.array(frcSchema).min(1).max(9),
@@ -93,6 +137,8 @@ export const areaAnalyticsStatsSchema = {
   features: z
     .array(geoJSONFeatureSchema)
     .length(1)
-    .describe("Array of exactly one GeoJSON feature defining the analysis region"),
-  sql_queries: sqlQueriesSchema,
+    .describe(
+      'Exactly one GeoJSON Feature defining the region, e.g. {"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[4.85,52.35],[4.95,52.35],[4.95,52.40],[4.85,52.35]]]}} — note coordinates nest three deep and the ring closes.'
+    ),
+  js_queries: jsQueriesSchema,
 };

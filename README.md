@@ -100,11 +100,11 @@ Add to your `claude_desktop_config.json`:
 
 ---
 
-## SQL Filtering
+## JavaScript Filtering
 
-Analytical tools return large datasets that can overflow LLM context windows. To address this, **all analytical tools require a `sql_queries` parameter** that filters/aggregates data server-side using DuckDB.
+Analytical tools return large datasets that can overflow LLM context windows. To address this, **all analytical tools require a `js_queries` parameter** that filters/aggregates data server-side, by evaluating caller-supplied JavaScript inside a QuickJS WASM sandbox.
 
-**All tools require `sql_queries`:**
+**All tools require `js_queries`:**
 - `tomtom-junction-search`, `tomtom-junction-live-data`, `tomtom-junction-archive`
 - `tomtom-route-search`, `tomtom-route-monitoring-details`
 - `tomtom-area-analytics-stats`
@@ -114,13 +114,27 @@ Analytical tools return large datasets that can overflow LLM context windows. To
 ```json
 {
   "junctionIds": ["abc-123"],
-  "sql_queries": {
-    "top_delays": "SELECT approach_id, delay_sec FROM approaches ORDER BY delay_sec DESC LIMIT 5"
+  "js_queries": {
+    "top_delays": "[...approaches].sort((a, b) => b.delay_sec - a.delay_sec).slice(0, 5)"
   }
 }
 ```
 
-See tool descriptions for available tables and columns.
+Each query is a single JavaScript expression, or a statement block ending in `return`. The
+flattened datasets are plain arrays of objects, bound as locals. [turf.js](https://turfjs.org)
+(`turf`) and [h3-js](https://h3geo.org) (`h3`) are injected into the sandbox on demand, so
+geospatial work needs no extra setup:
+
+```json
+{
+  "js_queries": {
+    "near_centre": "incidents.filter(i => turf.distance(turf.centroid(i.geom), [4.9, 52.37], { units: 'kilometers' }) < 2).length",
+    "hex_hotspots": "Object.entries(Object.groupBy(tiled_data, t => h3.latLngToCell(t.lat, t.lon, 8))).map(([cell, rows]) => ({ cell, congestion: rows.reduce((s, r) => s + r.congestion_level, 0) / rows.length }))"
+  }
+}
+```
+
+See tool descriptions for available datasets and fields.
 
 ---
 
@@ -132,7 +146,7 @@ Analyze traffic patterns in custom geographical areas.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-area-analytics-stats` | Direct statistics (requires `sql_queries`) |
+| `tomtom-area-analytics-stats` | Direct statistics (requires `js_queries`) |
 
 ### Junction Analytics (3 tools) — MOVE Portal
 
@@ -140,9 +154,9 @@ Monitor traffic at intersections with real-time and historical data.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-junction-search` | Search/filter all junctions via SQL (requires `sql_queries`) |
-| `tomtom-junction-live-data` | Real-time metrics (requires `sql_queries`) |
-| `tomtom-junction-archive` | Historical data (requires `sql_queries`) |
+| `tomtom-junction-search` | Search/filter all junctions via JavaScript (requires `js_queries`) |
+| `tomtom-junction-live-data` | Real-time metrics (requires `js_queries`) |
+| `tomtom-junction-archive` | Historical data (requires `js_queries`) |
 
 ### Route Monitoring (2 tools) — MOVE Portal
 
@@ -150,8 +164,8 @@ Track real-time traffic on strategic corridors.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-route-search` | Search/filter all routes via SQL (requires `sql_queries`) |
-| `tomtom-route-monitoring-details` | Segment-level analysis (requires `sql_queries`) |
+| `tomtom-route-search` | Search/filter all routes via JavaScript (requires `js_queries`) |
+| `tomtom-route-monitoring-details` | Segment-level analysis (requires `js_queries`) |
 
 ### Live Traffic (2 tools) — TomTom Developer
 
@@ -159,8 +173,8 @@ Real-time traffic data for specific locations.
 
 | Tool | Description |
 |------|-------------|
-| `tomtom-traffic-flow-segment` | Traffic for road segment at coordinates (requires `sql_queries`) |
-| `tomtom-traffic-incidents` | Traffic incidents in an area (requires `sql_queries`) |
+| `tomtom-traffic-flow-segment` | Traffic for road segment at coordinates (requires `js_queries`) |
+| `tomtom-traffic-incidents` | Traffic incidents in an area (requires `js_queries`) |
 
 ---
 
@@ -185,10 +199,10 @@ src/
 ├── handlers/                # Request handlers
 ├── services/                # TomTom API clients
 ├── schemas/                 # Zod validation schemas
-├── sql/                     # SQL filtering engine
-│   ├── SqlFilterEngine.ts   # DuckDB engine
-│   ├── flatteners/          # JSON → table converters
-│   └── schemas/             # Table definitions
+├── query/                   # Sandboxed JS filtering engine
+│   ├── jsQueryEngine.ts     # QuickJS WASM sandbox
+│   ├── flatteners/          # JSON → flat dataset converters
+│   └── vendor/              # turf + h3 bundles injected into the sandbox
 ├── types/                   # TypeScript types
 └── utils/                   # Logger & error handling
 ```
