@@ -42,9 +42,11 @@ strings. Each query is a single expression, or statements ending in \`return\`. 
 datasets are plain arrays of objects, bound as locals and also present on \`data\`. Runs in a
 sandbox: no I/O, no imports, 5s timeout, 10,000-row and 1 MB result caps. \`Object.groupBy(rows,
 r => key)\` is the idiomatic GROUP BY. \`turf\` (turf.js v7) and \`h3\` (h3-js v4) are injected
-automatically when your code references them. Every response reports \`metadata.dataset_shapes\`
-— row counts and field names per dataset — so a query that guessed a field wrong can be fixed
-without re-fetching.
+automatically when your code references them. The only names in scope are the datasets listed in
+the tool's description; nothing else about the response is reachable from inside a query. After a
+call, the reply you receive carries \`metadata.dataset_shapes\` — row counts and field names per
+dataset — so a query that guessed a field wrong can be corrected from the reply without
+re-fetching.
 
 Each tool's description carries only what is specific to it: its datasets and fields, its API
 constraints, and worked examples. Read the relevant tool's description before writing queries.`;

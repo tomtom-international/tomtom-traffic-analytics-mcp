@@ -31,10 +31,16 @@
  *   Stage 2 — QUERY QUALITY.  The query parameter is mandatory on every tool, so
  *             the model must write code, not just pick a tool. Each tool call is
  *             executed for real, and the per-query results are inspected to see
- *             whether that code ran, errored, or silently returned nothing.
+ *             whether that code ran, errored, or returned nothing.
  *             `undefined`-shaped answers are the failure mode a sandboxed JS
  *             engine has and a SQL engine does not, so they are reported
  *             separately from hard errors.
+ *
+ *             Treat EMPTY as an upper bound rather than a failure count. Over
+ *             live data an empty result is often the right answer: queries
+ *             filtering incidents for accidents returned nothing because
+ *             Amsterdam had none at the time, only roadworks, lane closures and
+ *             wind. The bucket cannot tell that apart from a wrong field name.
  *
  * Stage 1 is engine-agnostic: the query parameter name is read from the schema,
  * so this file also runs against the DuckDB/`sql_queries` revision for
@@ -880,7 +886,7 @@ function printQuerySummary(rows) {
       console.log(`  ERROR    ${qErr}/${executedRows}   query raised — model wrote bad code`);
     if (qEmpty > 0)
       console.log(
-        `  EMPTY    ${qEmpty}/${executedRows}   ran but returned nothing (the silent-wrong mode)`
+        `  EMPTY    ${qEmpty}/${executedRows}   ran but returned nothing — an upper bound, not a failure count`
       );
     if (qApi > 0)
       console.log(`  API      ${qApi}/${executedRows}   never reached a query (API/key error)`);
