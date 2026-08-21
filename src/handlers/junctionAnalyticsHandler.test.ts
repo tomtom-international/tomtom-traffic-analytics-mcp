@@ -15,6 +15,9 @@ const mockQueryEngine = {
 };
 
 vi.mock("../query", () => ({
+  // The handlers pass this to executeQueries, so a factory mock has to provide
+  // it or the import fails and every case reports isError.
+  MODEL_FACING_RESULT_LIMITS: { maxRows: 10000, maxBytes: 1_000_000 },
   JsQueryEngine: vi.fn(function () {
     return mockQueryEngine;
   }),

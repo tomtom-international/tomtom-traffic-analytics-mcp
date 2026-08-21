@@ -46,24 +46,23 @@ export interface JsQueryErrorResult {
 export type JsQueryExecutionResult = JsQuerySuccessResult | JsQueryErrorResult;
 
 /**
- * How much of a query's result to return.
+ * Optional caps on what a query returns.
  *
- * The row and byte caps exist to protect an LLM's context window, which is the
- * right default when the tool's answer goes straight to a model. It is the wrong
- * default when the consumer is a program — another MCP app, or host code that
- * wants to post-process the whole thing — because a silently truncated array is
- * indistinguishable from a short one. `untruncated` lifts both caps for callers
- * who can afford the size.
+ * The engine's job is to run the code and hand back what it produced, so with no
+ * options it returns the whole result. Trimming for a context window is a
+ * presentation decision belonging to the caller that owns the audience — the
+ * tool handlers do it because their answers go to a model, and a caller feeding
+ * another program does not.
+ *
+ * Caps are passed down rather than applied afterwards on purpose: the guest
+ * slices before it serialises, so a capped query never pays to marshal rows the
+ * caller is about to discard.
  */
 export interface QueryExecutionOptions {
-  /**
-   * Return the complete value, with no row or byte cap.
-   *
-   * Bounded only by the sandbox heap and by what `JSON.stringify` can build, so
-   * a caller asking for this takes on the memory cost of whatever the query
-   * selects.
-   */
-  untruncated?: boolean;
+  /** Maximum array elements to return. Absent means no limit. */
+  maxRows?: number;
+  /** Maximum bytes of JSON to return. Absent means no limit. */
+  maxBytes?: number;
 }
 
 export interface JsFilteredResponse {
@@ -120,6 +119,18 @@ export const JS_QUERY_DEFAULTS = {
   /** How long an idle warm context may be reused before it is disposed. */
   WARM_LIBS_TTL_MS: 10 * 60 * 1000,
 } as const;
+
+/**
+ * The caps the MCP tools apply, because their answers are read by a model.
+ *
+ * Defined here from the same constants rather than inline at each call site, so
+ * "what a model gets" is one decision in one place, and the engine keeps no
+ * opinion about it.
+ */
+export const MODEL_FACING_RESULT_LIMITS: QueryExecutionOptions = {
+  maxRows: JS_QUERY_DEFAULTS.MAX_RESULT_ROWS,
+  maxBytes: JS_QUERY_DEFAULTS.MAX_RESULT_BYTES,
+};
 
 /** Type guard to check if a query result contains an error */
 export function isQueryError(result: JsQueryExecutionResult): result is JsQueryErrorResult {

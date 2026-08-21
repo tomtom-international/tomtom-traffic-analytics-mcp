@@ -18,7 +18,12 @@ import { logger } from "../utils/logger";
 import { getAreaAnalyticsStats } from "../services/area-analytics/areaAnalyticsService";
 import { clampEndDate } from "../services/area-analytics/dateWindow";
 import { AreaAnalyticsStatsRequest } from "../services/area-analytics/types";
-import { JsQueryEngine, flattenAreaAnalyticsResults, JsFilteredResponse } from "../query";
+import {
+  JsQueryEngine,
+  MODEL_FACING_RESULT_LIMITS,
+  flattenAreaAnalyticsResults,
+  JsFilteredResponse,
+} from "../query";
 
 /**
  * Handler for getting Area Analytics stats (lite version) with sandboxed JS filtering
@@ -70,7 +75,7 @@ export function getAreaAnalyticsStatsHandler() {
       if (dateWarning) warnings.unshift(dateWarning);
 
       // 4. Execute JS queries
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();

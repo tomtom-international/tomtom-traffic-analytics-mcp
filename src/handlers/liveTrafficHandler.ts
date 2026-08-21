@@ -22,6 +22,7 @@ import {
 import { TrafficFlowSegmentRequest } from "../services/live-traffic/types";
 import {
   JsQueryEngine,
+  MODEL_FACING_RESULT_LIMITS,
   flattenTrafficFlowSegment,
   flattenTrafficIncidents,
   JsFilteredResponse,
@@ -66,7 +67,7 @@ export function getFlowSegmentDataHandler() {
       const warnings = await queryEngine.initialize(flattenedData);
 
       // 4. Execute JS queries
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();
@@ -206,7 +207,7 @@ export function createTrafficIncidentsHandler() {
       });
 
       // 4. Execute JS queries across combined dataset
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();

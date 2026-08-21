@@ -29,7 +29,7 @@ export type {
 } from "./types";
 
 // Values and utilities from types
-export { JS_QUERY_DEFAULTS, isQueryError } from "./types";
+export { JS_QUERY_DEFAULTS, MODEL_FACING_RESULT_LIMITS, isQueryError } from "./types";
 
 // Flatteners
 export {

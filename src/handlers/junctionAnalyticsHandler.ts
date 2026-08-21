@@ -22,6 +22,7 @@ import {
 } from "../services/junction-analytics/junctionAnalyticsService";
 import {
   JsQueryEngine,
+  MODEL_FACING_RESULT_LIMITS,
   flattenJunctionArchive,
   flattenJunctionLiveData,
   flattenJunctionDefinitions,
@@ -71,7 +72,7 @@ export function getJunctionSearchHandler() {
       const warnings = await queryEngine.initialize(flattenedData);
 
       // 4. Execute JS queries
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();
@@ -177,7 +178,7 @@ export function getJunctionLiveDataDetailsHandler() {
       });
 
       // 4. Execute JS queries across combined dataset
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();
@@ -289,7 +290,7 @@ export function getJunctionArchiveHandler() {
       });
 
       // 4. Execute JS queries across combined dataset
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();

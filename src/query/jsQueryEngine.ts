@@ -600,12 +600,10 @@ export class JsQueryEngine {
     try {
       this.compileQuery(source);
 
-      // `Infinity` is a JS literal the guest understands, and every cap check in
-      // __run is a `>` comparison, so it disables them without a second code path.
-      const maxRows = options.untruncated ? "Infinity" : String(JS_QUERY_DEFAULTS.MAX_RESULT_ROWS);
-      const maxBytes = options.untruncated
-        ? "Infinity"
-        : String(JS_QUERY_DEFAULTS.MAX_RESULT_BYTES);
+      // No cap given means no cap: `Infinity` is a literal the guest understands,
+      // and every check in __run is a `>` comparison, so it needs no second path.
+      const maxRows = options.maxRows === undefined ? "Infinity" : String(options.maxRows);
+      const maxBytes = options.maxBytes === undefined ? "Infinity" : String(options.maxBytes);
       const result = context.evalCode(`__run(__query, ${maxRows}, ${maxBytes})`);
       if (result.error) {
         const detail = describeError(context, result.error);

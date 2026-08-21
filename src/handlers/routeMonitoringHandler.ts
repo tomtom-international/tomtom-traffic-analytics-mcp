@@ -18,6 +18,7 @@ import { logger } from "../utils/logger";
 import { getRoutes, getRouteDetails } from "../services/route-monitoring/routeMonitoringService";
 import {
   JsQueryEngine,
+  MODEL_FACING_RESULT_LIMITS,
   flattenRouteMonitoringDetails,
   flattenRouteList,
   JsFilteredResponse,
@@ -72,7 +73,7 @@ function createRouteSearchHandler() {
       const warnings = await queryEngine.initialize(flattenedData);
 
       // 4. Execute JS queries
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();
@@ -177,7 +178,7 @@ function createGetRouteDetailsHandler() {
       });
 
       // 4. Execute JS queries across combined dataset
-      const queryResults = await queryEngine.executeQueries(js_queries);
+      const queryResults = await queryEngine.executeQueries(js_queries, MODEL_FACING_RESULT_LIMITS);
 
       // 5. Describe the loaded datasets for metadata
       const shapes = queryEngine.getDatasetShapes();

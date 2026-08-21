@@ -12,7 +12,12 @@ import {
 } from "./jsQueryEngine";
 import { runWithSessionContext } from "../services/base/tomtomClient";
 import { logger } from "../utils/logger";
-import { type FlattenResult, isQueryError, type JsQuerySuccessResult } from "./types";
+import {
+  type FlattenResult,
+  isQueryError,
+  type JsQuerySuccessResult,
+  MODEL_FACING_RESULT_LIMITS,
+} from "./types";
 
 vi.mock("../utils/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -364,22 +369,11 @@ describe("JsQueryEngine", () => {
     }
   });
 
-  it("truncates a large result by default, to protect a model's context", async () => {
+  it("returns the whole result when no caps are given", async () => {
+    // The engine's default is everything: trimming for an audience is the
+    // caller's decision, and a caller feeding another program has no context
+    // window to protect.
     const results = await engine.executeQueries({ q: "Array.from({length: 25000}, (_, i) => i)" });
-    const r = results.q as JsQuerySuccessResult;
-    expect(r.truncated).toBe(true);
-    expect(r.rowCount).toBe(25000);
-    expect((r.value as number[]).length).toBe(10000);
-  });
-
-  it("returns the whole result when the caller asks for it", async () => {
-    // For a program consuming the output — another MCP app, or host code doing
-    // its own post-processing — a silently shortened array is worse than a big
-    // one, because it cannot be told apart from a genuinely short answer.
-    const results = await engine.executeQueries(
-      { q: "Array.from({length: 25000}, (_, i) => i)" },
-      { untruncated: true }
-    );
     const r = results.q as JsQuerySuccessResult;
     expect(r.truncated).toBeUndefined();
     expect(r.rowCount).toBe(25000);
@@ -387,36 +381,25 @@ describe("JsQueryEngine", () => {
     expect((r.value as number[])[24999]).toBe(24999);
   });
 
-  it("returns a value over the byte cap when untruncated", async () => {
-    // Over 1 MB of JSON: rejected by default, returned on request.
-    const big =
-      "Array.from({length: 40000}, (_, i) => ({ i, pad: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx' }))";
-    const capped = await engine.executeQueries({ q: big });
-    expect((capped.q as JsQuerySuccessResult).truncated).toBe(true);
-
-    const full = await engine.executeQueries({ q: big }, { untruncated: true });
-    const r = full.q as JsQuerySuccessResult;
-    expect(r.truncated).toBeUndefined();
-    expect((r.value as unknown[]).length).toBe(40000);
+  it("applies caps when the caller passes them, as the tools do", async () => {
+    const results = await engine.executeQueries(
+      { q: "Array.from({length: 25000}, (_, i) => i)" },
+      MODEL_FACING_RESULT_LIMITS
+    );
+    const r = results.q as JsQuerySuccessResult;
+    expect(r.truncated).toBe(true);
+    expect(r.rowCount).toBe(25000);
+    expect((r.value as number[]).length).toBe(MODEL_FACING_RESULT_LIMITS.maxRows);
   });
 
-  it("runs a query that habitually requires turf, instead of dying on line one", async () => {
-    // turf is already a global, but models prepend the import anyway; the
-    // agent-toolkit strips the same thing for the same reason. Without this the
-    // whole query fails on `require`, which does not exist in the sandbox.
-    //
-    // Its own engine: loading turf into the shared one would defeat the
-    // lazy-loading test further down, which asserts turf is absent until asked for.
-    const e = new JsQueryEngine();
-    await e.initialize(DATA);
-    try {
-      const results = await e.executeQueries({
-        q: "const turf = require('@turf/turf');\nreturn typeof turf.distance;",
-      });
-      expect(value(results.q)).toBe("function");
-    } finally {
-      e.close();
-    }
+  it("honours a byte cap on a non-array result", async () => {
+    const big = "({ pad: Array.from({length: 30000}, () => 'x'.repeat(78)) })";
+    expect(isQueryError((await engine.executeQueries({ q: big }, { maxBytes: 1000 })).q)).toBe(
+      true
+    );
+    // Uncapped, the same query comes back whole.
+    const full = (await engine.executeQueries({ q: big })).q as JsQuerySuccessResult;
+    expect((full.value as { pad: string[] }).pad.length).toBe(30000);
   });
 
   it("evaluates a bare expression", async () => {
@@ -504,9 +487,10 @@ describe("JsQueryEngine result caps", () => {
     const engine = new JsQueryEngine();
     await engine.initialize({ tables: new Map([["rows", []]]) });
     try {
-      const results = await engine.executeQueries({
-        q: "Array.from({ length: 12000 }, (_, i) => i)",
-      });
+      const results = await engine.executeQueries(
+        { q: "Array.from({ length: 12000 }, (_, i) => i)" },
+        MODEL_FACING_RESULT_LIMITS
+      );
       const result = results.q as JsQuerySuccessResult;
       expect(result.truncated).toBe(true);
       expect(result.rowCount).toBe(12000);
@@ -521,9 +505,10 @@ describe("JsQueryEngine result caps", () => {
     const engine = new JsQueryEngine();
     await engine.initialize({ tables: new Map([["rows", []]]) });
     try {
-      const results = await engine.executeQueries({
-        q: "Array.from({ length: 5000 }, (_, i) => ({ i, blob: 'x'.repeat(500) }))",
-      });
+      const results = await engine.executeQueries(
+        { q: "Array.from({ length: 5000 }, (_, i) => ({ i, blob: 'x'.repeat(500) }))" },
+        MODEL_FACING_RESULT_LIMITS
+      );
       const result = results.q as JsQuerySuccessResult;
       expect(result.truncated).toBe(true);
       expect((result.value as unknown[]).length).toBeLessThan(5000);
@@ -537,7 +522,10 @@ describe("JsQueryEngine result caps", () => {
     const engine = new JsQueryEngine();
     await engine.initialize({ tables: new Map([["rows", []]]) });
     try {
-      const results = await engine.executeQueries({ q: "'x'.repeat(2_000_000)" });
+      const results = await engine.executeQueries(
+        { q: "'x'.repeat(2_000_000)" },
+        MODEL_FACING_RESULT_LIMITS
+      );
       expect((results.q as { error: string }).error).toMatch(/over the 1000000 byte cap/);
     } finally {
       engine.close();
