@@ -634,8 +634,12 @@ export class JsQueryEngine {
    * offered to the parser and the one that compiles wins. Defining a function
    * only compiles its body, so the fallback costs a parse, never an execution.
    */
-  private compileQuery(source: string): void {
+  private compileQuery(rawSource: string): void {
     const context = this.requireContext();
+    const source = stripInjectedLibraryImports(rawSource);
+    if (source !== rawSource) {
+      logger.debug("Stripped a require/import of an injected library from a query");
+    }
 
     const bindable = this.datasetNames.filter((name) => this.injected.has(name));
     const asExpression = context.evalCode(buildWrapper(source, bindable, "expression"));
@@ -808,6 +812,50 @@ function collectFields(rows: Record<string, unknown>[]): string[] {
  * the returned value; in "statements" mode it is the function body and has to
  * return for itself.
  */
+/**
+ * Names the sandbox provides as globals, and which a query therefore must not
+ * try to import.
+ */
+const INJECTED_LIBRARIES = ["turf", "h3"];
+
+/**
+ * Remove habitual `require`/`import` of the injected libraries.
+ *
+ * turf and h3 are already globals, but models routinely prepend
+ * `const turf = require('@turf/turf')` anyway. In this sandbox there is no
+ * `require`, so an otherwise-correct query dies on its first line. The
+ * agent-toolkit hit the same thing with the same libraries and strips these
+ * too — worth borrowing rather than rediscovering.
+ *
+ * Deliberately narrow, for the reason their comment records: match only when
+ * the right-hand side is a `require(...)` or `import(...)` of a module, and only
+ * for the names the sandbox actually injects. A filter on the name alone would
+ * also delete a legitimate `const turf = …` that a query computed for itself,
+ * corrupting the body into a far less explicable error than the one it fixed.
+ */
+export function stripInjectedLibraryImports(source: string): string {
+  const names = INJECTED_LIBRARIES.join("|");
+  return (
+    source
+      // const turf = require('@turf/turf');  |  let h3 = await import("h3-js")
+      .replace(
+        new RegExp(
+          `(^|[;\\n])[ \\t]*(?:const|let|var)[ \\t]+(?:${names})[ \\t]*=[ \\t]*(?:await[ \\t]+)?(?:require|import)\\s*\\([^)]*\\)[ \\t]*;?`,
+          "g"
+        ),
+        "$1"
+      )
+      // import turf from '@turf/turf';  |  import * as h3 from 'h3-js'
+      .replace(
+        new RegExp(
+          `(^|[;\\n])[ \\t]*import[ \\t]+(?:\\*[ \\t]+as[ \\t]+)?(?:${names})[ \\t]+from[ \\t]*['"\`][^'"\`]*['"\`][ \\t]*;?`,
+          "g"
+        ),
+        "$1"
+      )
+  );
+}
+
 export function buildWrapper(
   source: string,
   datasetNames: string[],

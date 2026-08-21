@@ -4,7 +4,12 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearSandboxPoolForTests, JsQueryEngine, buildWrapper } from "./jsQueryEngine";
+import {
+  buildWrapper,
+  clearSandboxPoolForTests,
+  JsQueryEngine,
+  stripInjectedLibraryImports,
+} from "./jsQueryEngine";
 import { runWithSessionContext } from "../services/base/tomtomClient";
 import { logger } from "../utils/logger";
 import { type FlattenResult, isQueryError, type JsQuerySuccessResult } from "./types";
@@ -395,6 +400,25 @@ describe("JsQueryEngine", () => {
     expect((r.value as unknown[]).length).toBe(40000);
   });
 
+  it("runs a query that habitually requires turf, instead of dying on line one", async () => {
+    // turf is already a global, but models prepend the import anyway; the
+    // agent-toolkit strips the same thing for the same reason. Without this the
+    // whole query fails on `require`, which does not exist in the sandbox.
+    //
+    // Its own engine: loading turf into the shared one would defeat the
+    // lazy-loading test further down, which asserts turf is absent until asked for.
+    const e = new JsQueryEngine();
+    await e.initialize(DATA);
+    try {
+      const results = await e.executeQueries({
+        q: "const turf = require('@turf/turf');\nreturn typeof turf.distance;",
+      });
+      expect(value(results.q)).toBe("function");
+    } finally {
+      e.close();
+    }
+  });
+
   it("evaluates a bare expression", async () => {
     const results = await engine.executeQueries({ q: "approaches.length" });
     expect(value(results.q)).toBe(3);
@@ -564,5 +588,36 @@ describe("JsQueryEngine expression/statement handling", () => {
   it("reports a syntax error that is invalid in both forms", async () => {
     const results = await engine.executeQueries({ q: "approaches.filter(" });
     expect((results.q as { error: string }).error).toMatch(/SyntaxError|unexpected/i);
+  });
+});
+
+describe("stripInjectedLibraryImports", () => {
+  it("removes the import forms models reach for", () => {
+    for (const source of [
+      "const turf = require('@turf/turf');\nreturn 1;",
+      'const h3 = require("h3-js"); return 1;',
+      "let turf = await import('@turf/turf');\nreturn 1;",
+      "import turf from '@turf/turf';\nreturn 1;",
+      "import * as h3 from 'h3-js';\nreturn 1;",
+    ]) {
+      expect(stripInjectedLibraryImports(source)).not.toMatch(/require|import/);
+    }
+  });
+
+  it("leaves a legitimate variable that happens to share the name", () => {
+    // The trap the agent-toolkit's comment warns about: a name-only filter would
+    // delete this, turning a working query into an inexplicable one.
+    const source = "const turf = rows.map(r => r.geom); return turf.length;";
+    expect(stripInjectedLibraryImports(source)).toBe(source);
+  });
+
+  it("leaves names that merely begin with an injected one", () => {
+    const source = "const turfed = rows.map(r => r.x); return turfed.length;";
+    expect(stripInjectedLibraryImports(source)).toBe(source);
+  });
+
+  it("leaves the text alone inside a string literal", () => {
+    const source = "return \"const turf = require('@turf/turf')\";";
+    expect(stripInjectedLibraryImports(source)).toBe(source);
   });
 });
