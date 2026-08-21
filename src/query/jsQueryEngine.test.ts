@@ -146,6 +146,127 @@ describe("JsQueryEngine sandbox reuse", () => {
   });
 });
 
+describe("JsQueryEngine warm library pool", () => {
+  const FLAG = "TOMTOM_MCP_SANDBOX_WARM_LIBS";
+  /** A second dataset with different contents, to prove data does not carry over. */
+  const OTHER: FlattenResult = {
+    tables: new Map<string, Record<string, unknown>[]>([
+      ["approaches", [{ junction_id: "OTHER", approach_id: 9, delay_sec: 1 }]],
+    ]),
+  };
+
+  beforeEach(() => {
+    process.env[FLAG] = "1";
+    clearSandboxPoolForTests();
+    vi.mocked(logger.debug).mockClear();
+  });
+
+  afterEach(() => {
+    delete process.env[FLAG];
+    clearSandboxPoolForTests();
+  });
+
+  it("is off unless the flag is set", async () => {
+    delete process.env[FLAG];
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    first.close();
+
+    vi.mocked(logger.debug).mockClear();
+    const second = new JsQueryEngine();
+    await second.initialize(DATA);
+    try {
+      expect(logger.debug).not.toHaveBeenCalledWith(
+        expect.stringContaining("Reused a warm sandbox")
+      );
+    } finally {
+      second.close();
+    }
+  });
+
+  it("hands the same context to the next request, libraries and all", async () => {
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    // Referencing turf forces the bundle to be evaluated, which is the cost
+    // this pool exists to avoid paying twice.
+    await first.executeQueries({ q: "typeof turf.distance" });
+    first.close();
+
+    vi.mocked(logger.debug).mockClear();
+    const second = new JsQueryEngine();
+    await second.initialize(OTHER);
+    try {
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Reused a warm sandbox"));
+      // Still usable, and turf is still there without being re-evaluated.
+      expect(value((await second.executeQueries({ q: "typeof turf.distance" })).q)).toBe(
+        "function"
+      );
+    } finally {
+      second.close();
+    }
+  });
+
+  it("does not carry the previous request's data into the next one", async () => {
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    expect(value((await first.executeQueries({ q: "approaches.length" })).q)).toBe(3);
+    first.close();
+
+    const second = new JsQueryEngine();
+    await second.initialize(OTHER);
+    try {
+      // The context is shared; the data must not be. A stale row count here
+      // would mean one caller answering from another caller's data.
+      expect(value((await second.executeQueries({ q: "approaches.length" })).q)).toBe(1);
+      expect(value((await second.executeQueries({ q: "approaches[0].junction_id" })).q)).toBe(
+        "OTHER"
+      );
+    } finally {
+      second.close();
+    }
+  });
+
+  it("still keeps guest globals from leaking into the next request", async () => {
+    const first = new JsQueryEngine();
+    await first.initialize(DATA);
+    await first.executeQueries({ q: "globalThis.stash = 'secret'; return 1;" });
+    first.close();
+
+    const second = new JsQueryEngine();
+    await second.initialize(OTHER);
+    try {
+      expect(value((await second.executeQueries({ q: "typeof globalThis.stash" })).q)).toBe(
+        "undefined"
+      );
+    } finally {
+      second.close();
+    }
+  });
+
+  it("never shares a warm context between different credentials", async () => {
+    await runWithSessionContext("tenant-a-move", "tenant-a", async () => {
+      const e = new JsQueryEngine();
+      await e.initialize(DATA);
+      e.close();
+    });
+
+    vi.mocked(logger.debug).mockClear();
+    await runWithSessionContext("tenant-b-move", "tenant-b", async () => {
+      const e = new JsQueryEngine();
+      await e.initialize(DATA);
+      try {
+        // Sharing across tenants would let one tenant's mutation of a guest
+        // built-in reach another — a regression, not a weaker guarantee.
+        expect(logger.debug).not.toHaveBeenCalledWith(
+          expect.stringContaining("Reused a warm sandbox")
+        );
+      } finally {
+        e.close();
+      }
+    });
+  });
+});
+
 describe("JsQueryEngine", () => {
   let engine: JsQueryEngine;
 

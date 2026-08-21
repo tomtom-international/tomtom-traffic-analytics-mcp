@@ -88,6 +88,36 @@ interface PooledSandbox {
 
 const sandboxPool = new Map<string, PooledSandbox>();
 
+/**
+ * Contexts kept warm for their *libraries* rather than their data.
+ *
+ * turf costs ~98ms to evaluate and h3 ~46ms, and neither ever varies, while the
+ * data varies on every request. Keeping a context whose prelude and bundles are
+ * already evaluated and marshalling only the data takes a geospatial request
+ * from ~237ms to ~68ms. That hits on nearly every such request, where
+ * `sandboxPool` only hits on a repeated identical one.
+ *
+ * Keyed by credentials alone. It has to be: sharing one context between tenants
+ * would let a query's mutation of a guest built-in reach another tenant, which
+ * is a regression rather than a weaker guarantee. Within one tenant it is the
+ * same trade `sandboxPool` already makes.
+ */
+const warmLibraryPool = new Map<string, PooledSandbox>();
+
+function warmLibsEnabled(): boolean {
+  const flag = process.env[JS_QUERY_DEFAULTS.WARM_LIBS_ENABLED_ENV];
+  return flag === "1" || flag === "true";
+}
+
+/** Identity of the caller, with no data in it — the warm pool's key. */
+function credentialFingerprint(): string {
+  return createHash("sha1")
+    .update(getEffectiveMovePortalKey() ?? "")
+    .update("\u0000")
+    .update(getEffectiveApiKey() ?? "")
+    .digest("hex");
+}
+
 function reuseEnabled(): boolean {
   const flag = process.env[JS_QUERY_DEFAULTS.REUSE_ENABLED_ENV];
   return flag === "1" || flag === "true";
@@ -135,6 +165,25 @@ function evictSandboxes(): void {
   }
 }
 
+/** Same policy as evictSandboxes, over the warm pool's own caps. */
+function evictWarmSandboxes(): void {
+  const now = Date.now();
+  for (const [key, entry] of warmLibraryPool) {
+    if (!entry.inUse && entry.expiresAt <= now) {
+      disposeSandbox(entry);
+      warmLibraryPool.delete(key);
+    }
+  }
+  while (warmLibraryPool.size > JS_QUERY_DEFAULTS.WARM_LIBS_MAX_SANDBOXES) {
+    const victim = [...warmLibraryPool.entries()]
+      .filter(([, entry]) => !entry.inUse)
+      .sort((a, b) => a[1].expiresAt - b[1].expiresAt)[0];
+    if (!victim) return;
+    disposeSandbox(victim[1]);
+    warmLibraryPool.delete(victim[0]);
+  }
+}
+
 function disposeSandbox(entry: PooledSandbox): void {
   try {
     entry.context.dispose();
@@ -146,9 +195,11 @@ function disposeSandbox(entry: PooledSandbox): void {
 
 /** Empty the pool. Test-only seam, and a clean shutdown hook. */
 export function clearSandboxPoolForTests(): void {
-  for (const [key, entry] of sandboxPool) {
-    disposeSandbox(entry);
-    sandboxPool.delete(key);
+  for (const pool of [sandboxPool, warmLibraryPool]) {
+    for (const [key, entry] of pool) {
+      disposeSandbox(entry);
+      pool.delete(key);
+    }
   }
 }
 
@@ -244,6 +295,8 @@ export class JsQueryEngine {
   private baselineGlobals: string[] = [];
   /** Pool key, set only when this engine's sandbox is eligible for reuse. */
   private poolKey: string | null = null;
+  /** Warm-pool key, set when this sandbox may be handed on with its libraries. */
+  private warmKey: string | null = null;
   /** Pre-serialised datasets, kept so a pool miss does not stringify twice. */
   private datasetJson: Record<string, string> = {};
   /** Warnings belonging to the sandbox, so a reusing caller gets the same ones. */
@@ -271,15 +324,7 @@ export class JsQueryEngine {
       }
     }
 
-    const wasmModule = await getWasmModule();
-    this.runtime = wasmModule.newRuntime();
-    this.runtime.setMemoryLimit(JS_QUERY_DEFAULTS.MEMORY_LIMIT_BYTES);
-    this.runtime.setMaxStackSize(JS_QUERY_DEFAULTS.MAX_STACK_SIZE_BYTES);
-    this.context = this.runtime.newContext();
-
-    logger.debug(`QuickJS sandbox created in ${Date.now() - startTime}ms`);
-
-    this.evalOrThrow(PRELUDE, "sandbox prelude");
+    if (!this.adoptWarmSandbox()) await this.createSandbox(startTime);
 
     // Describe the data host-side: the shapes are cheap to compute here and are
     // returned in the response so a model that guessed a field name wrong can
@@ -310,6 +355,41 @@ export class JsQueryEngine {
     this.captureBaselineGlobals();
     this.pooledWarnings = warnings;
     return warnings;
+  }
+
+  /**
+   * Take a context whose prelude and libraries are already evaluated, if one is
+   * free for this caller. Returns false when the warm pool is off or empty.
+   *
+   * ~144ms of turf and h3 parsing that would otherwise be repeated. The data
+   * was deleted when the context was pooled, so only this request's data is
+   * marshalled into it.
+   */
+  private adoptWarmSandbox(): boolean {
+    if (!warmLibsEnabled()) return false;
+    this.warmKey = credentialFingerprint();
+    const warm = warmLibraryPool.get(this.warmKey);
+    if (!warm || warm.inUse || warm.expiresAt <= Date.now()) return false;
+
+    warm.inUse = true;
+    this.runtime = warm.runtime;
+    this.context = warm.context;
+    this.librariesLoaded = warm.librariesLoaded;
+    const loaded = this.librariesLoaded.size ? [...this.librariesLoaded].join(", ") : "no";
+    logger.debug(`Reused a warm sandbox (${loaded} libraries already evaluated)`);
+    return true;
+  }
+
+  /** Build a context from scratch and evaluate the prelude into it. */
+  private async createSandbox(startTime: number): Promise<void> {
+    const wasmModule = await getWasmModule();
+    this.runtime = wasmModule.newRuntime();
+    this.runtime.setMemoryLimit(JS_QUERY_DEFAULTS.MEMORY_LIMIT_BYTES);
+    this.runtime.setMaxStackSize(JS_QUERY_DEFAULTS.MAX_STACK_SIZE_BYTES);
+    this.context = this.runtime.newContext();
+
+    logger.debug(`QuickJS sandbox created in ${Date.now() - startTime}ms`);
+    this.evalOrThrow(PRELUDE, "sandbox prelude");
   }
 
   /** Take over a pooled sandbox's state. The handle is new; the sandbox is not. */
@@ -608,6 +688,9 @@ export class JsQueryEngine {
         this.runtime = null;
         this.context = null;
         this.poolKey = null;
+        // The data pool keeps the libraries too, so there is nothing left for
+        // the warm pool to hold on to.
+        this.warmKey = null;
         this.datasetJson = {};
         evictSandboxes();
         return;
@@ -617,6 +700,41 @@ export class JsQueryEngine {
         logger.warn(`Sandbox reset failed, disposing instead of pooling: ${String(error)}`);
         this.poolKey = null;
         sandboxPool.delete(poolKey);
+      }
+    }
+
+    // No exact-data reuse, but the libraries in this context are still worth
+    // keeping. The data goes; `__datasets` is deleted outright rather than left
+    // for the next caller, who has different data and no business seeing this.
+    const warmKey = this.warmKey;
+    if (warmKey && this.runtime && this.context) {
+      try {
+        this.resetUserGlobals();
+        this.evalOrThrow("delete globalThis.__datasets;", "warm sandbox data eviction");
+        warmLibraryPool.set(warmKey, {
+          runtime: this.runtime,
+          context: this.context,
+          shapes: {},
+          datasetNames: [],
+          datasets: {},
+          injected: new Set<string>(),
+          librariesLoaded: this.librariesLoaded,
+          baselineGlobals: this.baselineGlobals,
+          warnings: [],
+          inUse: false,
+          expiresAt: Date.now() + JS_QUERY_DEFAULTS.WARM_LIBS_TTL_MS,
+        });
+        this.runtime = null;
+        this.context = null;
+        this.warmKey = null;
+        this.datasets = {};
+        this.datasetJson = {};
+        evictWarmSandboxes();
+        return;
+      } catch (error) {
+        logger.warn(`Warm sandbox reset failed, disposing instead of pooling: ${String(error)}`);
+        this.warmKey = null;
+        warmLibraryPool.delete(warmKey);
       }
     }
 

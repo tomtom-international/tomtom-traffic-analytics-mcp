@@ -84,6 +84,20 @@ export const JS_QUERY_DEFAULTS = {
   REUSE_MAX_SANDBOXES: 2,
   /** How long an idle sandbox may be reused before it is disposed. */
   REUSE_TTL_MS: 5 * 60 * 1000,
+  /**
+   * Keep the *libraries* warm across requests, without keeping the data.
+   *
+   * Separate from REUSE because the profiles differ: this one hits on nearly
+   * every geospatial request (turf and h3 never vary, the data always does)
+   * and holds both bundles resident, where REUSE hits only on a repeated
+   * identical request and holds a dataset. OFF by default — a shared context
+   * is a weaker guarantee than a fresh one either way.
+   */
+  WARM_LIBS_ENABLED_ENV: "TOMTOM_MCP_SANDBOX_WARM_LIBS",
+  /** Warm contexts kept alive. Each holds turf and h3, so this costs memory. */
+  WARM_LIBS_MAX_SANDBOXES: 2,
+  /** How long an idle warm context may be reused before it is disposed. */
+  WARM_LIBS_TTL_MS: 10 * 60 * 1000,
 } as const;
 
 /** Type guard to check if a query result contains an error */
