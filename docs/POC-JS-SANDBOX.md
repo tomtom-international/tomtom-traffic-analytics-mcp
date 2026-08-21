@@ -98,7 +98,15 @@ matters:
   free, and calling it immaterial would overstate the case.
 
 Library injection is lazy, triggered by a `turf.` / `h3.` reference in the query source:
-turf costs ~100 ms to evaluate, h3 ~75 ms, and purely tabular queries pay neither.
+turf costs ~98 ms to evaluate, h3 ~46 ms, and purely tabular queries pay neither.
+
+Staged against a 4.77 MB payload, the per-request costs are prelude 3.8 ms, turf 97.5 ms, h3
+45.6 ms, data 89.8 ms — so on a geospatial query the libraries cost more than the data, and
+they never vary while the data always does. `TOMTOM_MCP_SANDBOX_WARM_LIBS=1` keeps contexts
+with the bundles already evaluated and drops only the data between requests (1.7 ms), taking a
+turf query from 230 ms to 144 ms. It is off by default and keyed by credentials, for the same
+reason as the sandbox pool: a shared context cannot undo a query's mutation of the guest's own
+built-ins, so it must never be shared across tenants.
 
 ### Token cost — the clearest regression
 
