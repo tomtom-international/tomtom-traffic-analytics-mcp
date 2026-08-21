@@ -45,6 +45,27 @@ export interface JsQueryErrorResult {
 
 export type JsQueryExecutionResult = JsQuerySuccessResult | JsQueryErrorResult;
 
+/**
+ * How much of a query's result to return.
+ *
+ * The row and byte caps exist to protect an LLM's context window, which is the
+ * right default when the tool's answer goes straight to a model. It is the wrong
+ * default when the consumer is a program — another MCP app, or host code that
+ * wants to post-process the whole thing — because a silently truncated array is
+ * indistinguishable from a short one. `untruncated` lifts both caps for callers
+ * who can afford the size.
+ */
+export interface QueryExecutionOptions {
+  /**
+   * Return the complete value, with no row or byte cap.
+   *
+   * Bounded only by the sandbox heap and by what `JSON.stringify` can build, so
+   * a caller asking for this takes on the memory cost of whatever the query
+   * selects.
+   */
+  untruncated?: boolean;
+}
+
 export interface JsFilteredResponse {
   metadata: {
     tool: string;

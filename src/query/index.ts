@@ -25,6 +25,7 @@ export type {
   JsQueryErrorResult,
   JsQueryExecutionResult,
   JsFilteredResponse,
+  QueryExecutionOptions,
 } from "./types";
 
 // Values and utilities from types

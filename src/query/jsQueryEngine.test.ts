@@ -359,6 +359,42 @@ describe("JsQueryEngine", () => {
     }
   });
 
+  it("truncates a large result by default, to protect a model's context", async () => {
+    const results = await engine.executeQueries({ q: "Array.from({length: 25000}, (_, i) => i)" });
+    const r = results.q as JsQuerySuccessResult;
+    expect(r.truncated).toBe(true);
+    expect(r.rowCount).toBe(25000);
+    expect((r.value as number[]).length).toBe(10000);
+  });
+
+  it("returns the whole result when the caller asks for it", async () => {
+    // For a program consuming the output — another MCP app, or host code doing
+    // its own post-processing — a silently shortened array is worse than a big
+    // one, because it cannot be told apart from a genuinely short answer.
+    const results = await engine.executeQueries(
+      { q: "Array.from({length: 25000}, (_, i) => i)" },
+      { untruncated: true }
+    );
+    const r = results.q as JsQuerySuccessResult;
+    expect(r.truncated).toBeUndefined();
+    expect(r.rowCount).toBe(25000);
+    expect((r.value as number[]).length).toBe(25000);
+    expect((r.value as number[])[24999]).toBe(24999);
+  });
+
+  it("returns a value over the byte cap when untruncated", async () => {
+    // Over 1 MB of JSON: rejected by default, returned on request.
+    const big =
+      "Array.from({length: 40000}, (_, i) => ({ i, pad: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx' }))";
+    const capped = await engine.executeQueries({ q: big });
+    expect((capped.q as JsQuerySuccessResult).truncated).toBe(true);
+
+    const full = await engine.executeQueries({ q: big }, { untruncated: true });
+    const r = full.q as JsQuerySuccessResult;
+    expect(r.truncated).toBeUndefined();
+    expect((r.value as unknown[]).length).toBe(40000);
+  });
+
   it("evaluates a bare expression", async () => {
     const results = await engine.executeQueries({ q: "approaches.length" });
     expect(value(results.q)).toBe(3);

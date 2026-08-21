@@ -30,6 +30,7 @@ import {
   JS_QUERY_DEFAULTS,
   type JsQueryExecutionResult,
   type JsQuerySuccessResult,
+  type QueryExecutionOptions,
 } from "./types";
 import { H3_BUNDLE_BASE64 } from "./vendor/h3Bundle";
 import { TURF_BUNDLE_BASE64 } from "./vendor/turfBundle";
@@ -561,7 +562,8 @@ export class JsQueryEngine {
    * the others still run, matching the behaviour callers relied on before.
    */
   async executeQueries(
-    queries: Record<string, string>
+    queries: Record<string, string>,
+    options: QueryExecutionOptions = {}
   ): Promise<Record<string, JsQueryExecutionResult>> {
     const sources = Object.values(queries).join("\n");
     this.ensureDatasets(sources);
@@ -571,7 +573,7 @@ export class JsQueryEngine {
     const results: Record<string, JsQueryExecutionResult> = {};
     for (const [name, source] of Object.entries(queries)) {
       try {
-        results[name] = this.executeQuery(source);
+        results[name] = this.executeQuery(source, options);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         results[name] = { error: errorMessage };
@@ -581,7 +583,7 @@ export class JsQueryEngine {
     return results;
   }
 
-  private executeQuery(source: string): JsQuerySuccessResult {
+  private executeQuery(source: string, options: QueryExecutionOptions = {}): JsQuerySuccessResult {
     const context = this.requireContext();
     const runtime = this.requireRuntime();
 
@@ -598,9 +600,13 @@ export class JsQueryEngine {
     try {
       this.compileQuery(source);
 
-      const result = context.evalCode(
-        `__run(__query, ${JS_QUERY_DEFAULTS.MAX_RESULT_ROWS}, ${JS_QUERY_DEFAULTS.MAX_RESULT_BYTES})`
-      );
+      // `Infinity` is a JS literal the guest understands, and every cap check in
+      // __run is a `>` comparison, so it disables them without a second code path.
+      const maxRows = options.untruncated ? "Infinity" : String(JS_QUERY_DEFAULTS.MAX_RESULT_ROWS);
+      const maxBytes = options.untruncated
+        ? "Infinity"
+        : String(JS_QUERY_DEFAULTS.MAX_RESULT_BYTES);
+      const result = context.evalCode(`__run(__query, ${maxRows}, ${maxBytes})`);
       if (result.error) {
         const detail = describeError(context, result.error);
         result.error.dispose();
